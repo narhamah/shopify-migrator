@@ -26,6 +26,7 @@ METAOBJECT_DEFINITIONS = [
         "type": "benefit",
         "name": "Benefit",
         "access": {"storefront": "PUBLIC_READ"},
+        "displayNameKey": "title",
         "fieldDefinitions": [
             {"key": "title", "name": "Title", "type": "single_line_text_field",
              "validations": [{"name": "min", "value": "1"}]},
@@ -38,6 +39,7 @@ METAOBJECT_DEFINITIONS = [
         "type": "faq_entry",
         "name": "FAQ Entry",
         "access": {"storefront": "PUBLIC_READ"},
+        "displayNameKey": "question",
         "fieldDefinitions": [
             {"key": "question", "name": "Question", "type": "single_line_text_field",
              "validations": [{"name": "min", "value": "1"}]},
@@ -48,6 +50,7 @@ METAOBJECT_DEFINITIONS = [
         "type": "blog_author",
         "name": "Blog Author",
         "access": {"storefront": "PUBLIC_READ"},
+        "displayNameKey": "name",
         "fieldDefinitions": [
             {"key": "name", "name": "Name", "type": "single_line_text_field",
              "validations": [{"name": "min", "value": "1"}]},
@@ -211,6 +214,20 @@ def main():
                         break
         except Exception as e:
             print(f"{label} — error: {e}")
+
+    # Ensure displayNameKey is set on existing definitions
+    if not args.dry_run:
+        for defn in METAOBJECT_DEFINITIONS:
+            mo_type = defn["type"]
+            display_key = defn.get("displayNameKey")
+            if display_key and mo_type in existing_mo_defs:
+                def_id = existing_mo_defs[mo_type]["id"]
+                try:
+                    client.update_metaobject_definition(def_id, {"displayNameKey": display_key})
+                    print(f"  {mo_type} — set displayNameKey to '{display_key}'")
+                except Exception as e:
+                    if "already" not in str(e).lower():
+                        print(f"  {mo_type} — displayNameKey update failed: {e}")
 
     # ==========================================================
     # 2. Product metafield definitions

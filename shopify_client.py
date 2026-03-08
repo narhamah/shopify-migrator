@@ -245,6 +245,28 @@ class ShopifyClient:
             raise Exception(f"MetaobjectDefinitionCreate errors: {errors}")
         return result["metaobjectDefinition"]
 
+    def update_metaobject_definition(self, definition_id, update_data):
+        """Update an existing metaobject definition (e.g. set displayNameKey)."""
+        query = """
+        mutation UpdateMetaobjectDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition {
+              id
+              type
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"id": definition_id, "definition": update_data})
+        result = data["metaobjectDefinitionUpdate"]
+        if result["userErrors"]:
+            raise Exception(f"MetaobjectDefinitionUpdate errors: {result['userErrors']}")
+        return result["metaobjectDefinition"]
+
     def create_metaobject(self, metaobject_data):
         """Create a metaobject instance."""
         query = """
