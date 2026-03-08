@@ -6,14 +6,17 @@ store views, then updates already-imported Shopify products with the correct
 image URLs and alt text.
 
 Usage:
+    # Discover available store codes on both sites
+    python fix_images.py --discover
+
     # Preview what would change (dry run)
     python fix_images.py --dry-run
 
     # Update images on Shopify products
     python fix_images.py
 
-    # Use a different Magento site/store codes
-    python fix_images.py --site https://taraformula.com --en-store sa-en --ar-store sa-ar
+    # Use different Magento sites/store codes
+    python fix_images.py --en-site https://taraformula.com --en-store sa-en --ar-site https://taraformula.ae --ar-store sa-ar
 
     # Only update local data files (don't touch Shopify)
     python fix_images.py --local-only
@@ -413,8 +416,10 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without modifying Shopify")
     parser.add_argument("--local-only", action="store_true", help="Only update local data files")
     parser.add_argument("--discover", action="store_true", help="List available Magento store views and compare images")
-    parser.add_argument("--site", default="https://taraformula.com",
-                        help="Magento site URL (default: https://taraformula.com)")
+    parser.add_argument("--en-site", default="https://taraformula.com",
+                        help="English Magento site URL (default: https://taraformula.com)")
+    parser.add_argument("--ar-site", default="https://taraformula.ae",
+                        help="Arabic Magento site URL (default: https://taraformula.ae)")
     parser.add_argument("--en-store", default="sa-en",
                         help="English store code (default: sa-en)")
     parser.add_argument("--ar-store", default="sa-ar",
@@ -426,17 +431,21 @@ def main():
     session.headers.update(HEADERS)
 
     if args.discover:
-        discover_store_codes(session, args.site)
-        compare_images(session, args.site, args.en_store, args.ar_store)
+        print("=== English site ===")
+        discover_store_codes(session, args.en_site)
+        if args.ar_site != args.en_site:
+            print(f"\n=== Arabic site ===")
+            discover_store_codes(session, args.ar_site)
+        compare_images(session, args.en_site, args.en_store, args.ar_store)
         return
 
     # Fetch English images
-    en_images = fetch_all_product_images(session, args.site, args.en_store)
+    en_images = fetch_all_product_images(session, args.en_site, args.en_store)
     save_json(en_images, "data/en_images.json")
     print(f"Saved English images to data/en_images.json")
 
     # Fetch Arabic images
-    ar_images = fetch_all_product_images(session, args.site, args.ar_store)
+    ar_images = fetch_all_product_images(session, args.ar_site, args.ar_store)
     save_json(ar_images, "data/ar_images.json")
     print(f"Saved Arabic images to data/ar_images.json")
 
