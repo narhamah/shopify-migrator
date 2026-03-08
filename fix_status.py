@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Fix product statuses and remove duplicates on the Saudi Shopify store.
+"""Fix unlisted products and remove duplicates on the Saudi Shopify store.
 
 Addresses:
-  - Products stuck in Draft or Unlisted → sets all to Active + published
-  - Duplicate products (same title) → keeps the one with more collections, deletes the other
+  - Unlisted products → publishes to sales channels (preserves Draft/Active status)
+  - Duplicate products (same title) → keeps the one with more data, deletes the other
 
 Usage:
     python fix_status.py --dry-run      # Preview changes
@@ -49,38 +49,21 @@ def main():
     print(f"  Found {len(products)} products\n")
 
     # =============================================
-    # Phase 1: Fix statuses — set all to Active
+    # Phase 1: Report statuses and fix Unlisted
     # =============================================
     print("=" * 60)
-    print("PHASE 1: FIX PRODUCT STATUSES")
+    print("PHASE 1: FIX UNLISTED PRODUCTS (publish to sales channels)")
     print("=" * 60)
 
-    non_active = [p for p in products if p.get("status") != "active"]
-    print(f"  Non-active products: {len(non_active)}")
+    by_status = {}
+    for p in products:
+        s = p.get("status", "unknown")
+        by_status.setdefault(s, []).append(p)
+    for s, prods in sorted(by_status.items()):
+        print(f"  {s}: {len(prods)} products")
 
-    status_fixed = 0
-    for p in non_active:
-        pid = p["id"]
-        title = p.get("title", "")[:50]
-        status = p.get("status", "unknown")
-        label = f"  {title} (id: {pid}, was: {status})"
-
-        if args.dry_run:
-            print(f"{label} — would set to active")
-            status_fixed += 1
-            continue
-
-        try:
-            client.update_product(pid, {"status": "active"})
-            print(f"{label} — set to active")
-            status_fixed += 1
-        except Exception as e:
-            print(f"{label} — ERROR: {e}")
-
-        time.sleep(0.3)
-
-    # Also ensure all products are published to sales channels
-    print(f"\nPublishing all products to sales channels...")
+    # Fix unlisted: publish to sales channels (doesn't change draft/active status)
+    print(f"\nPublishing unpublished products to sales channels...")
     unpublished = 0
     for p in products:
         pid = p["id"]
@@ -99,7 +82,6 @@ def main():
                 print(f"  {title} — ERROR: {e}")
             time.sleep(0.3)
 
-    print(f"  Status fixes: {status_fixed}")
     print(f"  Published: {unpublished}")
 
     # =============================================
@@ -190,8 +172,7 @@ def main():
             time.sleep(0.3)
 
     print(f"\n--- Summary ---")
-    print(f"  Status fixes: {status_fixed}")
-    print(f"  Published:    {unpublished}")
+    print(f"  Published:         {unpublished}")
     print(f"  Duplicates removed: {deleted}")
 
 
