@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -29,8 +30,13 @@ SPAIN_DIR = "data/spain_export"
 EN_DIR = "data/english"
 AR_DIR = "data/arabic"
 
-# Max fields per TOON batch (keeps each request under ~4K tokens)
-BATCH_SIZE = 40
+# Max fields per TOON batch — large batches = fewer API calls
+# GPT-4o handles ~8K output tokens, so we can fit ~200 short fields
+# or ~80 long fields (HTML body) per batch.
+BATCH_SIZE = 120
+
+# Max parallel API calls
+MAX_WORKERS = 5
 
 # =====================================================================
 # TOON encoding / decoding
@@ -458,6 +464,8 @@ def main():
                         help="OpenAI model (default: gpt-4o)")
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE,
                         help=f"Fields per batch (default: {BATCH_SIZE})")
+    parser.add_argument("--workers", type=int, default=MAX_WORKERS,
+                        help=f"Parallel API workers (default: {MAX_WORKERS})")
     args = parser.parse_args()
 
     target_lang = "English" if args.lang == "en" else "Arabic"
@@ -492,23 +500,35 @@ def main():
     # Articles always need translation (not in Magento)
     gap_articles = spain_articles
 
-    # Metaobjects: benefits, FAQs, blog_authors always need translation
-    # Ingredients may have been partially scraped
+    # Metaobjects: types with translatable fields ALWAYS need LLM translation.
+    # The scraper copies Spain metaobjects as-is (still Spanish text).
+    # Types without translatable fields (shopify-- prefixed) can be skipped.
     gap_metaobjects = {}
     if isinstance(spain_metaobjects, dict):
         for mo_type, type_data in spain_metaobjects.items():
-            scraped_objs = []
-            if isinstance(scraped_metaobjects, dict) and mo_type in scraped_metaobjects:
-                scraped_objs = scraped_metaobjects[mo_type].get("objects", [])
+            has_translatable = mo_type in METAOBJECT_TRANSLATABLE_FIELDS
+            objs = type_data.get("objects", [])
+            if not objs:
+                continue
 
-            scraped_handles = {o.get("handle", "") for o in scraped_objs}
-            missing = [o for o in type_data.get("objects", [])
-                       if o.get("handle") not in scraped_handles]
-            if missing:
+            if has_translatable:
+                # Always include — scraper only copies, doesn't translate
                 gap_metaobjects[mo_type] = {
                     "definition": type_data.get("definition", {}),
-                    "objects": missing,
+                    "objects": objs,
                 }
+            else:
+                # Non-translatable types: check for genuinely missing items
+                scraped_objs = []
+                if isinstance(scraped_metaobjects, dict) and mo_type in scraped_metaobjects:
+                    scraped_objs = scraped_metaobjects[mo_type].get("objects", [])
+                scraped_handles = {o.get("handle", "") for o in scraped_objs}
+                missing = [o for o in objs if o.get("handle") not in scraped_handles]
+                if missing:
+                    gap_metaobjects[mo_type] = {
+                        "definition": type_data.get("definition", {}),
+                        "objects": missing,
+                    }
 
     # Also, products that WERE scraped still need metafield translation
     # (Magento doesn't have Shopify accordion metafields)
@@ -596,28 +616,45 @@ def main():
     if not remaining:
         print("  All fields already translated!")
     else:
-        # ---- Translate in batches ----
+        # ---- Translate in parallel batches ----
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             print("ERROR: OPENAI_API_KEY not set. Add it to .env")
             sys.exit(1)
 
         client = OpenAI(api_key=api_key)
-        total_batches = (len(remaining) + args.batch_size - 1) // args.batch_size
-
+        batches = []
         for i in range(0, len(remaining), args.batch_size):
-            batch = remaining[i:i + args.batch_size]
-            batch_num = (i // args.batch_size) + 1
+            batches.append(remaining[i:i + args.batch_size])
+        total_batches = len(batches)
 
+        workers = min(args.workers, total_batches)
+        print(f"\n  Sending {total_batches} batches with {workers} parallel workers...")
+
+        import threading
+        lock = threading.Lock()
+
+        def run_batch(batch, batch_num):
             t_map = translate_batch(
                 client, args.model, batch,
                 "Spanish", target_lang,
                 batch_num, total_batches,
             )
-            all_translations.update(t_map)
+            with lock:
+                all_translations.update(t_map)
+                save_json(all_translations, progress_file)
+            return len(t_map)
 
-            # Save progress after each batch
-            save_json(all_translations, progress_file)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(run_batch, batch, i + 1): i
+                for i, batch in enumerate(batches)
+            }
+            for future in as_completed(futures):
+                try:
+                    count = future.result()
+                except Exception as e:
+                    print(f"  Batch failed: {e}")
 
     # ---- Merge translations into output data ----
     print(f"\n  Merging {len(all_translations)} translations into output files...")

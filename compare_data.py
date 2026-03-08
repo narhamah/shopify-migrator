@@ -153,6 +153,8 @@ def compare_pages(spain, scraped, label):
 
 
 def compare_metaobjects(spain, scraped, label):
+    from translator import METAOBJECT_TRANSLATABLE_FIELDS
+
     print(f"\n  {label} Metaobjects:")
 
     needs_translation = {}
@@ -163,20 +165,75 @@ def compare_metaobjects(spain, scraped, label):
             scraped_objs = scraped[mo_type].get("objects", [])
 
         scraped_handles = {o.get("handle", "") for o in scraped_objs}
+        has_translatable = mo_type in METAOBJECT_TRANSLATABLE_FIELDS
+
+        # If this type has translatable fields, check if scraped data is
+        # actually translated or just copied from Spain (still Spanish)
+        if has_translatable and scraped_objs:
+            # Check first object: if scraped text matches Spain text, it's a copy
+            is_copy = _check_if_copy(spain_objs, scraped_objs, mo_type)
+            if is_copy:
+                status = f"{len(spain_objs)} total — ALL need LLM (scraped = Spanish copy)"
+                needs_translation[mo_type] = spain_objs
+                print(f"    {mo_type}: {status}")
+                continue
+
         missing = [o for o in spain_objs if o.get("handle") not in scraped_handles]
         matched = len(spain_objs) - len(missing)
 
-        status = f"{matched}/{len(spain_objs)} matched"
-        if missing:
-            status += f", {len(missing)} need LLM"
+        if has_translatable and not scraped_objs:
+            # No scraped data at all — all need translation
+            status = f"{len(spain_objs)} total — ALL need LLM (no scraped data)"
+            needs_translation[mo_type] = spain_objs
+        elif missing:
+            status = f"{matched}/{len(spain_objs)} matched, {len(missing)} need LLM"
             needs_translation[mo_type] = missing
+        else:
+            status = f"{matched}/{len(spain_objs)} matched"
 
         print(f"    {mo_type}: {len(spain_objs)} total — {status}")
 
     return needs_translation
 
 
-def analyze_translation_cost(gaps):
+def _check_if_copy(spain_objs, scraped_objs, mo_type):
+    """Check if scraped metaobjects are just copies of Spain data (still Spanish)."""
+    from translator import METAOBJECT_TRANSLATABLE_FIELDS
+    translatable_keys = METAOBJECT_TRANSLATABLE_FIELDS.get(mo_type, set())
+
+    # Build handle-based lookup
+    spain_by_handle = {o.get("handle", ""): o for o in spain_objs}
+
+    checks = 0
+    matches = 0
+    for scraped_obj in scraped_objs[:5]:  # Check first 5
+        handle = scraped_obj.get("handle", "")
+        spain_obj = spain_by_handle.get(handle)
+        if not spain_obj:
+            continue
+
+        for s_field in spain_obj.get("fields", []):
+            if s_field["key"] not in translatable_keys:
+                continue
+            s_val = s_field.get("value", "")
+            if not s_val:
+                continue
+
+            # Find same field in scraped
+            for sc_field in scraped_obj.get("fields", []):
+                if sc_field["key"] == s_field["key"]:
+                    checks += 1
+                    if sc_field.get("value", "") == s_val:
+                        matches += 1
+                    break
+
+    # If >80% of checked fields are identical, it's a copy
+    if checks > 0 and matches / checks > 0.8:
+        return True
+    return False
+
+
+def analyze_translation_cost(gaps, matched_product_count=0):
     """Estimate number of LLM calls needed."""
     from translator import (
         PRODUCT_TRANSLATABLE_METAFIELDS,
@@ -187,12 +244,17 @@ def analyze_translation_cost(gaps):
     total_fields = 0
     detail = {}
 
-    # Products: title + body_html + tags + variants + metafields
+    # Unmatched products: title + body_html + tags + variants + metafields
     prod_count = len(gaps.get("products", []))
     if prod_count:
-        # ~5 base fields + ~16 metafields per product
         fields = prod_count * (5 + len(PRODUCT_TRANSLATABLE_METAFIELDS))
-        detail["products"] = f"{prod_count} products × ~{5 + len(PRODUCT_TRANSLATABLE_METAFIELDS)} fields = {fields}"
+        detail["products (unmatched)"] = f"{prod_count} products × ~{5 + len(PRODUCT_TRANSLATABLE_METAFIELDS)} fields = {fields}"
+        total_fields += fields
+
+    # Matched products: only metafields need translation (title/body scraped)
+    if matched_product_count > 0:
+        fields = matched_product_count * len(PRODUCT_TRANSLATABLE_METAFIELDS)
+        detail["product metafields (matched)"] = f"{matched_product_count} products × {len(PRODUCT_TRANSLATABLE_METAFIELDS)} metafields = {fields}"
         total_fields += fields
 
     # Collections: title + body_html
@@ -219,15 +281,19 @@ def analyze_translation_cost(gaps):
     # Metaobjects
     for mo_type, objs in gaps.get("metaobjects", {}).items():
         mo_fields = METAOBJECT_TRANSLATABLE_FIELDS.get(mo_type, set())
-        fields = len(objs) * len(mo_fields)
-        detail[f"metaobjects_{mo_type}"] = f"{len(objs)} {mo_type} × {len(mo_fields)} fields = {fields}"
+        if not mo_fields:
+            continue
+        count = len(objs) if isinstance(objs, list) else 0
+        fields = count * len(mo_fields)
+        detail[f"metaobjects_{mo_type}"] = f"{count} {mo_type} × {len(mo_fields)} fields = {fields}"
         total_fields += fields
 
+    batch_size = 40
     print(f"\n  Estimated translation work:")
     for key, desc in detail.items():
         print(f"    {key}: {desc}")
     print(f"\n    Total fields to translate: {total_fields}")
-    print(f"    With TOON batching: ~{max(1, total_fields // 50)} API calls (batches of ~50 fields)")
+    print(f"    With TOON batching: ~{max(1, (total_fields + batch_size - 1) // batch_size)} API calls (batches of ~{batch_size} fields)")
     print(f"    Without batching: {total_fields} API calls")
 
 
@@ -279,7 +345,7 @@ def main():
             }
             continue
 
-        missing_products, _ = compare_products(spain_products, scraped_products, label)
+        missing_products, matched_products = compare_products(spain_products, scraped_products, label)
         missing_collections, _ = compare_collections(spain_collections, scraped_collections, label)
         missing_pages, _ = compare_pages(spain_pages, scraped_pages, label)
 
@@ -287,7 +353,8 @@ def main():
         print(f"\n  {label} Articles:")
         print(f"    Spain: {len(spain_articles)} — ALL need LLM translation (no Magento source)")
 
-        # Metaobjects
+        # Metaobjects — types with translatable fields always need LLM
+        # (scraper copies Spain data, doesn't translate)
         if isinstance(spain_metaobjects, dict):
             missing_metaobjects = compare_metaobjects(spain_metaobjects, scraped_metaobjects, label)
         else:
@@ -295,6 +362,7 @@ def main():
 
         gaps[lang] = {
             "products": missing_products,
+            "matched_product_count": len(matched_products),
             "collections": missing_collections,
             "pages": missing_pages,
             "articles": spain_articles,  # All articles need translation
@@ -319,7 +387,7 @@ def main():
                 if isinstance(objs, list):
                     print(f"    Metaobjects ({mo_type}):          {len(objs)}")
 
-        analyze_translation_cost(g)
+        analyze_translation_cost(g, matched_product_count=g.get("matched_product_count", 0))
 
     # Save gaps report
     report_path = os.path.join("data", "translation_gaps.json")
