@@ -697,6 +697,12 @@ class ShopifyClient:
             params["collection_id"] = collection_id
         return self._paginate("collects.json", "collects", params=params)
 
+    def get_collection_product_ids(self, collection_id):
+        """Get product IDs in a collection (works with API 2024-10+)."""
+        products = self._paginate(f"collections/{collection_id}/products.json", "products",
+                                  params={"fields": "id"})
+        return [p["id"] for p in products]
+
     def create_collect(self, product_id, collection_id):
         """Add a product to a collection."""
         resp = self._request("POST", "collects.json", json={

@@ -105,11 +105,17 @@ def main():
     print(f"  Exported {total_count} metaobjects across {len(definitions)} types")
 
     # Collection membership (which products belong to which collections)
-    print("Fetching collection membership (collects)...")
+    print("Fetching collection membership...")
     all_collects = []
-    for collection in collections:
-        collects = client.get_collects(collection_id=collection["id"])
-        all_collects.extend(collects)
+    for i, collection in enumerate(collections):
+        cid = collection["id"]
+        print(f"  Collection {i+1}/{len(collections)}: {collection.get('title', '')[:50]}")
+        try:
+            product_ids = client.get_collection_product_ids(cid)
+            for pid in product_ids:
+                all_collects.append({"collection_id": cid, "product_id": pid})
+        except Exception as e:
+            print(f"    Skipped: {e}")
     save_json(all_collects, os.path.join(output_dir, "collects.json"))
     print(f"  Exported {len(all_collects)} product-collection links")
 
