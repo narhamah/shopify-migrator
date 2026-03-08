@@ -680,6 +680,8 @@ class KuwaitScraper:
                 # Clone Spain product as base, overlay Kuwait data
                 product = json.loads(json.dumps(spain_product))  # deep copy
                 product["title"] = name
+                if url_key:
+                    product["handle"] = url_key
                 if desc and desc.get("html"):
                     product["body_html"] = desc["html"]
                 elif short_desc and short_desc.get("html"):
@@ -829,6 +831,8 @@ class KuwaitScraper:
             if spain_coll:
                 coll = json.loads(json.dumps(spain_coll))
                 coll["title"] = cat.get("name", coll.get("title", ""))
+                if url_key:
+                    coll["handle"] = url_key
                 if cat.get("description"):
                     coll["body_html"] = cat["description"]
                 matched_spain_ids.add(str(spain_coll.get("id", "")))
@@ -925,6 +929,7 @@ class KuwaitScraper:
                 if spain_page:
                     page = json.loads(json.dumps(spain_page))
                     page["title"] = cms.get("title", page.get("title", ""))
+                    page["handle"] = ident
                     if cms.get("content"):
                         page["body_html"] = cms["content"]
                 else:
