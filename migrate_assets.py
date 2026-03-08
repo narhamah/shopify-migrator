@@ -118,6 +118,9 @@ def main():
                     print(f"  [{j+1}/{len(objects)}] {handle} — no dest ID, skipping")
                     continue
 
+                # Check for scraped image URL (from Magento, not Spain)
+                scraped_image_url = obj.get("_scraped_image_url")
+
                 fields_to_update = []
                 for field in obj.get("fields", []):
                     field_key = field.get("key", "")
@@ -125,9 +128,39 @@ def main():
                     field_value = field.get("value", "")
 
                     if field_key not in file_fields or not field_value:
-                        continue
+                        # If field is empty but we have a scraped URL for "image", use it
+                        if field_key == "image" and scraped_image_url and not field_value:
+                            field_value = scraped_image_url  # Will be handled as URL below
+                        elif not field_value:
+                            continue
 
                     is_list = "list." in field_type
+
+                    # Use scraped URL directly for "image" field if available
+                    if field_key == "image" and scraped_image_url:
+                        cache_key = f"url:{scraped_image_url}"
+                        if cache_key in file_map:
+                            dest_file_id = file_map[cache_key]
+                        else:
+                            try:
+                                dest_file_id = upload_optimized(dest_client, scraped_image_url,
+                                                                alt=f"{handle}_image")
+                                if dest_file_id:
+                                    file_map[cache_key] = dest_file_id
+                                    print(f"    {handle}.image: uploaded from Magento → {dest_file_id}")
+                                    save_json(file_map, file_map_file)
+                                    time.sleep(0.5)
+                                else:
+                                    print(f"    {handle}.image: upload failed for {scraped_image_url}")
+                                    continue
+                            except Exception as e:
+                                print(f"    {handle}.image: upload error: {e}")
+                                continue
+                        fields_to_update.append({
+                            "key": "image",
+                            "value": dest_file_id,
+                        })
+                        continue
 
                     if is_list:
                         # List of file references (e.g., science_images)
@@ -164,12 +197,18 @@ def main():
                                 "value": json.dumps(dest_gids),
                             })
                     else:
-                        # Single file reference
+                        # Single file reference — value is a GID or a URL
                         source_gid = field_value
-                        if source_gid in file_map:
-                            dest_file_id = file_map[source_gid]
+                        is_url = field_value.startswith("http")
+                        cache_key = f"url:{field_value}" if is_url else source_gid
+
+                        if cache_key in file_map:
+                            dest_file_id = file_map[cache_key]
                         else:
-                            url = extract_file_url_from_gid(source_client, source_gid)
+                            if is_url:
+                                url = field_value
+                            else:
+                                url = extract_file_url_from_gid(source_client, source_gid)
                             if not url:
                                 print(f"    {handle}.{field_key}: could not get URL for {source_gid}")
                                 continue
@@ -177,8 +216,9 @@ def main():
                             try:
                                 dest_file_id = upload_optimized(dest_client, url, alt=f"{handle}_{field_key}")
                                 if dest_file_id:
-                                    file_map[source_gid] = dest_file_id
-                                    print(f"    {handle}.{field_key}: uploaded → {dest_file_id}")
+                                    file_map[cache_key] = dest_file_id
+                                    src_label = "URL" if is_url else "Spain"
+                                    print(f"    {handle}.{field_key}: uploaded from {src_label} → {dest_file_id}")
                                     save_json(file_map, file_map_file)
                                     time.sleep(0.5)
                                 else:

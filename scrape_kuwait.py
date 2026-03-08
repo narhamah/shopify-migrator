@@ -1174,6 +1174,10 @@ class KuwaitScraper:
                             field["value"] = match["description"]
                             break
 
+                # Store scraped image URL so migrate_assets can upload it
+                if match.get("image_url"):
+                    spain_ing["_scraped_image_url"] = match["image_url"]
+
                 updated += 1
 
         print(f"    Updated {updated}/{len(spain_ingredients)} ingredients from scraped data")
