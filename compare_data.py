@@ -25,8 +25,18 @@ def load_json(filepath):
         return json.load(f)
 
 
+def _image_filenames(product):
+    """Extract normalized image filenames from a product."""
+    fnames = set()
+    for img in product.get("images", []):
+        src = img.get("src", "")
+        if src:
+            fnames.add(src.split("?")[0].split("/")[-1].lower())
+    return fnames
+
+
 def compare_products(spain, scraped, label):
-    """Compare Spain products vs scraped products by SKU and handle."""
+    """Compare Spain products vs scraped products by SKU, handle, and image URL."""
     spain_by_sku = {}
     for p in spain:
         for v in p.get("variants", []):
@@ -34,6 +44,10 @@ def compare_products(spain, scraped, label):
             if sku:
                 spain_by_sku[sku] = p
     spain_by_handle = {p.get("handle", ""): p for p in spain}
+    spain_by_image = {}
+    for p in spain:
+        for fname in _image_filenames(p):
+            spain_by_image[fname] = p
 
     scraped_by_sku = {}
     for p in scraped:
@@ -42,24 +56,39 @@ def compare_products(spain, scraped, label):
             if sku:
                 scraped_by_sku[sku] = p
     scraped_by_handle = {p.get("handle", ""): p for p in scraped}
+    scraped_by_image = {}
+    for p in scraped:
+        for fname in _image_filenames(p):
+            scraped_by_image[fname] = p
 
     # Find Spain products not in scraped
     missing = []
     matched = []
+    match_methods = {"sku": 0, "handle": 0, "image": 0}
     for p in spain:
         skus = [v.get("sku", "") for v in p.get("variants", []) if v.get("sku")]
         handle = p.get("handle", "")
 
         found = False
+        method = None
         for sku in skus:
             if sku in scraped_by_sku:
                 found = True
+                method = "sku"
                 break
         if not found and handle in scraped_by_handle:
             found = True
+            method = "handle"
+        if not found:
+            for fname in _image_filenames(p):
+                if fname in scraped_by_image:
+                    found = True
+                    method = "image"
+                    break
 
         if found:
             matched.append(p)
+            match_methods[method] += 1
         else:
             missing.append(p)
 
@@ -76,13 +105,18 @@ def compare_products(spain, scraped, label):
                 break
         if not found and handle in spain_by_handle:
             found = True
+        if not found:
+            for fname in _image_filenames(p):
+                if fname in spain_by_image:
+                    found = True
+                    break
 
         if not found:
             extra.append(p)
 
     print(f"\n  {label} Products:")
     print(f"    Spain: {len(spain)}, Scraped: {len(scraped)}")
-    print(f"    Matched: {len(matched)}")
+    print(f"    Matched: {len(matched)} (by SKU: {match_methods['sku']}, handle: {match_methods['handle']}, image: {match_methods['image']})")
     print(f"    Missing from scrape (need LLM translation): {len(missing)}")
     if missing:
         for p in missing:
@@ -116,13 +150,35 @@ def compare_collections(spain, scraped, label):
     spain_by_handle = {c.get("handle", ""): c for c in spain}
     scraped_by_handle = {c.get("handle", ""): c for c in scraped}
 
-    matched = [c for c in spain if c.get("handle") in scraped_by_handle]
-    missing = [c for c in spain if c.get("handle") not in scraped_by_handle]
-    extra = [c for c in scraped if c.get("handle") not in spain_by_handle]
+    # Also check if scraped collections contain Spain IDs (from SKU-overlap matching)
+    scraped_by_id = {}
+    for c in scraped:
+        cid = str(c.get("id", ""))
+        if cid:
+            scraped_by_id[cid] = c
+
+    matched = []
+    missing = []
+    matched_by_handle = 0
+    matched_by_id = 0
+    for c in spain:
+        handle = c.get("handle", "")
+        cid = str(c.get("id", ""))
+        if handle in scraped_by_handle:
+            matched.append(c)
+            matched_by_handle += 1
+        elif cid in scraped_by_id:
+            matched.append(c)
+            matched_by_id += 1
+        else:
+            missing.append(c)
+
+    extra = [c for c in scraped if c.get("handle") not in spain_by_handle
+             and str(c.get("id", "")) not in {str(s.get("id", "")) for s in spain}]
 
     print(f"\n  {label} Collections:")
     print(f"    Spain: {len(spain)}, Scraped: {len(scraped)}")
-    print(f"    Matched: {len(matched)}")
+    print(f"    Matched: {len(matched)} (by handle: {matched_by_handle}, by SKU overlap: {matched_by_id})")
     print(f"    Missing (need LLM): {len(missing)}")
     if missing:
         for c in missing[:10]:

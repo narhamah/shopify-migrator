@@ -325,6 +325,38 @@ class KuwaitScraper:
 
         self.spain_collections_by_handle = {c.get("handle", ""): c for c in self.spain_collections}
 
+        # Build collection→SKU membership from collects.json
+        # This enables matching Spain collections to Magento categories by product overlap
+        self.spain_collects = load_json(os.path.join(SPAIN_DIR, "collects.json"))
+        self.spain_collection_skus = {}  # collection_id → set of SKUs
+        spain_products_by_id = {str(p.get("id", "")): p for p in self.spain_products}
+        for collect in self.spain_collects:
+            cid = str(collect.get("collection_id", ""))
+            pid = str(collect.get("product_id", ""))
+            product = spain_products_by_id.get(pid)
+            if product:
+                if cid not in self.spain_collection_skus:
+                    self.spain_collection_skus[cid] = set()
+                for v in product.get("variants", []):
+                    sku = v.get("sku", "")
+                    if sku:
+                        self.spain_collection_skus[cid].add(sku)
+        # Also build reverse lookup: collection_id → collection object
+        self.spain_collections_by_id = {str(c.get("id", "")): c for c in self.spain_collections}
+
+        # Build product image URL index for fallback matching
+        self.spain_products_by_image = {}
+        for p in self.spain_products:
+            for img in p.get("images", []):
+                src = img.get("src", "")
+                if src:
+                    # Normalize: strip query params, use filename only
+                    fname = src.split("?")[0].split("/")[-1].lower()
+                    self.spain_products_by_image[fname] = p
+
+        # Populated during scrape_products(), used by scrape_collections()
+        self.magento_category_skus = {}  # magento_category_url_key → set of SKUs
+
     def scrape_all(self, only=None):
         os.makedirs(OUTPUT_DIR_EN, exist_ok=True)
         os.makedirs(OUTPUT_DIR_AR, exist_ok=True)
@@ -448,6 +480,17 @@ class KuwaitScraper:
         """Convert Magento products to Shopify format, merging with Spain data."""
         shopify_products = []
 
+        # Build category→SKU index from product category associations
+        for mp in magento_products:
+            sku = mp.get("sku", "")
+            if sku:
+                for cat in mp.get("categories", []):
+                    cat_key = cat.get("url_key", "")
+                    if cat_key:
+                        if cat_key not in self.magento_category_skus:
+                            self.magento_category_skus[cat_key] = set()
+                        self.magento_category_skus[cat_key].add(sku)
+
         for mp in magento_products:
             url_key = mp.get("url_key", "")
             sku = mp.get("sku", "")
@@ -457,10 +500,20 @@ class KuwaitScraper:
             price_range = mp.get("price_range", {})
             min_price = price_range.get("minimum_price", {})
 
-            # Match with Spain product by SKU first, then by handle
+            # Match with Spain product: SKU → handle → image URL
             spain_product = self.spain_products_by_sku.get(sku)
             if not spain_product:
                 spain_product = self.spain_products_by_handle.get(url_key)
+            if not spain_product:
+                # Fallback: match by image filename
+                for img in mp.get("media_gallery", []):
+                    img_url = img.get("url", "")
+                    if img_url:
+                        fname = img_url.split("?")[0].split("/")[-1].lower()
+                        spain_product = self.spain_products_by_image.get(fname)
+                        if spain_product:
+                            print(f"    Matched by image: {name} → {spain_product.get('title', '')}")
+                            break
 
             if spain_product:
                 # Clone Spain product as base, overlay Kuwait data
@@ -595,15 +648,26 @@ class KuwaitScraper:
 
     def _map_categories(self, categories):
         collections = []
+        matched_spain_ids = set()  # Track which Spain collections got matched
+
         for cat in categories:
             url_key = cat.get("url_key", "")
+
+            # Match with Spain collection: handle → SKU overlap
             spain_coll = self.spain_collections_by_handle.get(url_key)
+
+            if not spain_coll:
+                # Fallback: match by product SKU overlap (Jaccard similarity)
+                spain_coll = self._match_collection_by_skus(url_key)
+                if spain_coll:
+                    print(f"    Matched by SKU overlap: Magento '{cat.get('name')}' → Spain '{spain_coll.get('title')}'")
 
             if spain_coll:
                 coll = json.loads(json.dumps(spain_coll))
                 coll["title"] = cat.get("name", coll.get("title", ""))
                 if cat.get("description"):
                     coll["body_html"] = cat["description"]
+                matched_spain_ids.add(str(spain_coll.get("id", "")))
             else:
                 coll = {
                     "id": cat.get("id", 0),
@@ -617,6 +681,34 @@ class KuwaitScraper:
 
             collections.append(coll)
         return collections
+
+    def _match_collection_by_skus(self, magento_category_url_key):
+        """Match a Magento category to a Spain collection by product SKU overlap."""
+        magento_skus = self.magento_category_skus.get(magento_category_url_key, set())
+        if not magento_skus:
+            return None
+
+        best_match = None
+        best_score = 0
+
+        for cid, spain_skus in self.spain_collection_skus.items():
+            if not spain_skus:
+                continue
+            # Jaccard similarity: intersection / union
+            intersection = magento_skus & spain_skus
+            if not intersection:
+                continue
+            union = magento_skus | spain_skus
+            score = len(intersection) / len(union)
+
+            if score > best_score:
+                best_score = score
+                best_match = self.spain_collections_by_id.get(cid)
+
+        # Require at least 30% overlap to consider it a match
+        if best_score >= 0.3 and best_match:
+            return best_match
+        return None
 
     # ------------------------------------------------------------------
     # Pages (CMS pages)
