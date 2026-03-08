@@ -31,11 +31,15 @@ import time
 import requests as http_requests
 
 
-BASE_URL_KW = "https://taraformula.com.kw"
+BASE_URL_US = "https://taraformula.com"
 BASE_URL_AE = "https://taraformula.ae"
 
-GRAPHQL_URL_KW = f"{BASE_URL_KW}/graphql"
-GRAPHQL_URL_AE = f"{BASE_URL_AE}/graphql"
+# Default sources: US site for English, UAE site for Arabic
+# All regional sites share the same product catalog
+DEFAULT_EN_SITE = BASE_URL_US
+DEFAULT_EN_STORE = "us-en"
+DEFAULT_AR_SITE = BASE_URL_AE
+DEFAULT_AR_STORE = "ae-ar"
 
 OUTPUT_DIR_EN = "data/english"
 OUTPUT_DIR_AR = "data/arabic"
@@ -112,257 +116,43 @@ class MagentoGraphQL:
 # ------------------------------------------------------------------
 # Explorer: discover site structure
 # ------------------------------------------------------------------
-def explore(gql):
+def explore(gql_en, gql_ar, en_store, ar_store):
     print("=" * 60)
-    print("EXPLORING KUWAIT SITE STRUCTURE")
+    print("EXPLORING TARA SITES")
     print("=" * 60)
+    print(f"  English: {gql_en.base_url} (store: {en_store or 'default'})")
+    print(f"  Arabic:  {gql_ar.base_url} (store: {ar_store or 'default'})")
 
-    # 1. Store config
-    print("\n--- Store Config ---")
-    result = gql.query("""
-    {
-        storeConfig {
-            store_name
-            store_code
-            default_display_currency_code
-            locale
-            base_currency_code
-            weight_unit
-        }
-    }
-    """)
-    if result and "data" in result:
-        config = result["data"]["storeConfig"]
-        print(f"  Default store: {config.get('store_name')} ({config.get('store_code')})")
-        print(f"  Locale: {config.get('locale')}, Currency: {config.get('default_display_currency_code')}")
-
-    # 2. Available store views
-    print("\n--- Store Views ---")
-    result = gql.query("""
-    {
-        availableStores {
-            store_code
-            store_name
-            locale
-            default_display_currency_code
-            store_group_name
-        }
-    }
-    """)
-    store_codes = []
-    if result and "data" in result:
-        stores = result["data"].get("availableStores", [])
-        print(f"  Found {len(stores)} store views:")
-        for s in stores:
-            code = s.get("store_code", "")
-            store_codes.append(code)
-            print(f"    {code}: {s.get('store_name')} ({s.get('locale')}) — {s.get('default_display_currency_code')} [group: {s.get('store_group_name')}]")
-
-    # 3. Probe for Arabic store codes on Kuwait site
-    print("\n--- Probing for Arabic store code (Kuwait) ---")
-    ar_candidates = ["ar", "kw_ar", "kw-ar", "gl-ar", "arabic", "default"]
-    ar_candidates = [c for c in ar_candidates if c not in store_codes]
-
-    found_ar_kw = False
-    for code in ar_candidates:
-        print(f"  Trying store code '{code}' on Kuwait...")
-        result = gql.query(f"""
-        {{
-            storeConfig {{
-                store_name
-                store_code
-                locale
-            }}
-        }}
-        """, store_code=code)
-        if result and "data" in result:
-            config = result["data"].get("storeConfig", {})
-            if config and "ar" in config.get("locale", "").lower():
-                print(f"    FOUND Arabic: {config.get('store_name')} ({config.get('locale')})")
-                found_ar_kw = True
-                break
-            elif config:
-                print(f"    {config.get('store_name')} ({config.get('locale')}) — not Arabic")
-        else:
-            print(f"    Not available")
-
-    # 4. Check UAE site (taraformula.ae) for Arabic
-    print("\n--- Checking UAE site (taraformula.ae) ---")
-    gql_ae = MagentoGraphQL(base_url=BASE_URL_AE, delay=gql.delay)
-
-    # Check default store
-    result = gql_ae.query("""
-    {
-        storeConfig {
-            store_name
-            store_code
-            locale
-            default_display_currency_code
-        }
-    }
-    """)
-    if result and "data" in result:
-        config = result["data"].get("storeConfig", {})
-        print(f"  Default: {config.get('store_name')} ({config.get('locale')}) — {config.get('default_display_currency_code')}")
-
-    # Check available stores on UAE
-    result = gql_ae.query("""
-    {
-        availableStores {
-            store_code
-            store_name
-            locale
-            default_display_currency_code
-        }
-    }
-    """)
-    if result and "data" in result:
-        ae_stores = result["data"].get("availableStores", [])
-        print(f"  Found {len(ae_stores)} UAE store views:")
-        for s in ae_stores:
-            print(f"    {s.get('store_code')}: {s.get('store_name')} ({s.get('locale')}) — {s.get('default_display_currency_code')}")
-
-    # Try ae-ar store code for Arabic products
-    print("\n--- UAE Arabic sample (store code 'ae-ar') ---")
-    for ar_code in ["ae-ar", "ae_ar", "ar", None]:
-        label = ar_code or "default"
-        print(f"  Trying '{label}'...")
-        result = gql_ae.query(f"""
-        {{
-            products(search: "", pageSize: 2, currentPage: 1) {{
-                total_count
-                items {{
-                    name
-                    url_key
-                    sku
-                }}
-            }}
-        }}
-        """, store_code=ar_code)
-        if result and "data" in result:
-            products = result["data"].get("products", {})
-            items = products.get("items", [])
-            total = products.get("total_count", 0)
-            print(f"    Total: {total} products")
-            for item in items:
-                print(f"    - {item.get('name')} (sku: {item.get('sku')})")
-            if items:
-                # Check if the names are in Arabic
-                first_name = items[0].get("name", "")
-                is_arabic = any('\u0600' <= c <= '\u06FF' for c in first_name)
-                print(f"    Content language: {'Arabic' if is_arabic else 'English/Other'}")
-                if is_arabic:
-                    print(f"    >>> Use: --ar-site ae --ar-store {label}")
-                    break
-
-    # 4. Sample products (no store header — this works)
-    print("\n--- Sample Products (default store) ---")
-    result = gql.query("""
-    {
-        products(search: "", pageSize: 5, currentPage: 1) {
-            total_count
-            items {
-                id
-                sku
-                name
-                url_key
-                type_id
-                description { html }
-                short_description { html }
-                meta_title
-                meta_description
-                price_range {
-                    minimum_price {
-                        regular_price { value currency }
-                        final_price { value currency }
-                    }
-                }
-                media_gallery { url label position }
-                categories { id name url_key }
-            }
-            page_info { total_pages current_page }
-        }
-    }
-    """)
-    if result and "data" in result:
-        products = result["data"].get("products", {})
-        total = products.get("total_count", 0)
-        items = products.get("items", [])
-        print(f"  Total products: {total}")
-        for item in items:
-            print(f"    - {item.get('name')} (sku: {item.get('sku')}, url_key: {item.get('url_key')})")
-            desc = item.get("description", {})
-            if desc and desc.get("html"):
-                clean = re.sub(r'<[^>]+>', '', desc["html"])[:120]
-                print(f"      desc: {clean}...")
-            cats = item.get("categories", [])
-            if cats:
-                print(f"      categories: {[c.get('name') for c in cats]}")
-            price = item.get("price_range", {}).get("minimum_price", {})
-            fp = price.get("final_price", {})
-            if fp:
-                print(f"      price: {fp.get('value')} {fp.get('currency')}")
-            media = item.get("media_gallery", [])
-            print(f"      images: {len(media)}")
-
-    # 5. Categories
-    print("\n--- Category Tree (default store) ---")
-    result = gql.query("""
-    {
-        categories(filters: {}) {
-            items {
-                id name url_key url_path product_count
-                children {
-                    id name url_key product_count
-                    children {
-                        id name url_key product_count
-                    }
-                }
-            }
-        }
-    }
-    """)
-    if result and "data" in result:
-        items = result["data"].get("categories", {}).get("items", [])
-        _print_category_tree(items)
-
-    # 6. CMS pages (try without store header)
-    print("\n--- CMS Pages (default store) ---")
-    for ident in ["home", "about", "about-us", "contact", "faq", "privacy-policy"]:
-        result = gql.query(f"""
-        {{
-            cmsPage(identifier: "{ident}") {{
-                identifier
-                title
-                content_heading
-                meta_title
-            }}
-        }}
-        """)
-        if result and "data" in result and result["data"].get("cmsPage"):
-            page = result["data"]["cmsPage"]
-            print(f"  Found: {page.get('identifier')} — {page.get('title')}")
-
-    # Save reco file with all findings
-    print("\n--- Saving reconnaissance data ---")
     reco = {
         "explored_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "kuwait_site": BASE_URL_KW,
-        "uae_site": BASE_URL_AE,
+        "en_site": gql_en.base_url,
+        "en_store": en_store,
+        "ar_site": gql_ar.base_url,
+        "ar_store": ar_store,
         "findings": {},
     }
 
-    # Re-fetch key data for reco file
-    result = gql.query("""{ storeConfig { store_name store_code locale default_display_currency_code } }""")
+    # 1. English site store views
+    print("\n--- English Site Store Views ---")
+    result = gql_en.query("""{ availableStores { store_code store_name locale default_display_currency_code } }""")
     if result and "data" in result:
-        reco["findings"]["kw_store_config"] = result["data"]["storeConfig"]
+        stores = result["data"].get("availableStores", [])
+        reco["findings"]["en_available_stores"] = stores
+        for s in stores:
+            print(f"    {s.get('store_code')}: {s.get('store_name')} ({s.get('locale')}) — {s.get('default_display_currency_code')}")
 
-    result = gql.query("""{ availableStores { store_code store_name locale default_display_currency_code } }""")
+    # 2. Arabic site store views
+    print("\n--- Arabic Site Store Views ---")
+    result = gql_ar.query("""{ availableStores { store_code store_name locale default_display_currency_code } }""")
     if result and "data" in result:
-        reco["findings"]["kw_available_stores"] = result["data"]["availableStores"]
+        stores = result["data"].get("availableStores", [])
+        reco["findings"]["ar_available_stores"] = stores
+        for s in stores:
+            print(f"    {s.get('store_code')}: {s.get('store_name')} ({s.get('locale')}) — {s.get('default_display_currency_code')}")
 
-    # Fetch all products for reco
-    result = gql.query("""
+    # 3. English products
+    print(f"\n--- English Products (store: {en_store or 'default'}) ---")
+    result = gql_en.query("""
     { products(search: "", pageSize: 50, currentPage: 1) {
         total_count
         items { id sku name url_key type_id
@@ -374,69 +164,96 @@ def explore(gql):
         }
         page_info { total_pages }
     }}
-    """)
+    """, store_code=en_store)
     if result and "data" in result:
-        reco["findings"]["kw_products"] = result["data"]["products"]
+        products = result["data"].get("products", {})
+        reco["findings"]["en_products"] = products
+        total = products.get("total_count", 0)
+        items = products.get("items", [])
+        print(f"  Total: {total} products ({products.get('page_info', {}).get('total_pages', 1)} pages)")
+        for item in items[:5]:
+            print(f"    - {item.get('name')} (sku: {item.get('sku')}, url_key: {item.get('url_key')})")
+            cats = item.get("categories", [])
+            if cats:
+                print(f"      categories: {[c.get('name') for c in cats]}")
+            price = item.get("price_range", {}).get("minimum_price", {})
+            fp = price.get("final_price", {})
+            if fp:
+                print(f"      price: {fp.get('value')} {fp.get('currency')}")
+        if len(items) > 5:
+            print(f"    ... and {len(items) - 5} more")
 
-    # Categories
-    result = gql.query("""
+    # 4. Arabic products
+    print(f"\n--- Arabic Products (store: {ar_store or 'default'}) ---")
+    result = gql_ar.query("""
+    { products(search: "", pageSize: 50, currentPage: 1) {
+        total_count
+        items { id sku name url_key type_id
+            description { html } short_description { html }
+            meta_title meta_description
+            price_range { minimum_price { regular_price { value currency } final_price { value currency } } }
+            media_gallery { url label position }
+            categories { id name url_key }
+        }
+        page_info { total_pages }
+    }}
+    """, store_code=ar_store)
+    if result and "data" in result:
+        products = result["data"].get("products", {})
+        reco["findings"]["ar_products"] = products
+        items = products.get("items", [])
+        total = products.get("total_count", 0)
+        print(f"  Total: {total} products")
+        for item in items[:5]:
+            name = item.get('name', '')
+            is_arabic = any('\u0600' <= c <= '\u06FF' for c in name)
+            lang = "AR" if is_arabic else "EN"
+            print(f"    - [{lang}] {name} (sku: {item.get('sku')})")
+        if items:
+            first_name = items[0].get("name", "")
+            is_arabic = any('\u0600' <= c <= '\u06FF' for c in first_name)
+            if is_arabic:
+                print(f"  >>> Arabic content confirmed!")
+            else:
+                print(f"  >>> WARNING: Content appears to be English, not Arabic.")
+                print(f"      Try a different store code.")
+
+    # 5. English categories
+    print(f"\n--- English Categories ---")
+    result = gql_en.query("""
     { categories(filters: {}) { items {
         id name url_key url_path product_count
         children { id name url_key product_count
             children { id name url_key product_count }
         }
     }}}
-    """)
+    """, store_code=en_store)
     if result and "data" in result:
-        reco["findings"]["kw_categories"] = result["data"]["categories"]
+        reco["findings"]["en_categories"] = result["data"]["categories"]
+        _print_category_tree(result["data"]["categories"].get("items", []))
 
-    # UAE data
-    result = gql_ae.query("""{ storeConfig { store_name store_code locale default_display_currency_code } }""")
+    # 6. Arabic categories
+    print(f"\n--- Arabic Categories ---")
+    result = gql_ar.query("""
+    { categories(filters: {}) { items {
+        id name url_key url_path product_count
+        children { id name url_key product_count
+            children { id name url_key product_count }
+        }
+    }}}
+    """, store_code=ar_store)
     if result and "data" in result:
-        reco["findings"]["ae_store_config"] = result["data"]["storeConfig"]
+        reco["findings"]["ar_categories"] = result["data"]["categories"]
+        _print_category_tree(result["data"]["categories"].get("items", []))
 
-    result = gql_ae.query("""{ availableStores { store_code store_name locale default_display_currency_code } }""")
-    if result and "data" in result:
-        reco["findings"]["ae_available_stores"] = result["data"]["availableStores"]
-
-    # UAE products sample
-    for ar_code in ["ae-ar", "ae_ar", "ar", None]:
-        result = gql_ae.query("""
-        { products(search: "", pageSize: 50, currentPage: 1) {
-            total_count
-            items { id sku name url_key description { html } short_description { html }
-                price_range { minimum_price { final_price { value currency } } }
-                media_gallery { url label }
-                categories { id name url_key }
-            }
-            page_info { total_pages }
-        }}
-        """, store_code=ar_code)
-        if result and "data" in result:
-            items = result["data"].get("products", {}).get("items", [])
-            if items:
-                first_name = items[0].get("name", "")
-                is_arabic = any('\u0600' <= c <= '\u06FF' for c in first_name)
-                reco["findings"][f"ae_products_{ar_code or 'default'}"] = {
-                    "store_code": ar_code,
-                    "is_arabic": is_arabic,
-                    "data": result["data"]["products"],
-                }
-                if is_arabic:
-                    reco["findings"]["arabic_source"] = {
-                        "site": "ae",
-                        "store_code": ar_code,
-                    }
-                    break
-
+    # Save reco
     reco_path = os.path.join("data", "kuwait_reco.json")
     os.makedirs("data", exist_ok=True)
     save_json(reco, reco_path)
-    print(f"  Saved to {reco_path}")
+    print(f"\n  Reco saved to {reco_path}")
 
     print("\n--- Exploration Complete ---")
-    print("\nNext steps:")
-    print("  python scrape_kuwait.py --scrape")
+    print("\nNext: python scrape_kuwait.py --scrape")
 
 
 def _print_category_tree(items, indent=4):
@@ -936,28 +753,23 @@ def main():
     parser.add_argument("--scrape", action="store_true", help="Scrape all content")
     parser.add_argument("--only", choices=["products", "collections", "pages", "articles", "metaobjects"],
                        help="Scrape only a specific content type")
-    parser.add_argument("--en-store", default=None,
-                       help="English store code (default: None = default store on KW site)")
-    parser.add_argument("--ar-site", choices=["kw", "ae"], default=None,
-                       help="Which site to use for Arabic: 'kw' (taraformula.com.kw) or 'ae' (taraformula.ae)")
-    parser.add_argument("--ar-store", default=None,
-                       help="Arabic store code (e.g., 'ae-ar'). If not set, Arabic output = English copy.")
+    parser.add_argument("--en-site", default=DEFAULT_EN_SITE,
+                       help=f"English site URL (default: {DEFAULT_EN_SITE})")
+    parser.add_argument("--en-store", default=DEFAULT_EN_STORE,
+                       help=f"English store code (default: {DEFAULT_EN_STORE})")
+    parser.add_argument("--ar-site", default=DEFAULT_AR_SITE,
+                       help=f"Arabic site URL (default: {DEFAULT_AR_SITE})")
+    parser.add_argument("--ar-store", default=DEFAULT_AR_STORE,
+                       help=f"Arabic store code (default: {DEFAULT_AR_STORE})")
     parser.add_argument("--delay", type=float, default=REQUEST_DELAY,
                        help=f"Delay between requests in seconds (default: {REQUEST_DELAY})")
     args = parser.parse_args()
 
-    gql_en = MagentoGraphQL(base_url=BASE_URL_KW, delay=args.delay)
-
-    # Arabic GraphQL client
-    if args.ar_site == "ae":
-        gql_ar = MagentoGraphQL(base_url=BASE_URL_AE, delay=args.delay)
-    elif args.ar_site == "kw":
-        gql_ar = gql_en
-    else:
-        gql_ar = None
+    gql_en = MagentoGraphQL(base_url=args.en_site, delay=args.delay)
+    gql_ar = MagentoGraphQL(base_url=args.ar_site, delay=args.delay)
 
     if args.explore:
-        explore(gql_en)
+        explore(gql_en, gql_ar, args.en_store, args.ar_store)
     elif args.scrape:
         scraper = KuwaitScraper(
             gql_en=gql_en,
@@ -971,7 +783,6 @@ def main():
         print("  python scrape_kuwait.py --explore")
         print("  python scrape_kuwait.py --scrape")
         print("  python scrape_kuwait.py --scrape --only products")
-        print("  python scrape_kuwait.py --scrape --ar-site ae --ar-store ae-ar")
 
 
 if __name__ == "__main__":
