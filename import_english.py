@@ -135,10 +135,14 @@ def prepare_product_for_import(product, exchange_rate):
             # Skip reference fields — they point to source store IDs
             if "reference" in mf_type:
                 continue
+            value = mf["value"]
+            # Sanitize rich_text JSON to fix control characters
+            if "rich_text" in mf_type or (isinstance(value, str) and value.strip().startswith('{"type":"root"')):
+                value = sanitize_rich_text_json(value)
             p["metafields"].append({
                 "namespace": mf["namespace"],
                 "key": mf["key"],
-                "value": mf["value"],
+                "value": value,
                 "type": mf_type,
             })
 

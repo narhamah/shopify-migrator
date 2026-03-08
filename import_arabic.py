@@ -19,6 +19,7 @@ import os
 
 from dotenv import load_dotenv
 
+from import_english import sanitize_rich_text_json
 from shopify_client import ShopifyClient
 
 
@@ -121,7 +122,10 @@ def main():
                 if "reference" in mf_type:
                     continue
                 key = f"custom.{mf['key']}" if mf.get("namespace") == "custom" else f"{mf.get('namespace', '')}.{mf['key']}"
-                arabic_fields[key] = mf.get("value", "")
+                value = mf.get("value", "")
+                if "rich_text" in mf_type or (isinstance(value, str) and value.strip().startswith('{"type":"root"')):
+                    value = sanitize_rich_text_json(value)
+                arabic_fields[key] = value
 
         label = f"  [{i+1}/{len(en_products)}] {en_product.get('title', '')[:50]}"
 
@@ -282,7 +286,10 @@ def main():
                 if "reference" in mf_type:
                     continue
                 key = f"custom.{mf['key']}" if mf.get("namespace") == "custom" else f"{mf.get('namespace', '')}.{mf['key']}"
-                arabic_fields[key] = mf.get("value", "")
+                value = mf.get("value", "")
+                if "rich_text" in mf_type or (isinstance(value, str) and value.strip().startswith('{"type":"root"')):
+                    value = sanitize_rich_text_json(value)
+                arabic_fields[key] = value
 
         label = f"  [{i+1}/{len(en_articles)}] {en_art.get('title', '')[:50]}"
 
