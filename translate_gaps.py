@@ -35,8 +35,8 @@ AR_DIR = "data/arabic"
 # or ~80 long fields (HTML body) per batch.
 BATCH_SIZE = 120
 
-# Max parallel API calls
-MAX_WORKERS = 5
+# Max parallel API calls — keep low to avoid TPM rate limits on OpenAI
+MAX_WORKERS = 2
 
 # =====================================================================
 # TOON encoding / decoding
@@ -400,10 +400,17 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
             return t_map
 
         except Exception as e:
+            err_str = str(e)
             print(f"    Error: {e}")
             if attempt < 2:
+                # Parse retry-after from rate limit errors
                 wait = 2 ** (attempt + 1)
-                print(f"    Retrying in {wait}s...")
+                retry_match = re.search(r"try again in (\d+\.?\d*)s", err_str)
+                if retry_match:
+                    wait = max(wait, float(retry_match.group(1)) + 2)
+                elif "429" in err_str or "rate" in err_str.lower():
+                    wait = max(wait, 40)  # Default 40s for rate limits
+                print(f"    Retrying in {wait:.0f}s...")
                 time.sleep(wait)
 
     print(f"    FAILED after 3 attempts")
