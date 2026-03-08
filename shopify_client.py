@@ -311,6 +311,104 @@ class ShopifyClient:
         data = self._graphql(query)
         return data.get("metaobjectByHandle")
 
+    # --- GraphQL: Metafield Definitions ---
+
+    def get_metafield_definitions(self, owner_type):
+        """Get all metafield definitions for a given owner type.
+
+        Args:
+            owner_type: "PRODUCT", "ARTICLE", "COLLECTION", etc.
+        """
+        all_defs = []
+        cursor = None
+        while True:
+            after_clause = f', after: "{cursor}"' if cursor else ""
+            query = f"""
+            {{
+              metafieldDefinitions(ownerType: {owner_type}, first: 250{after_clause}) {{
+                edges {{
+                  cursor
+                  node {{
+                    id
+                    namespace
+                    key
+                    name
+                    type {{ name }}
+                    ownerType
+                  }}
+                }}
+                pageInfo {{ hasNextPage }}
+              }}
+            }}
+            """
+            data = self._graphql(query)
+            edges = data["metafieldDefinitions"]["edges"]
+            for edge in edges:
+                all_defs.append(edge["node"])
+                cursor = edge["cursor"]
+            if not data["metafieldDefinitions"]["pageInfo"]["hasNextPage"]:
+                break
+        return all_defs
+
+    def create_metafield_definition(self, definition):
+        """Create a metafield definition via GraphQL.
+
+        Args:
+            definition: dict with name, namespace, key, type, ownerType,
+                       and optionally validations
+        """
+        query = """
+        mutation CreateMetafieldDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition {
+              id
+              namespace
+              key
+              name
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"definition": definition})
+        result = data["metafieldDefinitionCreate"]
+        if result["userErrors"]:
+            errors = result["userErrors"]
+            if any("already exists" in e.get("message", "").lower() for e in errors):
+                return None
+            raise Exception(f"MetafieldDefinitionCreate errors: {errors}")
+        return result["createdDefinition"]
+
+    def set_metafields(self, metafields):
+        """Set metafields on resources via GraphQL metafieldsSet.
+
+        Args:
+            metafields: list of dicts with ownerId, namespace, key, value, type
+        """
+        query = """
+        mutation SetMetafields($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+              namespace
+              key
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"metafields": metafields})
+        result = data["metafieldsSet"]
+        if result["userErrors"]:
+            raise Exception(f"MetafieldsSet errors: {result['userErrors']}")
+        return result["metafields"]
+
     # --- GraphQL: Translations API ---
 
     def register_translations(self, resource_id, locale, translations):

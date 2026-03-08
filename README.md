@@ -33,12 +33,29 @@ cp .env.example .env
 - `read_translations`, `write_translations`
 - `read_locales`
 
-## The 5-Step Pipeline
+## The 6-Step Pipeline
 
 ```
-Spain Store (ES) ──→ Export ──→ Translate ES→EN ──→ Import EN ──→ Translate EN→AR ──→ Import AR
-     Step 1            Step 2          Step 3          Step 4           Step 5
+[0] Setup Schema ──→ [1] Export ES ──→ [2] Translate ES→EN ──→ [3] Import EN ──→ [4] Translate EN→AR ──→ [5] Import AR
 ```
+
+### Step 0: Set Up Destination Store Schema
+
+```bash
+# Preview
+python setup_store.py --dry-run
+
+# Run
+python setup_store.py
+```
+
+Examines the Saudi store and creates any missing definitions:
+- 4 metaobject definitions (benefit → faq_entry → blog_author → ingredient) with storefront access
+- 19 product metafield definitions (tagline, accordion sections, ingredient/FAQ refs)
+- 12 article metafield definitions (featured, author, related articles/products)
+
+Resolves cross-references automatically (e.g., ingredient's `benefits` field → benefit definition GID).
+Safe to re-run — skips anything that already exists.
 
 ### Step 1: Export from Spain Store
 
@@ -78,11 +95,11 @@ python import_english.py --exchange-rate 4.13
 ```
 
 1. Examines the destination store for existing metaobject definitions
-2. Creates missing metaobject definitions (benefit → faq_entry → blog_author → ingredient)
-3. Creates metaobject entries
-4. Creates products (with metafields), collections, pages, blogs, articles
-5. Saves ID mapping (`data/id_map.json`) for cross-referencing
-6. Skips items that already exist (matched by handle)
+2. Creates metaobject entries (benefit → faq_entry → blog_author → ingredient)
+3. Creates products with text metafields and price conversion
+4. Creates collections, pages, blogs, articles
+5. **Remaps all reference fields** (ingredient→benefit, product→ingredient/faq, article→author/ingredients/related)
+6. Saves ID mapping (`data/id_map.json`); skips existing items (matched by handle)
 
 **Flags:**
 - `--dry-run` — Show what would be created without making API calls

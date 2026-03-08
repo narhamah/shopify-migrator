@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """Step 3: Import English-translated content into the Saudi Shopify store.
 
-Creates metaobject definitions, metaobject entries, products (with metafields),
-collections, pages, blogs, and articles in the destination store.
+Prerequisites: Run setup_store.py first to create metaobject/metafield definitions.
+
+Phases:
+  0. Examine destination store (existing definitions)
+  1. Create metaobject entries (benefit → faq_entry → blog_author → ingredient)
+  2. Create products (with text metafields, prices converted)
+  3. Create collections
+  4. Create pages
+  5. Create blogs + articles
+  6. Remap reference fields (ingredient→benefit, product→ingredient, etc.)
 """
 
 import argparse
@@ -445,6 +453,209 @@ def main():
 
     if not args.dry_run:
         save_json(id_map, id_map_file)
+
+    # =============================================
+    # Phase 6: Remap reference fields
+    # =============================================
+    if not args.dry_run and not args.exchange_rate == -1:  # Always run unless explicitly skipped
+        print("\n--- Phase 6: Remapping reference fields ---")
+        ref_progress = id_map.get("_ref_remapped", {})
+
+        # 6a. Ingredient → benefit references
+        metaobjects_data = load_json(metaobjects_file) if os.path.exists(metaobjects_file) else {}
+        ingredients = metaobjects_data.get("ingredient", {}).get("objects", [])
+        benefit_map = id_map.get("metaobjects_benefit", {})
+        ingredient_map = id_map.get("metaobjects_ingredient", {})
+        collection_map = id_map.get("collections", {})
+
+        for obj in ingredients:
+            source_id = obj.get("id", "")
+            dest_id = ingredient_map.get(source_id)
+            if not dest_id or f"ingredient_{source_id}" in ref_progress:
+                continue
+
+            fields_to_update = []
+            for field in obj.get("fields", []):
+                # Remap benefit references
+                if field["key"] == "benefits" and field.get("value") and "metaobject_reference" in field.get("type", ""):
+                    try:
+                        source_refs = json.loads(field["value"])
+                        dest_refs = [benefit_map.get(ref, ref) for ref in source_refs if benefit_map.get(ref)]
+                        if dest_refs:
+                            fields_to_update.append({"key": "benefits", "value": json.dumps(dest_refs)})
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                # Remap collection reference
+                if field["key"] == "collection" and field.get("value") and "collection_reference" in field.get("type", ""):
+                    source_coll_gid = field["value"]
+                    # Extract numeric ID from GID
+                    source_coll_id = source_coll_gid.split("/")[-1] if "/" in source_coll_gid else source_coll_gid
+                    dest_coll_id = collection_map.get(source_coll_id)
+                    if dest_coll_id:
+                        fields_to_update.append({"key": "collection", "value": f"gid://shopify/Collection/{dest_coll_id}"})
+
+            if fields_to_update:
+                try:
+                    client.update_metaobject(dest_id, fields_to_update)
+                    print(f"  Ingredient {obj.get('handle', '')} — remapped {len(fields_to_update)} reference fields")
+                except Exception as e:
+                    print(f"  Ingredient {obj.get('handle', '')} — error: {e}")
+
+            ref_progress[f"ingredient_{source_id}"] = True
+
+        # 6b. Product → ingredient/faq references via metafieldsSet
+        products = load_json(os.path.join(input_dir, "products.json"))
+        product_map = id_map.get("products", {})
+        faq_map = id_map.get("metaobjects_faq_entry", {})
+
+        for product in products:
+            source_id = str(product["id"])
+            dest_id = product_map.get(source_id)
+            if not dest_id or f"product_{source_id}" in ref_progress:
+                continue
+
+            metafields_to_set = []
+            for mf in product.get("metafields", []):
+                mf_type = mf.get("type", "")
+                if "reference" not in mf_type or not mf.get("value"):
+                    continue
+
+                ns = mf.get("namespace", "custom")
+                key = mf.get("key", "")
+                value = mf["value"]
+
+                if key == "ingredients" and "metaobject_reference" in mf_type:
+                    try:
+                        source_refs = json.loads(value)
+                        dest_refs = [ingredient_map.get(ref, ref) for ref in source_refs if ingredient_map.get(ref)]
+                        if dest_refs:
+                            metafields_to_set.append({
+                                "ownerId": f"gid://shopify/Product/{dest_id}",
+                                "namespace": ns, "key": key,
+                                "value": json.dumps(dest_refs),
+                                "type": mf_type,
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                elif key == "faqs" and "metaobject_reference" in mf_type:
+                    try:
+                        source_refs = json.loads(value)
+                        dest_refs = [faq_map.get(ref, ref) for ref in source_refs if faq_map.get(ref)]
+                        if dest_refs:
+                            metafields_to_set.append({
+                                "ownerId": f"gid://shopify/Product/{dest_id}",
+                                "namespace": ns, "key": key,
+                                "value": json.dumps(dest_refs),
+                                "type": mf_type,
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+            if metafields_to_set:
+                try:
+                    client.set_metafields(metafields_to_set)
+                    print(f"  Product '{product.get('title', '')[:40]}' — set {len(metafields_to_set)} reference metafields")
+                except Exception as e:
+                    print(f"  Product '{product.get('title', '')[:40]}' — error: {e}")
+
+            ref_progress[f"product_{source_id}"] = True
+
+        # 6c. Article → blog_author/ingredient/related references
+        articles = load_json(os.path.join(input_dir, "articles.json"))
+        article_map = id_map.get("articles", {})
+        blog_author_map = id_map.get("metaobjects_blog_author", {})
+
+        for article in articles:
+            source_id = str(article["id"])
+            dest_id = article_map.get(source_id)
+            if not dest_id or f"article_{source_id}" in ref_progress:
+                continue
+
+            metafields_to_set = []
+            for mf in article.get("metafields", []):
+                mf_type = mf.get("type", "")
+                if "reference" not in mf_type or not mf.get("value"):
+                    continue
+
+                ns = mf.get("namespace", "custom")
+                key = mf.get("key", "")
+                value = mf["value"]
+
+                if key == "author" and "metaobject_reference" in mf_type:
+                    dest_ref = blog_author_map.get(value)
+                    if dest_ref:
+                        metafields_to_set.append({
+                            "ownerId": f"gid://shopify/OnlineStoreArticle/{dest_id}",
+                            "namespace": ns, "key": key,
+                            "value": dest_ref,
+                            "type": mf_type,
+                        })
+
+                elif key == "ingredients" and "metaobject_reference" in mf_type:
+                    try:
+                        source_refs = json.loads(value)
+                        dest_refs = [ingredient_map.get(ref, ref) for ref in source_refs if ingredient_map.get(ref)]
+                        if dest_refs:
+                            metafields_to_set.append({
+                                "ownerId": f"gid://shopify/OnlineStoreArticle/{dest_id}",
+                                "namespace": ns, "key": key,
+                                "value": json.dumps(dest_refs),
+                                "type": mf_type,
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                elif key == "related_products" and "product_reference" in mf_type:
+                    try:
+                        source_refs = json.loads(value)
+                        dest_refs = []
+                        for ref in source_refs:
+                            ref_id = ref.split("/")[-1] if "/" in ref else ref
+                            dest_prod_id = product_map.get(ref_id)
+                            if dest_prod_id:
+                                dest_refs.append(f"gid://shopify/Product/{dest_prod_id}")
+                        if dest_refs:
+                            metafields_to_set.append({
+                                "ownerId": f"gid://shopify/OnlineStoreArticle/{dest_id}",
+                                "namespace": ns, "key": key,
+                                "value": json.dumps(dest_refs),
+                                "type": mf_type,
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                elif key == "related_articles" and "article_reference" in mf_type:
+                    try:
+                        source_refs = json.loads(value)
+                        dest_refs = []
+                        for ref in source_refs:
+                            ref_id = ref.split("/")[-1] if "/" in ref else ref
+                            dest_art_id = article_map.get(ref_id)
+                            if dest_art_id:
+                                dest_refs.append(f"gid://shopify/OnlineStoreArticle/{dest_art_id}")
+                        if dest_refs:
+                            metafields_to_set.append({
+                                "ownerId": f"gid://shopify/OnlineStoreArticle/{dest_id}",
+                                "namespace": ns, "key": key,
+                                "value": json.dumps(dest_refs),
+                                "type": mf_type,
+                            })
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+            if metafields_to_set:
+                try:
+                    client.set_metafields(metafields_to_set)
+                    print(f"  Article '{article.get('title', '')[:40]}' — set {len(metafields_to_set)} reference metafields")
+                except Exception as e:
+                    print(f"  Article '{article.get('title', '')[:40]}' — error: {e}")
+
+            ref_progress[f"article_{source_id}"] = True
+
+        id_map["_ref_remapped"] = ref_progress
+        save_json(id_map, id_map_file)
+        print("  Reference remapping complete.")
 
     print("\n--- Import Summary ---")
     print(f"  Products:    {len(id_map.get('products', {}))}")
