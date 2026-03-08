@@ -20,7 +20,6 @@ import os
 import re
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -35,8 +34,8 @@ AR_DIR = "data/arabic"
 # or ~80 long fields (HTML body) per batch.
 BATCH_SIZE = 120
 
-# Max parallel API calls — keep low to avoid TPM rate limits on OpenAI
-MAX_WORKERS = 2
+# TPM (tokens per minute) budget — OpenAI free/tier-1 is 30K for gpt-4o
+TPM_LIMIT = 30000
 
 # =====================================================================
 # TOON encoding / decoding
@@ -351,7 +350,10 @@ TARA {target_lang.upper()} TONE OF VOICE:
 
 
 def translate_batch(client, model, fields, source_lang, target_lang, batch_num, total_batches):
-    """Translate a batch of fields using TOON format."""
+    """Translate a batch of fields using TOON format.
+
+    Returns (translation_map, total_tokens_used).
+    """
     toon_input = to_toon(fields)
 
     prompt = (
@@ -363,7 +365,7 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
 
     print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields...")
 
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             response = client.chat.completions.create(
                 model=model,
@@ -379,7 +381,7 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
             # Validate we got the right number back
             if len(translated) != len(fields):
                 print(f"    WARNING: Expected {len(fields)} fields, got {len(translated)}. Retrying...")
-                if attempt < 2:
+                if attempt < 3:
                     time.sleep(2)
                     continue
 
@@ -396,25 +398,26 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
                 print(f"    WARNING: Missing translations for: {list(missing)[:3]}")
 
             usage = response.usage
-            print(f"    Done ({usage.prompt_tokens} prompt + {usage.completion_tokens} completion tokens)")
-            return t_map
+            total_tokens = usage.prompt_tokens + usage.completion_tokens
+            print(f"    Done ({usage.prompt_tokens} prompt + {usage.completion_tokens} completion = {total_tokens} tokens)")
+            return t_map, total_tokens
 
         except Exception as e:
             err_str = str(e)
             print(f"    Error: {e}")
-            if attempt < 2:
+            if attempt < 3:
                 # Parse retry-after from rate limit errors
                 wait = 2 ** (attempt + 1)
                 retry_match = re.search(r"try again in (\d+\.?\d*)s", err_str)
                 if retry_match:
                     wait = max(wait, float(retry_match.group(1)) + 2)
                 elif "429" in err_str or "rate" in err_str.lower():
-                    wait = max(wait, 40)  # Default 40s for rate limits
+                    wait = max(wait, 45)  # Default 45s for rate limits
                 print(f"    Retrying in {wait:.0f}s...")
                 time.sleep(wait)
 
-    print(f"    FAILED after 3 attempts")
-    return {}
+    print(f"    FAILED after 4 attempts")
+    return {}, 0
 
 
 # =====================================================================
@@ -471,8 +474,8 @@ def main():
                         help="OpenAI model (default: gpt-4o)")
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE,
                         help=f"Fields per batch (default: {BATCH_SIZE})")
-    parser.add_argument("--workers", type=int, default=MAX_WORKERS,
-                        help=f"Parallel API workers (default: {MAX_WORKERS})")
+    parser.add_argument("--tpm", type=int, default=TPM_LIMIT,
+                        help=f"Tokens-per-minute budget (default: {TPM_LIMIT})")
     args = parser.parse_args()
 
     target_lang = "English" if args.lang == "en" else "Arabic"
@@ -635,33 +638,38 @@ def main():
             batches.append(remaining[i:i + args.batch_size])
         total_batches = len(batches)
 
-        workers = min(args.workers, total_batches)
-        print(f"\n  Sending {total_batches} batches with {workers} parallel workers...")
+        tpm_limit = args.tpm
+        print(f"\n  Sending {total_batches} batches sequentially (TPM budget: {tpm_limit:,})")
 
-        import threading
-        lock = threading.Lock()
+        # Track tokens used in the current 60-second window
+        window_start = time.time()
+        window_tokens = 0
 
-        def run_batch(batch, batch_num):
-            t_map = translate_batch(
+        for i, batch in enumerate(batches):
+            # TPM throttle: if we'd exceed the budget, wait for the window to reset
+            now = time.time()
+            elapsed = now - window_start
+            if elapsed >= 60:
+                # New window
+                window_start = now
+                window_tokens = 0
+            elif window_tokens >= tpm_limit * 0.85:
+                # We've used 85%+ of the budget — wait for window to reset
+                wait = 60 - elapsed + 2
+                print(f"    TPM throttle: {window_tokens:,} tokens used, waiting {wait:.0f}s for window reset...")
+                time.sleep(wait)
+                window_start = time.time()
+                window_tokens = 0
+
+            t_map, tokens_used = translate_batch(
                 client, args.model, batch,
                 "Spanish", target_lang,
-                batch_num, total_batches,
+                i + 1, total_batches,
             )
-            with lock:
-                all_translations.update(t_map)
-                save_json(all_translations, progress_file)
-            return len(t_map)
+            window_tokens += tokens_used
 
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(run_batch, batch, i + 1): i
-                for i, batch in enumerate(batches)
-            }
-            for future in as_completed(futures):
-                try:
-                    count = future.result()
-                except Exception as e:
-                    print(f"  Batch failed: {e}")
+            all_translations.update(t_map)
+            save_json(all_translations, progress_file)
 
     # ---- Merge translations into output data ----
     print(f"\n  Merging {len(all_translations)} translations into output files...")
