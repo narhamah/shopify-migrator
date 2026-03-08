@@ -120,6 +120,8 @@ PRODUCT_TRANSLATABLE_METAFIELDS = {
     "custom.free_of_heading", "custom.free_of_content",
     "custom.awards_heading", "custom.awards_content",
     "custom.fragrance_heading", "custom.fragrance_content",
+    # SEO fields
+    "global.title_tag", "global.description_tag",
 }
 
 ARTICLE_TRANSLATABLE_METAFIELDS = {
@@ -145,6 +147,10 @@ def extract_product_fields(product, prefix):
     """Extract all translatable text fields from a product."""
     fields = []
     pid = product.get("handle", product.get("id", ""))
+
+    # Handle (URL slug) — translate to English slug
+    if product.get("handle"):
+        fields.append({"id": f"{prefix}.{pid}.handle", "value": product["handle"]})
 
     # Core fields
     if product.get("title"):
@@ -184,16 +190,25 @@ def extract_product_fields(product, prefix):
 def extract_collection_fields(collection, prefix):
     fields = []
     cid = collection.get("handle", collection.get("id", ""))
+    if collection.get("handle"):
+        fields.append({"id": f"{prefix}.{cid}.handle", "value": collection["handle"]})
     if collection.get("title"):
         fields.append({"id": f"{prefix}.{cid}.title", "value": collection["title"]})
     if collection.get("body_html"):
         fields.append({"id": f"{prefix}.{cid}.body_html", "value": collection["body_html"]})
+    # SEO metafields
+    for mf in collection.get("metafields", []):
+        ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+        if ns_key in ("global.title_tag", "global.description_tag") and mf.get("value"):
+            fields.append({"id": f"{prefix}.{cid}.mf.{ns_key}", "value": mf["value"]})
     return fields
 
 
 def extract_page_fields(page, prefix):
     fields = []
     pid = page.get("handle", page.get("id", ""))
+    if page.get("handle"):
+        fields.append({"id": f"{prefix}.{pid}.handle", "value": page["handle"]})
     if page.get("title"):
         fields.append({"id": f"{prefix}.{pid}.title", "value": page["title"]})
     if page.get("body_html"):
@@ -241,6 +256,15 @@ def extract_metaobject_fields(metaobjects_data, prefix):
 # Apply translated fields back to data structures
 # =====================================================================
 
+def _slugify(text):
+    """Convert a translated handle to a valid URL slug."""
+    import unicodedata
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"[^\w\s-]", "", text.lower())
+    text = re.sub(r"[-\s]+", "-", text).strip("-")
+    return text
+
+
 def apply_translations(translations, products, collections, pages, articles, metaobjects):
     """Apply a dict of {field_id: translated_value} back to data structures."""
     t = translations
@@ -248,6 +272,13 @@ def apply_translations(translations, products, collections, pages, articles, met
     for p in products:
         pid = p.get("handle", p.get("id", ""))
         for prefix in ["prod", "product"]:
+            # Handle translation
+            handle_key = f"{prefix}.{pid}.handle"
+            if handle_key in t:
+                new_handle = _slugify(t[handle_key])
+                if new_handle:
+                    p["handle"] = new_handle
+
             if f"{prefix}.{pid}.title" in t:
                 p["title"] = t[f"{prefix}.{pid}.title"]
             if f"{prefix}.{pid}.body_html" in t:
@@ -280,14 +311,32 @@ def apply_translations(translations, products, collections, pages, articles, met
     for c in collections:
         cid = c.get("handle", c.get("id", ""))
         for prefix in ["coll", "collection"]:
+            handle_key = f"{prefix}.{cid}.handle"
+            if handle_key in t:
+                new_handle = _slugify(t[handle_key])
+                if new_handle:
+                    c["handle"] = new_handle
+
             if f"{prefix}.{cid}.title" in t:
                 c["title"] = t[f"{prefix}.{cid}.title"]
             if f"{prefix}.{cid}.body_html" in t:
                 c["body_html"] = t[f"{prefix}.{cid}.body_html"]
 
+            for mf in c.get("metafields", []):
+                ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+                fid = f"{prefix}.{cid}.mf.{ns_key}"
+                if fid in t:
+                    mf["value"] = t[fid]
+
     for pg in pages:
         pid = pg.get("handle", pg.get("id", ""))
         for prefix in ["page"]:
+            handle_key = f"{prefix}.{pid}.handle"
+            if handle_key in t:
+                new_handle = _slugify(t[handle_key])
+                if new_handle:
+                    pg["handle"] = new_handle
+
             if f"{prefix}.{pid}.title" in t:
                 pg["title"] = t[f"{prefix}.{pid}.title"]
             if f"{prefix}.{pid}.body_html" in t:
@@ -344,6 +393,9 @@ TRANSLATION RULES:
 - Preserve Shopify Liquid tags ({{{{ }}}}, {{% %}}) unchanged
 - Keep URLs, JSON structure keys, and GIDs unchanged
 - For rich_text_field JSON: translate only "value" keys inside text nodes
+- For .handle fields: translate the slug to {target_lang} (e.g., "mascarilla-reparadora" → "repairing-hair-mask"). Keep lowercase, hyphens only, no special characters.
+- For .mf.global.title_tag: translate the SEO page title
+- For .mf.global.description_tag: translate the SEO meta description
 - Return ONLY the translated TOON lines, no explanations
 
 TARA {target_lang.upper()} TONE OF VOICE:

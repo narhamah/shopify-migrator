@@ -16,10 +16,50 @@ Phases:
 import argparse
 import json
 import os
+import re
 
 from dotenv import load_dotenv
 
 from shopify_client import ShopifyClient
+
+
+def sanitize_rich_text_json(value):
+    """Fix rich_text_field JSON corrupted by translation.
+
+    The TOON translator can introduce literal newlines/control chars inside
+    JSON string values. This function re-serializes the JSON to fix them.
+    Returns the original value if it's not JSON or not fixable.
+    """
+    if not value or not isinstance(value, str):
+        return value
+    # Only process values that look like rich_text JSON
+    if not value.strip().startswith("{"):
+        return value
+    try:
+        # If it parses fine, it's valid — just re-serialize to be safe
+        parsed = json.loads(value)
+        return json.dumps(parsed, ensure_ascii=False)
+    except json.JSONDecodeError:
+        # Fix common corruption: literal newlines inside JSON strings
+        # Replace actual newlines inside strings with \\n
+        fixed = value
+        # Remove control characters that break JSON (except \n, \r, \t)
+        fixed = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', fixed)
+        # Replace literal newlines inside JSON string values with \\n
+        # Strategy: replace all literal newlines with \\n, then re-parse
+        fixed = fixed.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
+        try:
+            parsed = json.loads(fixed)
+            return json.dumps(parsed, ensure_ascii=False)
+        except json.JSONDecodeError:
+            # Last resort: strip all control chars
+            fixed = re.sub(r'[\x00-\x1f]', '', value)
+            try:
+                parsed = json.loads(fixed)
+                return json.dumps(parsed, ensure_ascii=False)
+            except json.JSONDecodeError:
+                print(f"    WARNING: Could not fix corrupted JSON ({len(value)} chars)")
+                return value
 
 
 def load_json(filepath):
@@ -238,9 +278,13 @@ def main():
                     if "collection_reference" in field_type:
                         continue
                     if field.get("value"):
+                        val = field["value"]
+                        # Sanitize rich_text JSON to fix translation corruption
+                        if "rich_text" in field_type or (isinstance(val, str) and val.strip().startswith('{"type":"root"')):
+                            val = sanitize_rich_text_json(val)
                         fields.append({
                             "key": field["key"],
-                            "value": field["value"],
+                            "value": val,
                         })
 
                 mo_input = {
@@ -288,11 +332,22 @@ def main():
             continue
 
         product_data = prepare_product_for_import(product, exchange_rate)
-        created = client.create_product(product_data)
-        dest_id = created.get("id")
-        print(f"  {label} — created (id: {dest_id})")
-        id_map.setdefault("products", {})[source_id] = dest_id
-        save_json(id_map, id_map_file)
+        try:
+            created = client.create_product(product_data)
+            dest_id = created.get("id")
+            print(f"  {label} — created (id: {dest_id})")
+            id_map.setdefault("products", {})[source_id] = dest_id
+            save_json(id_map, id_map_file)
+        except Exception as e:
+            err_msg = str(e)
+            # Try to extract response body for 422 errors
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    err_body = e.response.json()
+                    err_msg = json.dumps(err_body, indent=2)
+                except Exception:
+                    err_msg = e.response.text[:500]
+            print(f"  {label} — ERROR: {err_msg}")
 
     # =============================================
     # Phase 3: Collections
