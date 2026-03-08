@@ -41,8 +41,7 @@ METAOBJECT_DEFINITIONS = [
         "fieldDefinitions": [
             {"key": "question", "name": "Question", "type": "single_line_text_field",
              "validations": [{"name": "min", "value": "1"}]},
-            {"key": "answer", "name": "Answer", "type": "rich_text_field",
-             "validations": [{"name": "min", "value": "1"}]},
+            {"key": "answer", "name": "Answer", "type": "rich_text_field"},
         ],
     },
     {
