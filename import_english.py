@@ -94,7 +94,8 @@ def prepare_product_for_import(product, exchange_rate):
         "product_type": product.get("product_type", ""),
         "tags": product.get("tags", ""),
         "handle": product.get("handle", ""),
-        "status": product.get("status", "draft"),
+        "status": "active",
+        "published_scope": "global",  # Publish to all sales channels (Online Store + POS)
     }
 
     if product.get("images"):
