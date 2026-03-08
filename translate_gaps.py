@@ -136,6 +136,18 @@ METAOBJECT_TRANSLATABLE_FIELDS = {
         "name", "one_line_benefit", "description", "source", "origin",
         "category", "concern",
     },
+    # Shopify standard taxonomy metaobjects — all have a "name" field in Spanish
+    "shopify--suitable-for-hair-type": {"name"},
+    "shopify--target-gender": {"name"},
+    "shopify--hair-care-items-included": {"name"},
+    "shopify--hair-loss-type": {"name"},
+    "shopify--treatment-type": {"name"},
+    "shopify--constitutive-ingredients": {"name"},
+    "shopify--product-certifications-standards": {"name"},
+    "shopify--conditioner-effect": {"name"},
+    "shopify--age-group": {"name"},
+    "shopify--product-form": {"name"},
+    "shopify--scalp-concern": {"name"},
 }
 
 
@@ -651,7 +663,7 @@ def main():
 
     # Metaobjects: types with translatable fields ALWAYS need LLM translation.
     # The scraper copies Spain metaobjects as-is (still Spanish text).
-    # Types without translatable fields (shopify-- prefixed) can be skipped.
+    # All shopify-- types have a "name" field that needs translation too.
     gap_metaobjects = {}
     if isinstance(spain_metaobjects, dict):
         for mo_type, type_data in spain_metaobjects.items():
