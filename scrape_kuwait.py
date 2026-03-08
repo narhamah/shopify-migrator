@@ -71,7 +71,7 @@ def save_json(data, filepath):
 # GraphQL client with retry and rate-limit handling
 # ------------------------------------------------------------------
 class MagentoGraphQL:
-    def __init__(self, base_url=BASE_URL_KW, delay=REQUEST_DELAY):
+    def __init__(self, base_url=BASE_URL_US, delay=REQUEST_DELAY):
         self.base_url = base_url
         self.graphql_url = f"{base_url}/graphql"
         self.delay = delay
