@@ -87,6 +87,7 @@ def convert_price(price, exchange_rate):
 
 def prepare_product_for_import(product, exchange_rate):
     """Strip source-specific fields and prepare product for creation."""
+    status = product.get("status", "draft")
     p = {
         "title": product.get("title", ""),
         "body_html": product.get("body_html", ""),
@@ -94,7 +95,8 @@ def prepare_product_for_import(product, exchange_rate):
         "product_type": product.get("product_type", ""),
         "tags": product.get("tags", ""),
         "handle": product.get("handle", ""),
-        "status": product.get("status", "draft"),
+        "status": status,
+        "published": status == "active",  # Publish to sales channels if active
     }
 
     if product.get("images"):
@@ -154,11 +156,22 @@ def main():
     parser = argparse.ArgumentParser(description="Import English content into Saudi Shopify store")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be created without making API calls")
     parser.add_argument("--exchange-rate", type=float, default=1.0, help="EUR to SAR exchange rate (default: 1.0)")
+    parser.add_argument("--reset", action="store_true", help="Clear id_map and progress files for a fresh import")
     args = parser.parse_args()
 
     load_dotenv()
     input_dir = "data/english"
     id_map_file = "data/id_map.json"
+    file_map_file = "data/file_map.json"
+    arabic_progress_file = "data/arabic_import_progress.json"
+
+    if args.reset:
+        for f in [id_map_file, file_map_file, arabic_progress_file]:
+            if os.path.exists(f):
+                os.remove(f)
+                print(f"  Cleared {f}")
+        print("  Reset complete — starting fresh import\n")
+
     id_map = load_json(id_map_file) if os.path.exists(id_map_file) else {}
 
     if args.dry_run:
