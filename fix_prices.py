@@ -111,10 +111,19 @@ def fetch_sar_prices(site_url, store_code, delay=REQUEST_DELAY):
             final = min_price.get("final_price", {})
             regular = min_price.get("regular_price", {})
 
+            final_val = final.get("value")
+            regular_val = regular.get("value")
+
+            # Round to 2 decimal places (Magento often returns conversion artifacts)
+            if final_val is not None:
+                final_val = round(final_val, 2)
+            if regular_val is not None:
+                regular_val = round(regular_val, 2)
+
             all_prices[sku] = {
                 "name": item.get("name", ""),
-                "final_price": final.get("value"),
-                "regular_price": regular.get("value"),
+                "final_price": final_val,
+                "regular_price": regular_val,
                 "currency": final.get("currency", "SAR"),
             }
 
