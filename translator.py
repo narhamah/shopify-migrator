@@ -1,17 +1,70 @@
+import json
 import re
+
 import anthropic
 
 
-SYSTEM_PROMPT = """You are a professional translator for TARA, a luxury skincare and beauty brand.
+SYSTEM_PROMPT = """You are a professional translator for TARA, a luxury skincare and beauty brand specializing in scalp care and hair health.
 
 Rules:
 - Keep "TARA" unchanged — never translate the brand name
 - Keep product-specific names unchanged (e.g., "Kansa Wand", "Gua Sha")
+- Keep ingredient scientific names (INCI names) unchanged
 - Preserve all HTML tags and their attributes exactly as they are
+- Preserve Shopify Liquid tags ({{ }}, {% %}) unchanged
 - Keep URLs unchanged
+- Keep JSON structure unchanged if the input is JSON (translate only string values)
 - When translating to Arabic, use Modern Standard Arabic appropriate for a Gulf/Saudi audience
 - Maintain the luxurious, professional tone of the brand
+- Scalp-first philosophy: the brand treats scalp as skin, focuses on root causes
 - Return ONLY the translated text, no explanations or notes"""
+
+
+# Metaobject field types that contain translatable text
+TRANSLATABLE_FIELD_TYPES = {
+    "single_line_text_field",
+    "multi_line_text_field",
+    "rich_text_field",
+}
+
+# Metaobject fields to translate per type
+METAOBJECT_TRANSLATABLE_FIELDS = {
+    "benefit": {"title", "description", "category", "icon_label"},
+    "faq_entry": {"question", "answer"},
+    "blog_author": {"name", "bio"},
+    "ingredient": {
+        "name", "one_line_benefit", "description", "source", "origin",
+        "category", "concern",
+    },
+}
+
+# Product metafields that contain translatable text
+PRODUCT_TRANSLATABLE_METAFIELDS = {
+    "custom.tagline",
+    "custom.short_description",
+    "custom.size_ml",
+    "custom.key_benefits_heading",
+    "custom.key_benefits_content",
+    "custom.clinical_results_heading",
+    "custom.clinical_results_content",
+    "custom.how_to_use_heading",
+    "custom.how_to_use_content",
+    "custom.whats_inside_heading",
+    "custom.whats_inside_content",
+    "custom.free_of_heading",
+    "custom.free_of_content",
+    "custom.awards_heading",
+    "custom.awards_content",
+    "custom.fragrance_heading",
+    "custom.fragrance_content",
+}
+
+# Article metafields that contain translatable text
+ARTICLE_TRANSLATABLE_METAFIELDS = {
+    "custom.blog_summary",
+    "custom.hero_caption",
+    "custom.short_title",
+}
 
 
 class Translator:
@@ -37,6 +90,27 @@ class Translator:
             }],
         )
         return message.content[0].text
+
+    def translate_rich_text(self, rich_text_json, source_lang, target_lang):
+        """Translate a Shopify rich text field (JSON string with text nodes)."""
+        if not rich_text_json or not rich_text_json.strip():
+            return rich_text_json
+        try:
+            data = json.loads(rich_text_json)
+        except (json.JSONDecodeError, TypeError):
+            # Not JSON, treat as plain text
+            return self.translate(rich_text_json, source_lang, target_lang)
+
+        def translate_nodes(nodes):
+            for node in nodes:
+                if node.get("type") == "text" and node.get("value"):
+                    node["value"] = self.translate(node["value"], source_lang, target_lang)
+                if node.get("children"):
+                    translate_nodes(node["children"])
+
+        if isinstance(data, dict) and data.get("children"):
+            translate_nodes(data["children"])
+        return json.dumps(data, ensure_ascii=False)
 
     def translate_product(self, product, source_lang, target_lang):
         translated = dict(product)
@@ -71,6 +145,19 @@ class Translator:
                     to["values"] = [self.translate(v, source_lang, target_lang) for v in option["values"]]
                 translated["options"].append(to)
 
+        # Translate product metafields
+        if product.get("metafields"):
+            translated["metafields"] = []
+            for mf in product["metafields"]:
+                tmf = dict(mf)
+                ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+                if ns_key in PRODUCT_TRANSLATABLE_METAFIELDS and mf.get("value"):
+                    if mf.get("type") == "rich_text_field":
+                        tmf["value"] = self.translate_rich_text(mf["value"], source_lang, target_lang)
+                    else:
+                        tmf["value"] = self.translate(mf["value"], source_lang, target_lang)
+                translated["metafields"].append(tmf)
+
         return translated
 
     def translate_page(self, page, source_lang, target_lang):
@@ -93,4 +180,33 @@ class Translator:
         if article.get("tags"):
             tags = article["tags"] if isinstance(article["tags"], str) else ", ".join(article["tags"])
             translated["tags"] = self.translate(tags, source_lang, target_lang)
+
+        # Translate article metafields
+        if article.get("metafields"):
+            translated["metafields"] = []
+            for mf in article["metafields"]:
+                tmf = dict(mf)
+                ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+                if ns_key in ARTICLE_TRANSLATABLE_METAFIELDS and mf.get("value"):
+                    tmf["value"] = self.translate(mf["value"], source_lang, target_lang)
+                translated["metafields"].append(tmf)
+
+        return translated
+
+    def translate_metaobject(self, metaobject, source_lang, target_lang):
+        """Translate a metaobject's text fields based on its type."""
+        mo_type = metaobject.get("type", "")
+        translatable_keys = METAOBJECT_TRANSLATABLE_FIELDS.get(mo_type, set())
+
+        translated = dict(metaobject)
+        translated["fields"] = []
+        for field in metaobject.get("fields", []):
+            tf = dict(field)
+            if field["key"] in translatable_keys and field.get("value"):
+                field_type = field.get("type", "")
+                if field_type == "rich_text_field":
+                    tf["value"] = self.translate_rich_text(field["value"], source_lang, target_lang)
+                else:
+                    tf["value"] = self.translate(field["value"], source_lang, target_lang)
+            translated["fields"].append(tf)
         return translated

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Step 3: Import English-translated content into the Saudi Shopify store."""
+"""Step 3: Import English-translated content into the Saudi Shopify store.
+
+Creates metaobject definitions, metaobject entries, products (with metafields),
+collections, pages, blogs, and articles in the destination store.
+"""
 
 import argparse
 import json
@@ -12,13 +16,13 @@ from shopify_client import ShopifyClient
 
 def load_json(filepath):
     if not os.path.exists(filepath):
-        return []
+        return [] if filepath.endswith(".json") else {}
     with open(filepath, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -44,11 +48,9 @@ def prepare_product_for_import(product, exchange_rate):
         "status": product.get("status", "draft"),
     }
 
-    # Keep images via src URL
     if product.get("images"):
         p["images"] = [{"src": img["src"]} for img in product["images"] if img.get("src")]
 
-    # Variants with price conversion
     if product.get("variants"):
         p["variants"] = []
         for v in product["variants"]:
@@ -69,13 +71,27 @@ def prepare_product_for_import(product, exchange_rate):
             }
             p["variants"].append(variant)
 
-    # Options
     if product.get("options"):
         p["options"] = []
         for opt in product["options"]:
             p["options"].append({
                 "name": opt.get("name", ""),
                 "values": opt.get("values", []),
+            })
+
+    # Include metafields (excluding reference types that need ID remapping)
+    if product.get("metafields"):
+        p["metafields"] = []
+        for mf in product["metafields"]:
+            mf_type = mf.get("type", "")
+            # Skip reference fields — they point to source store IDs
+            if "reference" in mf_type:
+                continue
+            p["metafields"].append({
+                "namespace": mf["namespace"],
+                "key": mf["key"],
+                "value": mf["value"],
+                "type": mf_type,
             })
 
     return p
@@ -103,7 +119,143 @@ def main():
     exchange_rate = args.exchange_rate
     print(f"Exchange rate (EUR→SAR): {exchange_rate}")
 
-    # Import products
+    # =============================================
+    # Phase 0: Examine destination store
+    # =============================================
+    existing_defs = {}
+    if not args.dry_run:
+        print("\nExamining destination store...")
+        try:
+            dest_definitions = client.get_metaobject_definitions()
+            existing_defs = {d["type"]: d for d in dest_definitions}
+            print(f"  Found {len(existing_defs)} existing metaobject definitions: {list(existing_defs.keys())}")
+        except Exception as e:
+            print(f"  Could not fetch existing definitions: {e}")
+            existing_defs = {}
+
+    # =============================================
+    # Phase 1: Metaobject definitions + entries
+    # =============================================
+    metaobjects_file = os.path.join(input_dir, "metaobjects.json")
+    if os.path.exists(metaobjects_file):
+        all_metaobjects = load_json(metaobjects_file)
+        definitions_file = os.path.join(input_dir, "metaobject_definitions.json")
+        definitions = load_json(definitions_file) if os.path.exists(definitions_file) else []
+
+        # Create metaobject definitions first (order matters: benefit before ingredient)
+        # Sort so that types without references come first
+        DEFINITION_ORDER = ["benefit", "faq_entry", "blog_author", "ingredient"]
+        sorted_defs = sorted(definitions, key=lambda d: (
+            DEFINITION_ORDER.index(d["type"]) if d["type"] in DEFINITION_ORDER else 999
+        ))
+
+        print(f"\nChecking/creating {len(sorted_defs)} metaobject definitions...")
+        for defn in sorted_defs:
+            mo_type = defn["type"]
+            label = f"  {defn.get('name', mo_type)} ({mo_type})"
+
+            if mo_type in existing_defs:
+                print(f"{label} — already exists in destination store, skipping creation")
+                continue
+
+            if args.dry_run:
+                print(f"{label} — would create definition")
+                continue
+
+            # Build definition input
+            field_defs = []
+            for fd in defn.get("fieldDefinitions", []):
+                field_def = {
+                    "key": fd["key"],
+                    "name": fd.get("name", fd["key"]),
+                    "type": fd["type"]["name"],
+                }
+                if fd.get("validations"):
+                    field_def["validations"] = fd["validations"]
+                field_defs.append(field_def)
+
+            def_input = {
+                "type": mo_type,
+                "name": defn.get("name", mo_type),
+                "fieldDefinitions": field_defs,
+                "access": {"storefront": "PUBLIC_READ"},
+            }
+
+            try:
+                result = client.create_metaobject_definition(def_input)
+                if result:
+                    print(f"{label} — created (id: {result['id']})")
+                    existing_defs[mo_type] = result
+                else:
+                    print(f"{label} — already exists")
+            except Exception as e:
+                print(f"{label} — error: {e}")
+
+        # Create metaobject entries
+        for mo_type, type_data in all_metaobjects.items():
+            objects = type_data.get("objects", [])
+            if not objects:
+                continue
+
+            print(f"\nImporting {len(objects)} '{mo_type}' metaobjects...")
+            for j, obj in enumerate(objects):
+                handle = obj.get("handle", "")
+                source_id = obj.get("id", "")
+                label = f"  [{j+1}/{len(objects)}] {handle}"
+                map_key = f"metaobjects_{mo_type}"
+
+                if source_id in id_map.get(map_key, {}):
+                    print(f"{label} — already imported, skipping")
+                    continue
+
+                if args.dry_run:
+                    print(f"{label} — would create")
+                    continue
+
+                # Check if exists
+                existing = client.get_metaobjects_by_handle(mo_type, handle)
+                if existing:
+                    dest_id = existing["id"]
+                    print(f"{label} — already exists (id: {dest_id}), mapping")
+                    id_map.setdefault(map_key, {})[source_id] = dest_id
+                    save_json(id_map, id_map_file)
+                    continue
+
+                # Build fields (skip file references and metaobject references for now)
+                fields = []
+                for field in obj.get("fields", []):
+                    field_type = field.get("type", "")
+                    if "file_reference" in field_type or "metaobject_reference" in field_type:
+                        continue
+                    if "collection_reference" in field_type:
+                        continue
+                    if field.get("value"):
+                        fields.append({
+                            "key": field["key"],
+                            "value": field["value"],
+                        })
+
+                mo_input = {
+                    "type": mo_type,
+                    "handle": handle,
+                    "fields": fields,
+                }
+
+                try:
+                    created = client.create_metaobject(mo_input)
+                    if created:
+                        dest_id = created["id"]
+                        print(f"{label} — created (id: {dest_id})")
+                        id_map.setdefault(map_key, {})[source_id] = dest_id
+                    else:
+                        print(f"{label} — already exists (handle collision)")
+                except Exception as e:
+                    print(f"{label} — error: {e}")
+                save_json(id_map, id_map_file)
+
+    # =============================================
+    # Phase 2: Products
+    # =============================================
     products = load_json(os.path.join(input_dir, "products.json"))
     print(f"\nImporting {len(products)} products...")
     for i, product in enumerate(products):
@@ -119,7 +271,6 @@ def main():
             print(f"  {label} — would create (handle: {handle})")
             continue
 
-        # Check if exists by handle
         existing = client.get_products_by_handle(handle)
         if existing:
             dest_id = existing[0]["id"]
@@ -135,7 +286,9 @@ def main():
         id_map.setdefault("products", {})[source_id] = dest_id
         save_json(id_map, id_map_file)
 
-    # Import collections
+    # =============================================
+    # Phase 3: Collections
+    # =============================================
     collections = load_json(os.path.join(input_dir, "collections.json"))
     print(f"\nImporting {len(collections)} collections...")
     for i, collection in enumerate(collections):
@@ -159,7 +312,6 @@ def main():
             save_json(id_map, id_map_file)
             continue
 
-        # Only custom collections can be created via REST
         coll_data = {
             "title": collection.get("title", ""),
             "body_html": collection.get("body_html", ""),
@@ -174,7 +326,9 @@ def main():
         id_map.setdefault("collections", {})[source_id] = dest_id
         save_json(id_map, id_map_file)
 
-    # Import pages
+    # =============================================
+    # Phase 4: Pages
+    # =============================================
     pages = load_json(os.path.join(input_dir, "pages.json"))
     print(f"\nImporting {len(pages)} pages...")
     for i, page in enumerate(pages):
@@ -204,13 +358,19 @@ def main():
             "handle": handle,
             "published": page.get("published_at") is not None,
         }
+        # Preserve template suffix for special pages
+        if page.get("template_suffix"):
+            page_data["template_suffix"] = page["template_suffix"]
+
         created = client.create_page(page_data)
         dest_id = created.get("id")
         print(f"  {label} — created (id: {dest_id})")
         id_map.setdefault("pages", {})[source_id] = dest_id
         save_json(id_map, id_map_file)
 
-    # Import blogs + articles
+    # =============================================
+    # Phase 5: Blogs + Articles
+    # =============================================
     blogs = load_json(os.path.join(input_dir, "blogs.json"))
     articles = load_json(os.path.join(input_dir, "articles.json"))
     print(f"\nImporting {len(blogs)} blogs...")
@@ -238,7 +398,6 @@ def main():
             id_map.setdefault("blogs", {})[source_id] = dest_blog_id
             save_json(id_map, id_map_file)
 
-        # Import articles for this blog
         blog_articles = [a for a in articles if str(a.get("_blog_id")) == str(blog["id"])]
         print(f"    Importing {len(blog_articles)} articles...")
         for j, article in enumerate(blog_articles):
@@ -264,6 +423,20 @@ def main():
             if article.get("image", {}).get("src"):
                 art_data["image"] = {"src": article["image"]["src"]}
 
+            # Include non-reference metafields
+            if article.get("metafields"):
+                art_data["metafields"] = []
+                for mf in article["metafields"]:
+                    mf_type = mf.get("type", "")
+                    if "reference" in mf_type:
+                        continue
+                    art_data["metafields"].append({
+                        "namespace": mf["namespace"],
+                        "key": mf["key"],
+                        "value": mf["value"],
+                        "type": mf_type,
+                    })
+
             created = client.create_article(dest_blog_id, art_data)
             dest_art_id = created.get("id")
             print(f"  {art_label} — created (id: {dest_art_id})")
@@ -279,6 +452,9 @@ def main():
     print(f"  Pages:       {len(id_map.get('pages', {}))}")
     print(f"  Blogs:       {len(id_map.get('blogs', {}))}")
     print(f"  Articles:    {len(id_map.get('articles', {}))}")
+    mo_keys = [k for k in id_map if k.startswith("metaobjects_")]
+    for k in mo_keys:
+        print(f"  {k}: {len(id_map[k])}")
     if args.dry_run:
         print("  (dry run — nothing was created)")
 

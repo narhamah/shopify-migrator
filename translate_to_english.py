@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Step 2: Translate exported Spain content from Spanish to English."""
+"""Step 2: Translate exported Spain content from Spanish to English.
+
+Translates products (with metafields), collections, pages, articles
+(with metafields), and metaobjects. Saves progress after each item
+so it can be resumed if interrupted.
+"""
 
 import json
 import os
@@ -19,14 +24,6 @@ def save_json(data, filepath):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def item_exists(filepath, item_id, key="id"):
-    """Check if a translated item already exists in the output file."""
-    if not os.path.exists(filepath):
-        return False
-    existing = load_json(filepath)
-    return any(item.get(key) == item_id for item in existing)
-
-
 def load_or_init(filepath):
     if os.path.exists(filepath):
         return load_json(filepath)
@@ -42,7 +39,7 @@ def main():
     output_dir = "data/english"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Translate products
+    # --- Products ---
     products_file = os.path.join(output_dir, "products.json")
     products = load_json(os.path.join(input_dir, "products.json"))
     translated_products = load_or_init(products_file)
@@ -59,7 +56,7 @@ def main():
         save_json(translated_products, products_file)
     print(f"  Done: {len(translated_products)} products")
 
-    # Translate collections
+    # --- Collections ---
     collections_file = os.path.join(output_dir, "collections.json")
     collections = load_json(os.path.join(input_dir, "collections.json"))
     translated_collections = load_or_init(collections_file)
@@ -76,7 +73,7 @@ def main():
         save_json(translated_collections, collections_file)
     print(f"  Done: {len(translated_collections)} collections")
 
-    # Translate pages
+    # --- Pages ---
     pages_file = os.path.join(output_dir, "pages.json")
     pages = load_json(os.path.join(input_dir, "pages.json"))
     translated_pages = load_or_init(pages_file)
@@ -93,7 +90,7 @@ def main():
         save_json(translated_pages, pages_file)
     print(f"  Done: {len(translated_pages)} pages")
 
-    # Translate articles
+    # --- Articles ---
     articles_file = os.path.join(output_dir, "articles.json")
     articles = load_json(os.path.join(input_dir, "articles.json"))
     translated_articles = load_or_init(articles_file)
@@ -110,15 +107,64 @@ def main():
         save_json(translated_articles, articles_file)
     print(f"  Done: {len(translated_articles)} articles")
 
-    # Copy blogs (no translation needed — just metadata)
+    # Copy blogs metadata (no translation needed)
     blogs = load_json(os.path.join(input_dir, "blogs.json"))
     save_json(blogs, os.path.join(output_dir, "blogs.json"))
+
+    # --- Metaobjects ---
+    metaobjects_input = os.path.join(input_dir, "metaobjects.json")
+    if os.path.exists(metaobjects_input):
+        metaobjects_file = os.path.join(output_dir, "metaobjects.json")
+        all_metaobjects = load_json(metaobjects_input)
+
+        # Load existing progress
+        translated_metaobjects = {}
+        if os.path.exists(metaobjects_file):
+            translated_metaobjects = load_json(metaobjects_file)
+
+        total_translated = 0
+        for mo_type, type_data in all_metaobjects.items():
+            objects = type_data.get("objects", [])
+            if not objects:
+                continue
+
+            # Init output structure for this type
+            if mo_type not in translated_metaobjects:
+                translated_metaobjects[mo_type] = {
+                    "definition": type_data["definition"],
+                    "objects": [],
+                }
+
+            existing_handles = {
+                o.get("handle") for o in translated_metaobjects[mo_type].get("objects", [])
+            }
+
+            print(f"Translating metaobjects '{mo_type}' (ES → EN)... ({len(existing_handles)} already done)")
+            for j, obj in enumerate(objects):
+                handle = obj.get("handle", "")
+                if handle in existing_handles:
+                    print(f"  [{j+1}/{len(objects)}] Skipping: {handle}")
+                    continue
+                print(f"  [{j+1}/{len(objects)}] Translating: {handle}")
+                translated = translator.translate_metaobject(obj, "Spanish", "English")
+                translated_metaobjects[mo_type]["objects"].append(translated)
+                save_json(translated_metaobjects, metaobjects_file)
+                total_translated += 1
+
+        print(f"  Done: {total_translated} metaobjects translated")
+
+        # Copy definitions file
+        defs = load_json(os.path.join(input_dir, "metaobject_definitions.json"))
+        save_json(defs, os.path.join(output_dir, "metaobject_definitions.json"))
 
     print("\n--- Translation Summary (ES → EN) ---")
     print(f"  Products:    {len(translated_products)}")
     print(f"  Collections: {len(translated_collections)}")
     print(f"  Pages:       {len(translated_pages)}")
     print(f"  Articles:    {len(translated_articles)}")
+    if os.path.exists(metaobjects_input):
+        mo_count = sum(len(td.get("objects", [])) for td in translated_metaobjects.values())
+        print(f"  Metaobjects: {mo_count}")
     print(f"  Output:      {output_dir}/")
 
 
