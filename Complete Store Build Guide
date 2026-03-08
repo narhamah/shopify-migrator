@@ -1,0 +1,1047 @@
+# Tara Horizon Theme — Complete Store Build Guide (US English)
+
+This guide walks you through **every step** needed to build a new Shopify store with the Tara Horizon theme, from a blank store to a fully functional US English storefront.
+
+> **Audience:** Developer or store operator setting up a fresh Shopify store.
+> **Market:** United States (English).
+> **Estimated time:** 4–6 hours for the full setup (excluding content creation).
+
+---
+
+## How This Guide Is Organized
+
+Steps are ordered by **dependency** — each step builds on the previous one. Do not skip ahead.
+
+| Phase | Steps | What It Covers |
+|-------|-------|----------------|
+| **A. Foundation** | 1–3 | Store account, theme upload, data architecture |
+| **B. Content Structure** | 4–7 | Pages, blog, collections, products |
+| **C. Configuration** | 8–11 | Templates, theme settings, navigation, apps |
+| **D. Content & Launch** | 12–16 | Content entry, integrations, testing, launch |
+| **E. Optional Add-Ons** | 17–18 | Store locator, pharmacy partners page |
+
+---
+
+## Table of Contents
+
+1. [Prerequisites](#1-prerequisites)
+2. [Theme Installation](#2-theme-installation)
+3. [Data Architecture (Metaobjects & Metafields)](#3-data-architecture-metaobjects--metafields)
+4. [Pages](#4-pages)
+5. [Blog Setup](#5-blog-setup)
+6. [Collections](#6-collections)
+7. [Product Data Entry](#7-product-data-entry)
+8. [Template Assignments](#8-template-assignments)
+9. [Theme Settings & Color Schemes](#9-theme-settings--color-schemes)
+10. [Navigation Menus](#10-navigation-menus)
+11. [Shopify Apps](#11-shopify-apps)
+12. [Content Entry — Homepage & Key Pages](#12-content-entry--homepage--key-pages)
+13. [External Integrations](#13-external-integrations)
+14. [Quiz System Setup](#14-quiz-system-setup)
+15. [Image Assets](#15-image-assets)
+16. [Font Assets](#16-font-assets)
+17. [Store Locator Setup (Optional)](#17-store-locator-setup-optional)
+18. [Pharmacy Partners Page (Optional)](#18-pharmacy-partners-page-optional)
+19. [Content Migration — Spanish to English](#19-content-migration--spanish-to-english)
+20. [Pre-Launch Testing Checklist](#20-pre-launch-testing-checklist)
+21. [Launch](#21-launch)
+22. [Full Checklist](#22-full-checklist)
+
+---
+
+## 1. Prerequisites
+
+Before starting, ensure you have:
+
+- A **Shopify store** on any paid plan (Basic, Shopify, Advanced, or Plus)
+- **Admin access** to the store
+- Access to **Settings > Custom data** in the Shopify admin
+- The Tara Horizon theme `.zip` file (or access to the theme's Git repository)
+- A text editor for reviewing/editing JSON template files
+
+### Recommended: Automated Setup Script
+
+The repository includes an automated script that creates all metaobject definitions, metafield definitions, pages, and collections via the Shopify Admin GraphQL API:
+
+```bash
+# 1. Create a Custom App in Settings > Apps > Develop apps
+#    Required Admin API scopes:
+#    - read_metaobject_definitions, write_metaobject_definitions
+#    - read_metafield_definitions, write_metafield_definitions
+#    - read_online_store_pages, write_online_store_pages
+#    - read_products, write_products
+
+# 2. Run the script:
+SHOPIFY_STORE=your-store.myshopify.com \
+SHOPIFY_ACCESS_TOKEN=shpat_xxxxxxxxxxxx \
+node scripts/setup-store.mjs
+
+# Options:
+#   --dry-run     Preview without making changes
+#   --step=N      Run only step N (1–5)
+#   --verbose     Show full API responses
+```
+
+The script creates everything in Steps 3, 4 (pages), and 6 (collections). If you use the script, you can **skip the manual creation** in those steps — but still read them to understand what was created and why.
+
+---
+
+## 2. Theme Installation
+
+1. Go to **Online Store > Themes**
+2. Click **Add theme > Upload zip file**
+3. Upload the Tara Horizon theme
+4. **Do NOT publish yet** — complete all setup steps first
+5. Click **Customize** to open the theme editor — you'll use this frequently
+
+> **Important:** The theme ships with `config/settings_data.json` pre-configured with color schemes, typography, and layout defaults. These will load automatically.
+
+---
+
+## 3. Data Architecture (Metaobjects & Metafields)
+
+This step creates the custom data types that power the theme's dynamic features. **If you ran the setup script, these are already created** — verify they exist.
+
+### 3.1 Metaobject Definitions
+
+Create these in **Settings > Custom data > Metaobjects**.
+
+> **CRITICAL:** Enable **Storefront access** on ALL metaobject definitions. Without this, the theme cannot read metaobject data on the storefront.
+
+#### 3.1.1 Benefit (`benefit`)
+
+**Create this FIRST** — the Ingredient definition references it.
+
+| Setting | Value |
+|---------|-------|
+| Definition name | `Benefit` |
+| Type handle | `benefit` |
+| Storefront access | **Enabled** |
+| Web pages | Not required |
+
+| Field Handle | Display Name | Type | Required |
+|---|---|---|---|
+| `title` | Title | Single-line text | Yes |
+| `description` | Description | Single-line text | No |
+| `category` | Category | Single-line text | No |
+| `icon_label` | Icon Label | Single-line text | No |
+
+#### 3.1.2 FAQ Entry (`faq_entry`)
+
+| Setting | Value |
+|---------|-------|
+| Definition name | `FAQ Entry` |
+| Type handle | `faq_entry` |
+| Storefront access | **Enabled** |
+| Web pages | Not required |
+
+| Field Handle | Display Name | Type | Required |
+|---|---|---|---|
+| `question` | Question | Single-line text | Yes |
+| `answer` | Answer | Rich text | Yes |
+
+> **Usage:** FAQ entries are referenced per-product via `product.metafields.custom.faqs` and rendered in an accordion on the product page.
+
+#### 3.1.3 Blog Author (`blog_author`)
+
+| Setting | Value |
+|---------|-------|
+| Definition name | `Blog Author` |
+| Type handle | `blog_author` |
+| Storefront access | **Enabled** |
+| Web pages | Not required |
+
+| Field Handle | Display Name | Type | Required |
+|---|---|---|---|
+| `name` | Name | Single-line text | Yes |
+| `bio` | Bio | Single-line text | No |
+| `avatar` | Avatar | File reference (image) | No |
+
+> Avatar should be a square image, minimum 96x96px.
+
+#### 3.1.4 Ingredient (`ingredient`)
+
+**Create this LAST** — it references the `benefit` definition.
+
+| Setting | Value |
+|---------|-------|
+| Definition name | `Ingredient` |
+| Type handle | `ingredient` |
+| Storefront access | **Enabled** |
+| Web pages | **Enabled** (creates browsable `/pages/ingredient-name` URLs) |
+
+| Field Handle | Display Name | Type | Required | Notes |
+|---|---|---|---|---|
+| `name` | Name | Single-line text | Yes | Display name |
+| `inci_name` | INCI Name | Single-line text | No | Scientific INCI nomenclature |
+| `benefits` | Benefits | List of metaobject references → `benefit` | No | Links to benefit entries |
+| `one_line_benefit` | One-Line Benefit | Single-line text | No | Short benefit tagline for cards |
+| `description` | Description | Rich text | No | Full ingredient description |
+| `source` | Source | Single-line text | No | Where the ingredient is sourced from |
+| `origin` | Origin | Single-line text | No | Country/region of origin |
+| `category` | Category | Single-line text | No | Type (e.g., "Botanical", "Peptide", "Vitamin") — used for filtering |
+| `concern` | Concern | Single-line text | No | Hair concern (e.g., "Hair Loss", "Hydration", "Scalp Health") — used for filtering |
+| `image` | Image | File reference (image) | No | Main ingredient image |
+| `icon` | Icon | File reference (image) | No | Small icon for grid cards |
+| `science_images` | Science Images | List of file references | No | Gallery of science/research images |
+| `is_hero` | Is Hero | Boolean | No | Flags featured/star ingredients |
+| `sort_order` | Sort Order | Integer | No | Manual ordering (lower = first) |
+| `collection` | Collection | Collection reference | No | Associated product collection |
+
+### 3.2 Product Metafield Definitions
+
+Navigate to **Settings > Custom data > Products** and add these 19 fields:
+
+#### Core Product Fields
+
+| Namespace & Key | Display Name | Type | Description |
+|---|---|---|---|
+| `custom.tagline` | Tagline | Single-line text | Short marketing tagline shown above the product title. **Used sitewide** — homepage, collections, product page, quiz results, recommendations. |
+| `custom.short_description` | Short Description | Single-line text | Brief product description for the product header area. |
+| `custom.size_ml` | Size (ml) | Single-line text | Volume/size display (e.g., "200ml", "6.76 fl oz"). |
+
+#### Product Accordion Sections
+
+Each accordion section has a **heading** + **content** pair. If the heading is left blank, that accordion row is hidden for that product.
+
+| Namespace & Key | Display Name | Type |
+|---|---|---|
+| `custom.key_benefits_heading` | Key Benefits Heading | Single-line text |
+| `custom.key_benefits_content` | Key Benefits Content | Rich text |
+| `custom.clinical_results_heading` | Clinical Results Heading | Single-line text |
+| `custom.clinical_results_content` | Clinical Results Content | Rich text |
+| `custom.how_to_use_heading` | How to Use Heading | Single-line text |
+| `custom.how_to_use_content` | How to Use Content | Rich text |
+| `custom.whats_inside_heading` | What's Inside Heading | Single-line text |
+| `custom.whats_inside_content` | What's Inside Content | Rich text |
+| `custom.free_of_heading` | Free Of Heading | Single-line text |
+| `custom.free_of_content` | Free Of Content | Rich text |
+| `custom.awards_heading` | Awards Heading | Single-line text |
+| `custom.awards_content` | Awards Content | Rich text |
+| `custom.fragrance_heading` | Fragrance Heading | Single-line text |
+| `custom.fragrance_content` | Fragrance Content | Rich text |
+
+#### Product Reference Fields
+
+| Namespace & Key | Display Name | Type | Description |
+|---|---|---|---|
+| `custom.ingredients` | Ingredients | List of metaobject references → `ingredient` | Ingredient metaobjects linked to this product. Displayed in a carousel on the product page. |
+| `custom.faqs` | FAQs | List of metaobject references → `faq_entry` | FAQ entries for this product. Rendered in an accordion. |
+
+### 3.3 Article (Blog Post) Metafield Definitions
+
+Navigate to **Settings > Custom data > Articles** and add these fields:
+
+| Namespace & Key | Display Name | Type | Description |
+|---|---|---|---|
+| `custom.featured` | Featured | Boolean | When `true`, eligible as the hero article on the blog listing page. |
+| `custom.is_hero` | Is Hero | Boolean | Alternative hero flag used in blog grid filtering. |
+| `custom.blog_summary` | Blog Summary | Single-line text | Custom excerpt for the hero card (overrides auto-excerpt). |
+| `custom.read_time_override` | Read Time Override | Integer | Override auto-calculated reading time (minutes). Leave blank for auto (~230 words/min). |
+| `custom.hero_caption` | Hero Caption | Single-line text | Caption below the featured image on the article page. |
+| `custom.short_title` | Short Title | Single-line text | Short title for prev/next navigation (falls back to truncated title). |
+| `custom.related_articles` | Related Articles | List of article references | Curated related articles. Falls back to recent posts if empty. |
+| `custom.related_products` | Related Products | List of product references | Products for the "Shop the article" section. Hidden if empty. |
+| `custom.author` | Author | Metaobject reference → `blog_author` | Rich author data. Falls back to `article.author` if not set. |
+| `custom.ingredients` | Ingredients | List of metaobject references → `ingredient` | Ingredient metaobjects related to the article content. |
+| `custom.listing_image` | Listing Image | File reference (image) | Custom listing image for blog cards. Overrides featured image in grid views. |
+| `custom.hero_image` | Hero Image | File reference (image) | Override the featured image on the article detail page. |
+
+---
+
+## 4. Pages
+
+Create the following pages in **Online Store > Pages**. The **handle must match exactly** — the theme links to these handles internally.
+
+| Page Title | Handle (URL slug) | Template Suffix | Notes |
+|---|---|---|---|
+| **Ingredients** | `ingredients` | `ingredients` | Ingredient library hub. Leave body empty — content is rendered by the template. |
+| **Quiz** | `quiz` | `quiz` | Hair diagnosis quiz. Body content is not displayed. |
+| **Quiz Results** | `quiz-results` | `quiz-results` | AI-powered quiz results. Results are loaded dynamically. |
+| **Contact** | `contact` | `contact` | Contact form. Standard Shopify contact form. |
+
+> **Note:** Two additional pages (Store Locator and Pharmacy Partners) are covered in the Optional Add-Ons section at the end of this guide.
+
+### How to set the template suffix
+
+After creating each page:
+1. In the Shopify admin, go to **Online Store > Pages**
+2. Click the page name
+3. In the right sidebar under **Theme template**, select the matching template from the dropdown
+4. Save
+
+---
+
+## 5. Blog Setup
+
+### 5.1 Create the Blog
+
+1. Go to **Online Store > Blog posts**
+2. Click **Manage blogs** (top right)
+3. Create a new blog — name it "Journal", "Blog", or whatever fits your brand
+4. Note the blog handle (URL slug) — you'll need it for navigation
+
+### 5.2 Template Assignment
+
+1. Go to **Online Store > Themes > Customize**
+2. In the top dropdown, select **Blogs > Default blog** (or your blog name)
+3. Assign the `blog.tara` template
+4. Then select **Blog posts > Default blog post**
+5. Assign the `article.tara` template
+
+### 5.3 Create Blog Author Entries
+
+1. Go to **Content > Metaobjects > Blog Author** (or **Settings > Custom data > Metaobjects > blog_author**)
+2. Click **Add entry**
+3. Fill in: Name, Bio (e.g., "Founder & Herbalist"), Avatar (square, 96x96px minimum)
+4. Create an entry for each author who will write blog posts
+
+### 5.4 Article Content Best Practices
+
+- Use `<h2>` and `<h3>` headings in article body — the **Table of Contents is auto-generated** from these
+- Set `custom.featured = true` on **one article** per blog for the hero spotlight
+- Populate `custom.related_products` only on articles that discuss specific products
+- Leave `custom.related_articles` blank for auto-populated related posts, or curate manually
+
+---
+
+## 6. Collections
+
+The following collections are referenced in homepage templates and throughout the theme. **The handles must match** the references in the JSON template files.
+
+### 6.1 Required Collections
+
+These collections are directly referenced in the homepage and product page templates:
+
+| Collection Title | Handle | Purpose |
+|---|---|---|
+| **Best Sellers** | `best-sellers` | Featured on homepage product list section |
+| **Scalp Serums** | `scalp-serums` | Linked from homepage hero and CTA sections |
+
+### 6.2 Collections for the Bento Grid (Homepage)
+
+These appear in the homepage collection-list bento layout. The names and handles should match your product line ranges:
+
+| Collection Title | Handle | Notes |
+|---|---|---|
+| *(Your Range 1)* | *(your-range-1)* | e.g., "Black Garlic + Ceramides" / `black-garlic-ceramides` |
+| *(Your Range 2)* | *(your-range-2)* | e.g., "Onion + Peptides" / `onion-peptides` |
+| *(Your Range 3)* | *(your-range-3)* | e.g., "Detox" / `detox` |
+| *(Your Range 4)* | *(your-range-4)* | e.g., "Date + Multivitamin" / `date-multivitamin` |
+
+> **Important:** After creating collections, you must update the homepage template (`templates/index.json`) to reference the correct collection handles. See [Step 12](#12-content-entry--homepage--key-pages) and [Step 19](#19-content-migration--spanish-to-english).
+
+### 6.3 Ingredient-Linked Collections
+
+Each ingredient metaobject has an optional `collection` field. Create collections that correspond to your ingredient-product groupings and link them when creating ingredient entries.
+
+---
+
+## 7. Product Data Entry
+
+For each product, populate the following fields:
+
+### Minimum Required Fields
+
+1. **Title** — Product name
+2. **Description** — Full HTML product description (follow Tara Tone of Voice — see `.claude/skills/tara-tone-of-voice/SKILL.md`)
+3. **Images** — Product photography (multiple angles recommended)
+4. **Price** — Product pricing in USD
+5. **`custom.tagline`** — Marketing tagline (appears across the entire site — homepage, collections, product page, quiz results)
+
+### Recommended Fields
+
+6. **`custom.short_description`** — Brief description for the product header
+7. **`custom.size_ml`** — Volume display (e.g., "200ml" or "6.76 fl oz")
+8. **`custom.ingredients`** — Link ingredient metaobjects (powers the ingredient carousel on the product page)
+9. **`custom.faqs`** — Link FAQ metaobjects (powers the FAQ accordion)
+
+### Product Accordion Content
+
+Fill out the heading + content pairs for a complete product page experience. **If a heading is left blank, that accordion section is hidden** — use this to selectively show/hide sections per product.
+
+| Fields | Purpose |
+|---|---|
+| `custom.key_benefits_heading` / `content` | Key benefits of the product |
+| `custom.clinical_results_heading` / `content` | Clinical study results |
+| `custom.how_to_use_heading` / `content` | Usage instructions |
+| `custom.whats_inside_heading` / `content` | Ingredients overview |
+| `custom.free_of_heading` / `content` | Free-of claims (sulfate-free, etc.) |
+| `custom.awards_heading` / `content` | Awards and recognition |
+| `custom.fragrance_heading` / `content` | Fragrance notes |
+
+---
+
+## 8. Template Assignments
+
+After creating all pages and content, verify these template assignments:
+
+| Resource Type | Resource | Template |
+|---|---|---|
+| **Page** | Ingredients | `page.ingredients` |
+| **Page** | Quiz | `page.quiz` |
+| **Page** | Quiz Results | `page.quiz-results` |
+| **Page** | Contact | `page.contact` |
+| **Blog** | *(your blog)* | `blog.tara` |
+| **Articles** | *(all articles)* | `article.tara` |
+| **Metaobject** | ingredient | `metaobject/ingredient` |
+| **Products** | *(all products)* | `product` (default) |
+| **Collections** | *(all collections)* | `collection` (default) |
+
+### How to assign the ingredient metaobject template
+
+1. Go to **Online Store > Themes > Customize**
+2. In the top dropdown, select **Apps > Ingredient** (or navigate to a metaobject page)
+3. Select the `metaobject/ingredient` template
+4. Save
+
+---
+
+## 9. Theme Settings & Color Schemes
+
+Configure in **Online Store > Themes > Customize > Theme settings** (gear icon in the sidebar).
+
+### 9.1 Color Schemes
+
+The theme uses named color schemes referenced throughout templates:
+
+| Scheme ID | Usage | Description |
+|---|---|---|
+| `scheme-1` | Default/primary | Product pages, homepage product sections, quiz results |
+| `scheme-2` | Secondary/light | Icon rows, ingredient benefits, blog listing, "As seen in" section, email signup |
+| `scheme-3` | Accent/dark | Hero sections, quiz CTA, homepage CTA |
+
+Configure each scheme's foreground, background, primary, and accent colors to match the Tara brand palette:
+
+| Token | Value | Usage |
+|---|---|---|
+| `--tara-green` | `#023527` | Primary brand green |
+| `--tara-cream` | `#faf7f2` | Light background |
+| `--tara-cream-dark` | `#ece7dc` | Secondary background |
+
+### 9.2 Typography
+
+The theme uses custom fonts (included in `/assets/`):
+
+| Font Slot | Font Family | Usage |
+|---|---|---|
+| **Heading** | FreightBig Pro | h1–h4, titles, quotes |
+| **Body** | Arsenal | Paragraphs, descriptions |
+| **Subheading** | Arsenal | Overlines, labels |
+| **Accent** | Avenir | Buttons, CTAs, badges |
+
+Configure font assignments in **Theme settings > Typography**.
+
+### 9.3 Layout
+
+| Setting | Recommended Value |
+|---|---|
+| Page width | Narrow |
+| Content max width | 800–1200px |
+| Cart type | Drawer |
+
+### 9.4 Currency & Market
+
+1. Go to **Settings > Markets**
+2. Ensure the **United States** is set as the primary market
+3. Go to **Settings > Store details** and confirm:
+   - Store currency: **USD**
+   - Weight unit: **lb** (or oz)
+   - Address format: US format
+
+---
+
+## 10. Navigation Menus
+
+Configure in **Online Store > Navigation**.
+
+### 10.1 Main Navigation (Header)
+
+Recommended structure:
+
+```
+- Shop
+  - All Products
+  - (Collection links — Best Sellers, Scalp Serums, etc.)
+- Ingredients (/pages/ingredients)
+- Quiz (/pages/quiz)
+- Blog (/blogs/your-blog-handle)
+```
+
+### 10.2 Footer Navigation
+
+```
+- About Us
+- Contact (/pages/contact)
+- Shipping & Returns
+- Privacy Policy
+- Terms of Service
+```
+
+### 10.3 Social Media Links
+
+Configure in **Theme settings > Social media**:
+
+- Update Facebook, Instagram, TikTok URLs to your US social handles
+
+> **Note:** The current theme ships with `.es` (Spain) social media URLs in the footer-group section. Update these in the Customizer under **Footer > Social media links**.
+
+---
+
+## 11. Shopify Apps
+
+The following apps are integrated into the theme templates. Install them to activate their embedded blocks.
+
+### 11.1 Klaviyo Reviews
+
+**App:** Klaviyo Reviews (formerly Okendo)
+
+**Used in:**
+- Product page — average rating stars in product header
+- Product page — reviews summary and reviews list sections
+- Homepage — featured reviews carousel
+
+**Setup:**
+1. Install the Klaviyo Reviews app from the Shopify App Store
+2. Configure review collection settings
+3. The app blocks are already embedded in the template JSON — they activate automatically once the app is installed
+
+### 11.2 Shopify Subscriptions
+
+**App:** Shopify Subscriptions (native)
+
+**Used in:**
+- Product page — subscription option widget
+
+**Setup:**
+1. Enable Shopify Subscriptions in **Settings > Apps and sales channels**
+2. Configure subscription plans for eligible products
+3. The app block in the product template auto-activates
+
+### 11.3 Tolstoy Shoppable Video
+
+**App:** Tolstoy Shoppable Video & Quiz
+
+**Used in:**
+- Homepage — video carousel section
+
+**Setup:**
+1. Install the Tolstoy app
+2. Create a video carousel project in the Tolstoy dashboard
+3. In the Shopify Customizer, update the Tolstoy section's publish ID to match your project
+
+---
+
+## 12. Content Entry — Homepage & Key Pages
+
+The theme ships with **Spanish content hardcoded** in JSON template files. You need to replace this content with your English copy.
+
+### Where content lives
+
+All page content is stored in JSON template files in the `templates/` directory. You can edit content in two ways:
+
+1. **Shopify Customizer** (recommended for most changes): Navigate to each page in the theme editor and update text blocks, buttons, and section settings directly.
+2. **Edit JSON files directly** (for bulk changes): Edit the `templates/*.json` files in your code editor.
+
+### Pages that need content updates
+
+See [Step 19: Content Migration](#19-content-migration--spanish-to-english) for a complete list of every Spanish string that needs to be replaced with English copy.
+
+### Content writing guidelines
+
+All customer-facing text **must follow the Tara Tone of Voice rules** (see `.claude/skills/tara-tone-of-voice/SKILL.md`). Key rules:
+
+1. **Benefit first, mechanism second.** Never lead with ingredients alone.
+2. **Headlines: 4–6 words, Title Case, one benefit.**
+3. **Body: max 18 words per sentence.**
+4. **Root-cause framing only.** Treat scalp, strengthen roots, protect fiber.
+5. **Banned words** (never use): fresh, fuller look, coverage, crown, hairline (as headline), leave-on, daily drops, easy, simple, done, real results, miracle, heritage, grandma, natural/nature, "the science of..."
+
+---
+
+## 13. External Integrations
+
+### 13.1 Quiz AI Worker (Cloudflare Workers)
+
+**Used on:** Quiz Results page (`/pages/quiz-results`)
+
+The quiz system uses a Cloudflare Worker to process quiz answers and return AI-generated hair care recommendations.
+
+**Setup:**
+1. Deploy the quiz AI worker to your Cloudflare Workers account
+2. In the Shopify Customizer, navigate to the Quiz Results page
+3. Update the `worker_url` setting in both `quiz-results-ai` and `quiz-results-ai-ingredients` sections
+
+> **Reference worker URL** (for development): `https://tara-quiz-ai.nawaf9970.workers.dev`
+
+### 13.2 HubSpot Forms (Optional)
+
+**Used on:** Pharmacy Partners page (see [Step 18](#18-pharmacy-partners-page-optional))
+
+If you use the pharmacy partners page, configure:
+- HubSpot Portal ID
+- HubSpot Form ID
+- Region: `na1` (North America)
+
+---
+
+## 14. Quiz System Setup
+
+The quiz has three components:
+
+### 14.1 Quiz Form Page
+
+- **Page:** `/pages/quiz` (created in Step 4)
+- **Template:** `page.quiz`
+- **Section:** `main-quiz` renders the quiz form
+- Collects user inputs about hair type, concerns, and goals
+
+### 14.2 Quiz Results Page
+
+- **Page:** `/pages/quiz-results` (created in Step 4)
+- **Template:** `page.quiz-results`
+- **Sections:**
+  - `quiz-results-ai` — AI-generated hair diagnosis summary
+  - `quiz-results-hero` — Hero product recommendation with buy button
+  - `main-quiz-results` — Full product recommendation grid
+  - `quiz-results-ai-ingredients` — AI-recommended key ingredients
+
+### 14.3 Cloudflare Worker
+
+The AI functionality requires a Cloudflare Worker that:
+1. Receives quiz response data
+2. Processes it through an AI model
+3. Returns personalized product and ingredient recommendations
+
+Both quiz results sections call the same consolidated endpoint. Update the `worker_url` in both sections via the Customizer.
+
+---
+
+## 15. Image Assets
+
+Upload these to **Settings > Files** or via the Customizer.
+
+### 15.1 Brand Icons
+
+These icon images appear in icon-row sections on the homepage, product pages, and quiz results:
+
+| Image | Label |
+|---|---|
+| Sulfate Free Icon | Sulfate Free |
+| Silicone Free Icon | Silicone Free |
+| Paraben Free Icon | Paraben Free |
+| Mineral Oil Free Icon | Mineral Oil Free |
+| Cruelty Free Icon | Cruelty Free |
+| Dermatologically Tested Icon | Dermatologically Tested |
+
+### 15.2 Utility Icons (Product Page)
+
+| Image | Purpose |
+|---|---|
+| ShippingIcon.svg | Free shipping badge |
+| ReturnIcon.svg | Easy returns badge |
+| PaymentIcon.svg | Secure payment badge |
+
+### 15.3 Press/Media Logos
+
+For the homepage "As seen in" section:
+
+| Image | Description |
+|---|---|
+| Elle_logo.svg | Elle magazine logo |
+| woman.svg | Woman magazine logo |
+| *(additional logos)* | Other US press mention logos |
+
+### 15.4 Hero & Product Images
+
+- Homepage hero images — configured per-section in the Customizer
+- Product images — uploaded per-product in the product editor
+- Ingredient images — uploaded per-ingredient metaobject entry
+
+---
+
+## 16. Font Assets
+
+The following font files are **included in the theme's `/assets/` directory** and do NOT need to be uploaded separately:
+
+- `Arsenal-Regular.woff2`
+- `Arsenal-Bold.woff2`
+- `Arsenal-Italic.woff2`
+- `Arsenal-BoldItalic.woff2`
+- `Avenir-Medium.woff2`
+- `FreightBigPro-Light.woff2`
+- `FreightBigPro-Book.woff2`
+- `FreightBigPro-BookItalic.woff2`
+
+Ensure these are correctly referenced in Theme settings > Typography.
+
+---
+
+## 17. Store Locator Setup (Optional)
+
+> This feature is **optional**. Skip if you don't have physical retail locations.
+
+### Setup
+
+1. Create a page: Title = "Store Locator", Handle = `store-locator`
+2. Assign template suffix: `store-locator`
+3. The `main-store-locator` section powers the store finder
+
+### Configuration (US Defaults)
+
+| Setting | US Default | Description |
+|---|---|---|
+| Default Latitude | `39.8283` | Geographic center of the contiguous US |
+| Default Longitude | `-98.5795` | Geographic center of the contiguous US |
+| Default Zoom | `4` | Shows the full US at a glance |
+
+Update these in the Customizer under the Store Locator page template.
+
+> **Note:** The theme currently ships with Spain-centered defaults (lat: 46.0, lng: 6.0, zoom: 5). Update the section's default coordinates in the Customizer or directly in the store locator section's schema.
+
+---
+
+## 18. Pharmacy Partners Page (Optional)
+
+> This feature is **optional**. Skip if you don't work with pharmacy/retail partners.
+
+### Setup
+
+1. Create a page: Title = "For Pharmacies" (or "Wholesale"), Handle = `for-pharmacies`
+2. Assign template suffix: `para-framacias`
+3. Configure the HubSpot form section in the Customizer:
+   - HubSpot Portal ID
+   - HubSpot Form ID
+   - Region: `na1`
+
+> **Note:** The template suffix is `para-framacias` (the original Spanish handle). The page title and handle can be anything you want, but the template suffix must match the JSON template filename.
+
+---
+
+## 19. Content Migration — Spanish to English
+
+The theme was originally built for the Spanish market. The following files contain **hardcoded Spanish text** that must be replaced with English copy before launching a US store.
+
+### How to update
+
+For each file listed below, you can either:
+- **Edit via the Customizer:** Navigate to the page in the theme editor and update each text block
+- **Edit the JSON file directly:** Open the file in a code editor, find the Spanish strings, and replace them
+
+### 19.1 Homepage (`templates/index.json`)
+
+| Location | Current Spanish Text | What to Replace With |
+|---|---|---|
+| Hero heading | `¿Un sérum para tu cuero cabelludo?` | Your English headline (4–6 words, Title Case) |
+| Hero body | `Sí. El cuero cabelludo es piel. Cuídalo con fórmulas...` | Your English body copy |
+| Hero CTA button | `Ver los sérums` | Your English CTA (e.g., "Shop Scalp Serums") |
+| Hero CTA link | `shopify://collections/serums-cuero-cabelludo` | Update to your English collection handle (e.g., `shopify://collections/scalp-serums`) |
+| Section description | `El cuidado capilar que empieza en el cuero cabelludo...` | Your English brand description |
+| Quiz section description | `Nuestro diagnóstico capilar analiza en unos minutos...` | Your English quiz pitch |
+| Product grid copy | `Los sérums para el cuero cabelludo son el paso que marca la diferencia...` | Your English product section copy |
+| Product grid CTA | `Ver todos los sérums` | Your English CTA |
+| Product handle references | `serum-calmante-para-el-cuero-cabelludo`, `serum-foliculoestimulante-para-cuero-cabelludo`, `serum-cuero-cabelludo` | Update to your English product handles |
+| Collection handle references | `shopify://collections/serums-cuero-cabelludo`, `shopify://collections/mas-vendidos` | Update to English handles (e.g., `scalp-serums`, `best-sellers`) |
+
+### 19.2 About/Philosophy Page (`templates/page.json`)
+
+This page contains extensive Spanish brand philosophy copy:
+
+| Section | Current Spanish Text (excerpt) | Purpose |
+|---|---|---|
+| Section heading | `Nuestra Filosofía` | "Our Philosophy" |
+| Main heading | `Un Cabello Sano Empieza en el Cuero Cabelludo` | Hero statement |
+| Philosophy paragraph | `Tiene su propio microbioma, su propio pH...` | Scalp-first philosophy |
+| Ingredient science | `Cada activo se incluye en la concentración necesaria...` | Dosing/efficacy copy |
+| Dual-action paragraph | `Cada producto combina un extracto botánico con un activo clínico...` | Botanical + clinical approach |
+| Methodology | `Formulamos en orden biológico...` | Formulation methodology |
+| Science details | `El extracto de hoja de romero aporta antioxidantes fenólicos...` | Ingredient science deep-dive |
+| Diagnostic | `Cada problema capilar tiene una causa en el cuero cabelludo...` | Root-cause framing |
+| How-to | `Aplica fórmulas específicas en el cuero cabelludo...` | Usage instructions |
+| Maintenance | `La salud del cuero cabelludo es continua, no puntual...` | Long-term care |
+
+### 19.3 Ingredients Page (`templates/page.ingredients.json`)
+
+| Location | Current Spanish Text | Purpose |
+|---|---|---|
+| Eyebrow/overline | `CIENCIA CAPILAR` | Page category label (e.g., "HAIR SCIENCE") |
+| Page heading | `Nuestros ingredientes` | Page title (e.g., "Our Ingredients") |
+| Introduction | `En Tara, cada ingrediente se elige con intención...` | Page intro paragraph |
+
+### 19.4 Quiz Results Page (`templates/page.quiz-results.json`)
+
+| Location | Current Spanish Text | Purpose |
+|---|---|---|
+| Section heading | `Tu diagnóstico capilar` | "Your Hair Diagnosis" |
+| Ingredient intro | `No se trata de cubrir síntomas...` | Root-cause explanation |
+| Brand copy | `La mayoría de las marcas capilares diseñan productos para la fibra...` | Brand differentiation |
+
+### 19.5 Footer (`sections/footer-group.json`)
+
+| Location | Current Spanish Text | Purpose |
+|---|---|---|
+| About heading | `Sobre Tara` | "About Tara" |
+| About description | `El cuidado capilar de ultima generación...` | Brand description |
+| Social heading | `Síguenos` | "Follow Us" |
+| Customer service heading | `Servicio al cliente` | "Customer Service" |
+| Newsletter heading | `Apúntate a nuestra newsletter` | Email signup heading |
+| Newsletter subheading | `Disfruta de ofertas exclusivas...` | Email signup description |
+| Newsletter button | `Regístrate` | "Sign Up" |
+| Social media URLs | `facebook.com/taraformulaes`, `instagram.com/taraformulaes/`, `tiktok.com/@taraformula.es` | Update to US social handles |
+
+### 19.6 Collection & Product Handles
+
+If your products and collections were created with Spanish handles, the homepage template references them directly. Update all `shopify://collections/` and `shopify://products/` references in `templates/index.json` to match your English handles.
+
+---
+
+## 20. Pre-Launch Testing Checklist
+
+Before publishing, test every page and flow:
+
+### Pages & Navigation
+- [ ] Homepage loads correctly with all sections
+- [ ] All navigation links work (header + footer)
+- [ ] Collection pages display products correctly
+- [ ] Product pages show all accordion sections, ingredient carousel, and reviews
+- [ ] Ingredients library page — browsing, filtering, and search work
+- [ ] Individual ingredient detail pages load
+- [ ] Blog listing page shows hero + grid
+- [ ] Individual article pages show TOC, related articles, and related products
+- [ ] Contact page form submits correctly
+- [ ] 404 page displays correctly
+- [ ] Search page returns results
+
+### Interactive Flows
+- [ ] Quiz: complete the full quiz flow end-to-end (quiz → results → product recommendations)
+- [ ] Cart: add products, update quantities, remove items
+- [ ] Cart drawer opens and closes correctly
+- [ ] Checkout flow completes (test with Shopify test mode)
+- [ ] Subscription widget works (if applicable)
+- [ ] Newsletter signup works
+
+### Responsiveness
+- [ ] Test on mobile (375px width)
+- [ ] Test on tablet (768px width)
+- [ ] Test on desktop (1440px width)
+- [ ] All images are responsive and not stretched/cropped
+- [ ] Navigation drawer works on mobile
+
+### Performance
+- [ ] Images load lazily below the fold
+- [ ] No layout shift (CLS) on page load
+- [ ] Page speed score is acceptable (use Google PageSpeed Insights)
+
+### Content
+- [ ] No remaining Spanish text anywhere on the site
+- [ ] All button labels, headings, and body copy are in English
+- [ ] Social media links point to correct US handles
+- [ ] Footer information is accurate for US market
+- [ ] All copy follows Tara Tone of Voice guidelines
+
+---
+
+## 21. Launch
+
+1. **Final review** — Walk through the entire site one more time
+2. **Publish theme** — Go to **Online Store > Themes** and click **Publish** on the Tara Horizon theme
+3. **Verify live site** — Check the live URL immediately after publishing
+4. **Set up redirects** — If migrating from another site, set up URL redirects in **Online Store > Navigation > URL Redirects**
+5. **Submit sitemap** — Shopify auto-generates a sitemap at `/sitemap.xml`. Submit it to Google Search Console.
+
+---
+
+## 22. Full Checklist
+
+Use this master checklist to verify all setup steps are complete:
+
+### Phase A: Foundation
+
+#### Metaobject Definitions
+- [ ] `benefit` metaobject created (4 fields, Storefront enabled)
+- [ ] `faq_entry` metaobject created (2 fields, Storefront enabled)
+- [ ] `blog_author` metaobject created (3 fields, Storefront enabled)
+- [ ] `ingredient` metaobject created (15 fields, Storefront + Web pages enabled)
+
+#### Metafield Definitions
+- [ ] 19 product metafields created under `custom` namespace
+- [ ] 12 article metafields created under `custom` namespace
+
+### Phase B: Content Structure
+
+#### Pages
+- [ ] Ingredients page created (handle: `ingredients`)
+- [ ] Quiz page created (handle: `quiz`)
+- [ ] Quiz Results page created (handle: `quiz-results`)
+- [ ] Contact page created (handle: `contact`)
+
+#### Blog
+- [ ] Blog created
+- [ ] Blog author metaobject entries created
+- [ ] At least one article published
+
+#### Collections
+- [ ] Best Sellers collection created (handle: `best-sellers`)
+- [ ] Scalp Serums collection created (handle: `scalp-serums`)
+- [ ] Product range collections created (for homepage bento grid)
+- [ ] Products added to collections
+
+#### Products
+- [ ] Products created with `custom.tagline` populated
+- [ ] Ingredient metaobjects created and linked to products
+- [ ] FAQ metaobjects created and linked to products
+- [ ] Product accordion content filled in (key benefits, how to use, etc.)
+
+### Phase C: Configuration
+
+#### Template Assignments
+- [ ] `page.ingredients` assigned to Ingredients page
+- [ ] `page.quiz` assigned to Quiz page
+- [ ] `page.quiz-results` assigned to Quiz Results page
+- [ ] `page.contact` assigned to Contact page
+- [ ] `blog.tara` assigned to blog listing
+- [ ] `article.tara` assigned to all articles
+- [ ] `metaobject/ingredient` template assigned to ingredient metaobject type
+
+#### Theme Settings
+- [ ] Color schemes configured (scheme-1, scheme-2, scheme-3)
+- [ ] Typography configured (Arsenal, Avenir, FreightBig Pro)
+- [ ] Logo uploaded
+- [ ] Favicon uploaded
+- [ ] Currency set to USD
+- [ ] US market configured as primary
+
+#### Navigation
+- [ ] Header menu configured
+- [ ] Footer menu configured
+- [ ] Social media links updated to US handles
+
+#### Apps
+- [ ] Klaviyo Reviews installed and configured
+- [ ] Shopify Subscriptions enabled
+- [ ] Tolstoy Shoppable Video installed (publish ID updated)
+
+### Phase D: Content & Launch
+
+#### Content
+- [ ] All Spanish text replaced with English copy (see Step 19)
+- [ ] Homepage content updated
+- [ ] About/Philosophy page content updated
+- [ ] Ingredients page content updated
+- [ ] Quiz Results page content updated
+- [ ] Footer content updated
+- [ ] Social media URLs updated
+
+#### Integrations
+- [ ] Quiz AI Cloudflare Worker deployed and URL updated
+- [ ] HubSpot credentials updated (if using pharmacy page)
+
+#### Image Assets
+- [ ] Brand icons uploaded (Sulfate Free, Silicone Free, Paraben Free, etc.)
+- [ ] Utility icons uploaded (Shipping, Returns, Payment)
+- [ ] Press/media logos uploaded
+- [ ] Homepage hero images uploaded
+- [ ] Product images uploaded
+- [ ] Ingredient images uploaded
+
+#### Testing
+- [ ] All pages load correctly
+- [ ] Quiz flow works end-to-end
+- [ ] Cart and checkout work
+- [ ] Blog listing and articles work
+- [ ] Ingredient library works (browsing, filtering, search)
+- [ ] Mobile responsive on all pages
+- [ ] No Spanish text remaining anywhere
+- [ ] **Publish theme**
+
+### Phase E: Optional Add-Ons
+- [ ] Store Locator page created and configured with US coordinates (optional)
+- [ ] Pharmacy Partners page created and HubSpot form configured (optional)
+
+---
+
+## Appendix A: Templates — Custom vs. Standard Horizon
+
+The following templates are **custom to Tara** (not in standard Horizon 3.3.1):
+
+| Template | Purpose |
+|---|---|
+| `article.tara.json` | Custom editorial article layout with TOC, author, related content |
+| `blog.tara.json` | Custom blog listing with hero spotlight + grid |
+| `page.ingredients.json` | Ingredient library hub with hero, featured items, library grid, and FAQ |
+| `page.para-framacias.json` | Pharmacy partners page with HubSpot form (optional) |
+| `page.quiz.json` | Hair diagnosis quiz form |
+| `page.quiz-results.json` | AI-powered quiz results with product recommendations |
+| `page.store-locator.json` | Physical store finder with map (optional) |
+| `metaobject/ingredient.json` | Individual ingredient detail pages |
+
+Standard Horizon templates (`404`, `article`, `blog`, `cart`, `collection`, `index`, `list-collections`, `page`, `page.contact`, `password`, `product`, `search`) are also present and have been customized with Tara-specific metafield references and brand content.
+
+## Appendix B: Metafield Quick Reference
+
+### Product Metafields (`custom` namespace)
+
+```
+custom.tagline                     → Single-line text
+custom.short_description           → Single-line text
+custom.size_ml                     → Single-line text
+custom.key_benefits_heading        → Single-line text
+custom.key_benefits_content        → Rich text
+custom.clinical_results_heading    → Single-line text
+custom.clinical_results_content    → Rich text
+custom.how_to_use_heading          → Single-line text
+custom.how_to_use_content          → Rich text
+custom.whats_inside_heading        → Single-line text
+custom.whats_inside_content        → Rich text
+custom.free_of_heading             → Single-line text
+custom.free_of_content             → Rich text
+custom.awards_heading              → Single-line text
+custom.awards_content              → Rich text
+custom.fragrance_heading           → Single-line text
+custom.fragrance_content           → Rich text
+custom.ingredients                 → List of metaobject references (→ ingredient)
+custom.faqs                        → List of metaobject references (→ faq_entry)
+```
+
+### Article Metafields (`custom` namespace)
+
+```
+custom.featured                    → Boolean
+custom.is_hero                     → Boolean
+custom.blog_summary                → Single-line text
+custom.read_time_override          → Integer
+custom.hero_caption                → Single-line text
+custom.short_title                 → Single-line text
+custom.related_articles            → List of article references
+custom.related_products            → List of product references
+custom.author                      → Metaobject reference (→ blog_author)
+custom.ingredients                 → List of metaobject references (→ ingredient)
+custom.listing_image               → File reference (image)
+custom.hero_image                  → File reference (image)
+```
+
+## Appendix C: Setup Script Reference
+
+The automated setup script (`scripts/setup-store.mjs`) creates resources in 5 steps:
+
+| Step | What It Creates | Count |
+|---|---|---|
+| 1 | Metaobject definitions (benefit, faq_entry, blog_author, ingredient) | 4 |
+| 2 | Product metafield definitions | 19 |
+| 3 | Article metafield definitions | 12 |
+| 4 | Pages (Ingredients, Quiz, Quiz Results, Contact) + optional (Store Locator, For Pharmacies) | 4–6 |
+| 5 | Collections (Best Sellers, Scalp Serums, + range collections) | 2–6 |
+
+Run with `--dry-run` first to preview changes. Run with `--step=N` to execute only one step.
+
+After the script completes, you still need to:
+1. Create a Blog and assign `blog.tara` / `article.tara` templates
+2. Assign the `metaobject/ingredient` template in the Customizer
+3. Add products to collections
+4. Install apps (Klaviyo Reviews, Shopify Subscriptions, Tolstoy)
+5. Replace all Spanish content with English copy (Step 19)
+6. Upload image assets
+
+---
+
+*This guide was generated by analyzing the Tara Horizon theme codebase against the standard Shopify Horizon 3.3.1 theme and documenting all custom additions and configuration requirements for a US English store.*
