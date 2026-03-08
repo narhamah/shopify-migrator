@@ -48,6 +48,30 @@ SPAIN_DIR = "data/spain_export"
 # Delay between GraphQL requests to avoid 503 rate limiting
 REQUEST_DELAY = 3.0
 
+# Map metaobject type → field key that contains the "name" for handle generation
+METAOBJECT_NAME_FIELDS = {
+    "ingredient": "name",
+    "benefit": "title",
+    "blog_author": "full_name",
+    "faq_entry": "question",
+}
+
+
+def _slugify_metaobject_handles(metaobjects):
+    """Update all metaobject handles by slugifying their name/title field."""
+    for mo_type, type_data in metaobjects.items():
+        name_field_key = METAOBJECT_NAME_FIELDS.get(mo_type, "name")
+        for obj in type_data.get("objects", []):
+            # Find the name field value
+            name_val = ""
+            for field in obj.get("fields", []):
+                if field["key"] == name_field_key:
+                    name_val = field.get("value", "")
+                    break
+            if name_val:
+                obj["handle"] = slugify(name_val)
+
+
 HEADERS = {
     "Content-Type": "application/json",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -1007,6 +1031,11 @@ class KuwaitScraper:
         en_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
         ar_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
 
+        # Slugify all metaobject handles from their name field
+        # (Spain handles are Spanish — we need EN/AR handles)
+        _slugify_metaobject_handles(en_metaobjects)
+        _slugify_metaobject_handles(ar_metaobjects)
+
         # Scrape ingredients from dedicated pages
         print("\n--- Scraping ingredients from HTML pages ---")
         en_ingredients = self._scrape_ingredients_page(
@@ -1035,6 +1064,10 @@ class KuwaitScraper:
             self._merge_ingredients(ar_metaobjects, ar_ingredients)
         else:
             print("  No Arabic ingredients scraped from HTML")
+
+        # Re-slugify handles after merge (names may have changed)
+        _slugify_metaobject_handles(en_metaobjects)
+        _slugify_metaobject_handles(ar_metaobjects)
 
         save_json(en_metaobjects, os.path.join(OUTPUT_DIR_EN, "metaobjects.json"))
         save_json(ar_metaobjects, os.path.join(OUTPUT_DIR_AR, "metaobjects.json"))

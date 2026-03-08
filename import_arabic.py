@@ -389,6 +389,8 @@ def main():
 
                 # Build Arabic field map from metaobject fields
                 arabic_fields = {}
+                if ar_obj.get("handle"):
+                    arabic_fields["handle"] = ar_obj["handle"]
                 for field in ar_obj.get("fields", []):
                     if field.get("value"):
                         arabic_fields[field["key"]] = field["value"]
