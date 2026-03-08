@@ -67,6 +67,29 @@ def save_json(data, filepath):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def slugify(text):
+    """Convert a product/category name to a URL-safe handle.
+
+    Supports Unicode (Arabic, etc.) — Shopify handles allow non-ASCII slugs.
+    Examples:
+        "Repairing Hair Mask"  → "repairing-hair-mask"
+        "قناع اصلاح الشعر"    → "قناع-اصلاح-الشعر"
+        "TARA Kansa Wand™"    → "tara-kansa-wand"
+    """
+    import unicodedata
+    text = unicodedata.normalize("NFC", text)
+    # Remove trademark, copyright, registered symbols
+    text = re.sub(r'[™®©]', '', text)
+    # Replace & with "and"
+    text = text.replace('&', 'and')
+    # Remove characters that aren't word chars (incl. Unicode), spaces, or hyphens
+    text = re.sub(r'[^\w\s-]', '', text, flags=re.UNICODE)
+    text = text.lower()
+    # Replace whitespace/multiple hyphens with single hyphen
+    text = re.sub(r'[-\s]+', '-', text).strip('-')
+    return text
+
+
 # ------------------------------------------------------------------
 # GraphQL client with retry and rate-limit handling
 # ------------------------------------------------------------------
@@ -676,12 +699,14 @@ class KuwaitScraper:
                             print(f"    Matched by image: {name} → {spain_product.get('title', '')}")
                             break
 
+            # Generate handle from product name (supports Arabic/English)
+            handle = slugify(name) if name else url_key
+
             if spain_product:
                 # Clone Spain product as base, overlay Kuwait data
                 product = json.loads(json.dumps(spain_product))  # deep copy
                 product["title"] = name
-                if url_key:
-                    product["handle"] = url_key
+                product["handle"] = handle
                 if desc and desc.get("html"):
                     product["body_html"] = desc["html"]
                 elif short_desc and short_desc.get("html"):
@@ -710,7 +735,7 @@ class KuwaitScraper:
                 print(f"    No Spain match for: {name} (sku: {sku}, url_key: {url_key})")
                 product = {
                     "id": mp.get("id", 0),
-                    "handle": url_key,
+                    "handle": handle,
                     "title": name,
                     "body_html": (desc.get("html", "") if desc else "") or (short_desc.get("html", "") if short_desc else ""),
                     "vendor": "TARA",
@@ -818,6 +843,8 @@ class KuwaitScraper:
 
         for cat in categories:
             url_key = cat.get("url_key", "")
+            cat_name = cat.get("name", "")
+            handle = slugify(cat_name) if cat_name else url_key
 
             # Match with Spain collection: handle → SKU overlap
             spain_coll = self.spain_collections_by_handle.get(url_key)
@@ -826,21 +853,20 @@ class KuwaitScraper:
                 # Fallback: match by product SKU overlap (Jaccard similarity)
                 spain_coll = self._match_collection_by_skus(url_key)
                 if spain_coll:
-                    print(f"    Matched by SKU overlap: Magento '{cat.get('name')}' → Spain '{spain_coll.get('title')}'")
+                    print(f"    Matched by SKU overlap: Magento '{cat_name}' → Spain '{spain_coll.get('title')}'")
 
             if spain_coll:
                 coll = json.loads(json.dumps(spain_coll))
-                coll["title"] = cat.get("name", coll.get("title", ""))
-                if url_key:
-                    coll["handle"] = url_key
+                coll["title"] = cat_name or coll.get("title", "")
+                coll["handle"] = handle
                 if cat.get("description"):
                     coll["body_html"] = cat["description"]
                 matched_spain_ids.add(str(spain_coll.get("id", "")))
             else:
                 coll = {
                     "id": cat.get("id", 0),
-                    "handle": url_key,
-                    "title": cat.get("name", ""),
+                    "handle": handle,
+                    "title": cat_name,
                     "body_html": cat.get("description", "") or "",
                 }
 
@@ -925,18 +951,20 @@ class KuwaitScraper:
 
             if result and "data" in result and result["data"].get("cmsPage"):
                 cms = result["data"]["cmsPage"]
+                page_title = cms.get("title", "")
+                handle = slugify(page_title) if page_title else ident
                 spain_page = spain_by_handle.get(ident)
                 if spain_page:
                     page = json.loads(json.dumps(spain_page))
-                    page["title"] = cms.get("title", page.get("title", ""))
-                    page["handle"] = ident
+                    page["title"] = page_title or page.get("title", "")
+                    page["handle"] = handle
                     if cms.get("content"):
                         page["body_html"] = cms["content"]
                 else:
                     page = {
                         "id": hash(ident) % 10**9,
-                        "handle": ident,
-                        "title": cms.get("title", ""),
+                        "handle": handle,
+                        "title": page_title,
                         "body_html": cms.get("content", ""),
                         "published_at": "2024-01-01T00:00:00Z",
                         "template_suffix": "",

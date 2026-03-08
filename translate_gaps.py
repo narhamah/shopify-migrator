@@ -264,6 +264,9 @@ def _slugify(text):
     """
     import unicodedata
     text = unicodedata.normalize("NFC", text)
+    # Remove trademark, copyright, registered symbols
+    text = re.sub(r'[™®©]', '', text)
+    text = text.replace('&', 'and')
     # Remove characters that aren't word chars (incl. Unicode), spaces, or hyphens
     text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
     text = text.lower()
