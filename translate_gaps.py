@@ -274,6 +274,30 @@ def _slugify(text):
     return text
 
 
+# Map metaobject type → field key that contains the "name" for handle generation
+# Must match METAOBJECT_NAME_FIELDS in scrape_kuwait.py
+_METAOBJECT_NAME_FIELDS = {
+    "ingredient": "name",
+    "benefit": "title",
+    "blog_author": "full_name",
+    "faq_entry": "question",
+}
+
+
+def _regenerate_metaobject_handles(metaobjects):
+    """Regenerate metaobject handles from their translated name/title field."""
+    for mo_type, type_data in metaobjects.items():
+        name_field_key = _METAOBJECT_NAME_FIELDS.get(mo_type, "name")
+        for obj in type_data.get("objects", []):
+            name_val = ""
+            for field in obj.get("fields", []):
+                if field["key"] == name_field_key:
+                    name_val = field.get("value", "")
+                    break
+            if name_val:
+                obj["handle"] = _slugify(name_val)
+
+
 def apply_translations(translations, products, collections, pages, articles, metaobjects):
     """Apply a dict of {field_id: translated_value} back to data structures."""
     t = translations
@@ -377,6 +401,9 @@ def apply_translations(translations, products, collections, pages, articles, met
                         fid = f"{prefix}.{mo_type}.{handle}.{field['key']}"
                         if fid in t:
                             field["value"] = t[fid]
+
+        # Regenerate metaobject handles from translated name fields
+        _regenerate_metaobject_handles(metaobjects)
 
 
 # =====================================================================
