@@ -246,6 +246,40 @@ def explore(gql_en, gql_ar, en_store, ar_store):
         reco["findings"]["ar_categories"] = result["data"]["categories"]
         _print_category_tree(result["data"]["categories"].get("items", []))
 
+    # 7. Ingredients pages
+    print("\n--- Ingredients Pages ---")
+    import requests as req
+    ing_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    ing_urls = [
+        (f"{gql_en.base_url}/kw-en/ingredients", "EN (KW)"),
+        (f"{gql_en.base_url}/us-en/ingredients", "EN (US)"),
+        (f"{gql_ar.base_url}/ae-ar/ingredients", "AR (AE)"),
+        ("https://taraformula.com.kw/ingredients", "AR (KW root)"),
+    ]
+    for url, label in ing_urls:
+        time.sleep(2)
+        try:
+            resp = req.get(url, headers=ing_headers, timeout=15)
+            print(f"  [{label}] {url}: HTTP {resp.status_code} ({len(resp.text)} bytes)")
+            if resp.status_code == 200 and len(resp.text) > 1000:
+                # Quick check for ingredient content
+                html = resp.text
+                ing_count = html.lower().count('ingredient')
+                print(f"    'ingredient' appears {ing_count} times in HTML")
+                # Check for Arabic content
+                arabic_chars = sum(1 for c in html if '\u0600' <= c <= '\u06FF')
+                if arabic_chars > 50:
+                    print(f"    Contains Arabic text ({arabic_chars} Arabic characters)")
+                reco["findings"][f"ingredients_page_{label}"] = {
+                    "url": url,
+                    "status": resp.status_code,
+                    "size": len(resp.text),
+                    "ingredient_mentions": ing_count,
+                    "arabic_chars": arabic_chars if arabic_chars > 0 else 0,
+                }
+        except Exception as e:
+            print(f"  [{label}] {url}: Error - {e}")
+
     # Save reco
     reco_path = os.path.join("data", "kuwait_reco.json")
     os.makedirs("data", exist_ok=True)
@@ -680,17 +714,213 @@ class KuwaitScraper:
         print("SCRAPING METAOBJECTS")
         print("=" * 60)
 
-        # Metaobjects are Shopify-specific. Copy Spain structure.
-        # Text content will be translated via LLM for what we can't scrape.
+        # Start with Spain metaobjects as base structure
+        en_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
+        ar_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
 
-        print("  Metaobjects are Shopify-specific — no Magento equivalent.")
-        print("  Copying Spain metaobjects as base — these will need LLM translation.")
+        # Scrape ingredients from dedicated pages
+        print("\n--- Scraping ingredients from HTML pages ---")
+        en_ingredients = self._scrape_ingredients_page(
+            f"{self.gql_en.base_url}/kw-en/ingredients",
+            fallback_urls=[
+                f"{self.gql_en.base_url}/us-en/ingredients",
+                f"{self.gql_en.base_url}/ingredients",
+            ]
+        )
+        ar_ingredients = self._scrape_ingredients_page(
+            f"{self.gql_ar.base_url}/ae-ar/ingredients",
+            fallback_urls=[
+                f"{self.gql_ar.base_url}/ingredients",
+                "https://taraformula.com.kw/ingredients",
+            ]
+        )
 
-        save_json(self.spain_metaobjects, os.path.join(OUTPUT_DIR_EN, "metaobjects.json"))
-        save_json(self.spain_metaobjects, os.path.join(OUTPUT_DIR_AR, "metaobjects.json"))
+        if en_ingredients:
+            print(f"  Found {len(en_ingredients)} English ingredients")
+            self._merge_ingredients(en_metaobjects, en_ingredients)
+        else:
+            print("  No English ingredients scraped from HTML")
 
-        total = sum(len(td.get("objects", [])) for td in self.spain_metaobjects.values())
-        print(f"  Copied {total} metaobjects across {len(self.spain_metaobjects)} types")
+        if ar_ingredients:
+            print(f"  Found {len(ar_ingredients)} Arabic ingredients")
+            self._merge_ingredients(ar_metaobjects, ar_ingredients)
+        else:
+            print("  No Arabic ingredients scraped from HTML")
+
+        save_json(en_metaobjects, os.path.join(OUTPUT_DIR_EN, "metaobjects.json"))
+        save_json(ar_metaobjects, os.path.join(OUTPUT_DIR_AR, "metaobjects.json"))
+
+        total = sum(len(td.get("objects", [])) for td in en_metaobjects.values())
+        print(f"  Saved {total} metaobjects across {len(en_metaobjects)} types")
+
+    def _scrape_ingredients_page(self, url, fallback_urls=None):
+        """Scrape ingredients from the ingredients listing page."""
+        import requests as req
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+
+        urls_to_try = [url] + (fallback_urls or [])
+        html = None
+
+        for try_url in urls_to_try:
+            print(f"  Trying: {try_url}")
+            time.sleep(REQUEST_DELAY)
+            try:
+                resp = req.get(try_url, headers=headers, timeout=30)
+                if resp.status_code == 200 and len(resp.text) > 1000:
+                    html = resp.text
+                    print(f"  Got {len(html)} bytes from {try_url}")
+                    break
+                else:
+                    print(f"  HTTP {resp.status_code}, {len(resp.text)} bytes")
+            except Exception as e:
+                print(f"  Error: {e}")
+
+        if not html:
+            return []
+
+        # Try to parse with scrapling if available, otherwise use regex
+        try:
+            from scrapling import Adaptor
+            page = Adaptor(html, auto_match=False)
+            return self._extract_ingredients_scrapling(page)
+        except ImportError:
+            return self._extract_ingredients_regex(html)
+
+    def _extract_ingredients_scrapling(self, page):
+        """Extract ingredients using scrapling CSS selectors."""
+        ingredients = []
+
+        # Try various selectors for ingredient items
+        selectors = [
+            '.ingredient-item', '.ingredient-card', '.ingredient',
+            '[class*="ingredient"]', '[data-ingredient]',
+            '.ingredients-list li', '.ingredients-grid > div',
+            '#ingredients-list > *',
+        ]
+
+        items = []
+        for sel in selectors:
+            items = page.css(sel)
+            if items:
+                print(f"    Matched selector: '{sel}' — {len(items)} items")
+                break
+
+        if not items:
+            # Try to find any structured content
+            print("    No ingredient items found with standard selectors")
+            print("    Dumping page structure for analysis...")
+            # Find all elements with 'ingredient' in class or id
+            all_els = page.css('[class*="ingredient"], [id*="ingredient"]')
+            for el in all_els[:10]:
+                tag = el.tag if hasattr(el, 'tag') else 'unknown'
+                classes = el.attrib.get('class', '')
+                text = (el.text or '')[:80]
+                print(f"      <{tag} class='{classes}'> {text}")
+            return []
+
+        for item in items:
+            ingredient = {}
+
+            # Extract name
+            name_el = item.css('h2, h3, h4, .name, [class*="name"], [class*="title"]')
+            if name_el:
+                ingredient["name"] = name_el[0].text.strip() if name_el[0].text else ""
+
+            # Extract description
+            desc_el = item.css('p, .description, [class*="desc"], [class*="content"]')
+            if desc_el:
+                ingredient["description"] = desc_el[0].text.strip() if desc_el[0].text else ""
+
+            # Extract image
+            img_el = item.css('img')
+            if img_el:
+                src = img_el[0].attrib.get('src', '') or img_el[0].attrib.get('data-src', '')
+                if src:
+                    ingredient["image_url"] = src
+
+            # Extract link (for detail page)
+            link_el = item.css('a[href]')
+            if link_el:
+                ingredient["detail_url"] = link_el[0].attrib.get('href', '')
+
+            if ingredient.get("name"):
+                ingredients.append(ingredient)
+
+        return ingredients
+
+    def _extract_ingredients_regex(self, html):
+        """Fallback: extract ingredients using regex patterns."""
+        ingredients = []
+
+        # Look for JSON-LD or embedded JSON data
+        json_matches = re.findall(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL)
+        for match in json_matches:
+            try:
+                data = json.loads(match)
+                if isinstance(data, list):
+                    for item in data:
+                        if item.get("@type") == "Product" or "ingredient" in str(item).lower():
+                            ingredients.append({"name": item.get("name", ""), "raw_data": item})
+            except json.JSONDecodeError:
+                pass
+
+        # Look for embedded state/config JSON
+        state_matches = re.findall(r'window\.__\w+__\s*=\s*({.+?});\s*</script>', html, re.DOTALL)
+        for match in state_matches:
+            try:
+                data = json.loads(match)
+                print(f"    Found embedded state data with keys: {list(data.keys())[:10]}")
+            except json.JSONDecodeError:
+                pass
+
+        return ingredients
+
+    def _merge_ingredients(self, metaobjects, scraped_ingredients):
+        """Merge scraped ingredient data into metaobjects structure."""
+        if "ingredient" not in metaobjects:
+            return
+
+        spain_ingredients = metaobjects["ingredient"].get("objects", [])
+
+        # Build name-based lookup (lowercase, stripped)
+        scraped_by_name = {}
+        for ing in scraped_ingredients:
+            name = ing.get("name", "").strip().lower()
+            if name:
+                scraped_by_name[name] = ing
+
+        updated = 0
+        for spain_ing in spain_ingredients:
+            # Find matching scraped ingredient by name
+            spain_name = ""
+            for field in spain_ing.get("fields", []):
+                if field["key"] == "name":
+                    spain_name = field["value"].strip().lower()
+                    break
+
+            handle = spain_ing.get("handle", "").replace("-", " ")
+            match = scraped_by_name.get(spain_name) or scraped_by_name.get(handle)
+
+            if match:
+                # Update name
+                if match.get("name"):
+                    for field in spain_ing["fields"]:
+                        if field["key"] == "name":
+                            field["value"] = match["name"]
+                            break
+
+                # Update description
+                if match.get("description"):
+                    for field in spain_ing["fields"]:
+                        if field["key"] == "description":
+                            field["value"] = match["description"]
+                            break
+
+                updated += 1
+
+        print(f"    Updated {updated}/{len(spain_ingredients)} ingredients from scraped data")
 
     # ------------------------------------------------------------------
     # Summary
@@ -715,8 +945,12 @@ class KuwaitScraper:
 
         print("\n  Items needing LLM translation:")
         print("    - Articles (blog posts) — not in Magento GraphQL")
-        print("    - Metaobjects (ingredients, benefits, FAQs) — Shopify-specific")
+        print("    - Benefits, FAQs — Shopify-specific (no Magento page)")
         print("    - Product metafield accordions — Shopify-specific")
+        print("\n  Scraped from Magento:")
+        print("    - Products (title, description, price, images, tags)")
+        print("    - Categories → Shopify collections")
+        print("    - Ingredients (from /ingredients HTML page)")
         print("\n  Next: run translate scripts for remaining content,")
         print("  then import_english.py and import_arabic.py")
 
