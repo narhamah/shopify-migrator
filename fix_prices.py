@@ -114,11 +114,11 @@ def fetch_sar_prices(site_url, store_code, delay=REQUEST_DELAY):
             final_val = final.get("value")
             regular_val = regular.get("value")
 
-            # Round to 2 decimal places (Magento often returns conversion artifacts)
+            # Round to whole number (Magento returns conversion artifacts like 149.01)
             if final_val is not None:
-                final_val = round(final_val, 2)
+                final_val = round(final_val)
             if regular_val is not None:
-                regular_val = round(regular_val, 2)
+                regular_val = round(regular_val)
 
             all_prices[sku] = {
                 "name": item.get("name", ""),

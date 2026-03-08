@@ -79,7 +79,8 @@ def convert_price(price, exchange_rate):
     if price is None:
         return None
     try:
-        return str(round(float(price) * exchange_rate, 2))
+        # Round to whole number — no fractional SAR for retail
+        return str(round(float(price) * exchange_rate))
     except (ValueError, TypeError):
         return price
 

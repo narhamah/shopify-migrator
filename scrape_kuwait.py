@@ -682,6 +682,9 @@ class KuwaitScraper:
                 product["title"] = name
                 if desc and desc.get("html"):
                     product["body_html"] = desc["html"]
+                elif short_desc and short_desc.get("html"):
+                    # Fallback: use short_description if full description is empty
+                    product["body_html"] = short_desc["html"]
 
                 # Update tagline from short_description
                 if short_desc and short_desc.get("html"):
@@ -707,7 +710,7 @@ class KuwaitScraper:
                     "id": mp.get("id", 0),
                     "handle": url_key,
                     "title": name,
-                    "body_html": desc.get("html", "") if desc else "",
+                    "body_html": (desc.get("html", "") if desc else "") or (short_desc.get("html", "") if short_desc else ""),
                     "vendor": "TARA",
                     "product_type": "",
                     "tags": ", ".join(c.get("name", "") for c in mp.get("categories", [])),
@@ -732,15 +735,15 @@ class KuwaitScraper:
                     "images": [],
                 }
 
-            # Always update price from Kuwait
+            # Always update price from Kuwait (round to whole number — no fractional SAR)
             regular_price = min_price.get("regular_price", {}).get("value")
             final_price = min_price.get("final_price", {}).get("value")
             if product.get("variants"):
                 for v in product["variants"]:
                     if final_price is not None:
-                        v["price"] = str(final_price)
+                        v["price"] = str(round(final_price))
                     if regular_price and final_price and regular_price != final_price:
-                        v["compare_at_price"] = str(regular_price)
+                        v["compare_at_price"] = str(round(regular_price))
 
             # Always update images from Kuwait
             media = mp.get("media_gallery", [])
