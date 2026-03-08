@@ -14,6 +14,7 @@ Handles:
   Step 8:  Migrate discount codes / price rules
   Step 9:  Activate products (draft → active)
   Step 10: Create store policies
+  Step 11: Update handles (Spanish → English)
 
 Usage:
     python post_migration.py                    # Run all steps
@@ -666,6 +667,96 @@ def step_create_policies(client, dry_run=False):
 
 
 # =============================================
+# Step 11: Update handles (Spanish → English)
+# =============================================
+
+def step_update_handles(client, dry_run=False):
+    """Update product/collection/page handles from Spanish to English."""
+    print("\n=== Step 11: Update Handles (Spanish → English) ===")
+
+    id_map = load_json("data/id_map.json")
+    progress = load_json("data/handle_progress.json")
+
+    # Products
+    products = load_json("data/english/products.json")
+    spain_products = load_json("data/spain_export/products.json")
+    spain_handles = {str(p["id"]): p.get("handle", "") for p in spain_products}
+    product_map = id_map.get("products", {})
+
+    updated = 0
+    for product in products:
+        source_id = str(product["id"])
+        dest_id = product_map.get(source_id)
+        if not dest_id or f"product_{source_id}" in progress:
+            continue
+
+        new_handle = product.get("handle", "")
+        old_handle = spain_handles.get(source_id, "")
+
+        # Only update if handle actually changed (was translated)
+        if not new_handle or new_handle == old_handle:
+            continue
+
+        if dry_run:
+            print(f"  Would update product handle: {old_handle} → {new_handle}")
+        else:
+            try:
+                client.update_product(dest_id, {"handle": new_handle})
+                print(f"  Updated: {old_handle} → {new_handle}")
+                updated += 1
+            except Exception as e:
+                print(f"  Error updating {old_handle}: {e}")
+
+        progress[f"product_{source_id}"] = True
+
+    if not dry_run:
+        save_json(progress, "data/handle_progress.json")
+
+    # Collections
+    collections = load_json("data/english/collections.json")
+    spain_collections = load_json("data/spain_export/collections.json")
+    spain_coll_handles = {str(c["id"]): c.get("handle", "") for c in spain_collections}
+    collection_map = id_map.get("collections", {})
+
+    for coll in collections:
+        source_id = str(coll["id"])
+        dest_id = collection_map.get(source_id)
+        if not dest_id or f"collection_{source_id}" in progress:
+            continue
+
+        new_handle = coll.get("handle", "")
+        old_handle = spain_coll_handles.get(source_id, "")
+
+        if not new_handle or new_handle == old_handle:
+            continue
+
+        if dry_run:
+            print(f"  Would update collection handle: {old_handle} → {new_handle}")
+        else:
+            try:
+                client._request("PUT", f"custom_collections/{dest_id}.json",
+                                json={"custom_collection": {"handle": new_handle}})
+                print(f"  Updated collection: {old_handle} → {new_handle}")
+                updated += 1
+            except Exception as e:
+                # Try smart collection
+                try:
+                    client._request("PUT", f"smart_collections/{dest_id}.json",
+                                    json={"smart_collection": {"handle": new_handle}})
+                    print(f"  Updated smart collection: {old_handle} → {new_handle}")
+                    updated += 1
+                except Exception:
+                    print(f"  Error updating collection {old_handle}: {e}")
+
+        progress[f"collection_{source_id}"] = True
+
+    if not dry_run:
+        save_json(progress, "data/handle_progress.json")
+
+    print(f"  Updated {updated} handles")
+
+
+# =============================================
 # Main
 # =============================================
 
@@ -681,7 +772,7 @@ def main():
     access_token = os.environ["SAUDI_ACCESS_TOKEN"]
     client = ShopifyClient(shop_url, access_token)
 
-    steps = args.step or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps = args.step or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
     if 1 in steps:
         step_enable_arabic(client, dry_run=args.dry_run)
@@ -703,6 +794,8 @@ def main():
         step_activate_products(client, dry_run=args.dry_run)
     if 10 in steps:
         step_create_policies(client, dry_run=args.dry_run)
+    if 11 in steps:
+        step_update_handles(client, dry_run=args.dry_run)
 
     print("\n=== Post-Migration Complete ===")
     print("\nRemaining MANUAL steps:")
