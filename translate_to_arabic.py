@@ -32,7 +32,7 @@ def load_or_init(filepath):
 
 def main():
     load_dotenv()
-    api_key = os.environ["ANTHROPIC_API_KEY"]
+    api_key = os.environ["OPENAI_API_KEY"]
 
     translator = Translator(api_key)
     input_dir = "data/english"

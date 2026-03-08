@@ -1,23 +1,49 @@
 import json
+import os
 import re
 
-import anthropic
+from openai import OpenAI
 
 
-SYSTEM_PROMPT = """You are a professional translator for TARA, a luxury skincare and beauty brand specializing in scalp care and hair health.
+# =====================================================================
+# Load TARA Tone of Voice from external files
+# =====================================================================
+_TOV_DIR = os.path.dirname(os.path.abspath(__file__))
 
-Rules:
+
+def _load_tov(filename):
+    filepath = os.path.join(_TOV_DIR, filename)
+    with open(filepath, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+TARA_TONE_EN = _load_tov("tara_tov_en.txt")
+TARA_TONE_AR = _load_tov("tara_tov_ar.txt")
+
+# =====================================================================
+# System prompt
+# =====================================================================
+SYSTEM_PROMPT = f"""You are a professional translator for TARA, a luxury scalp-care and hair-health brand.
+
+TRANSLATION RULES:
 - Keep "TARA" unchanged — never translate the brand name
 - Keep product-specific names unchanged (e.g., "Kansa Wand", "Gua Sha")
 - Keep ingredient scientific names (INCI names) unchanged
 - Preserve all HTML tags and their attributes exactly as they are
-- Preserve Shopify Liquid tags ({{ }}, {% %}) unchanged
+- Preserve Shopify Liquid tags ({{{{ }}}}, {{% %}}) unchanged
 - Keep URLs unchanged
 - Keep JSON structure unchanged if the input is JSON (translate only string values)
-- When translating to Arabic, use Modern Standard Arabic appropriate for a Gulf/Saudi audience
-- Maintain the luxurious, professional tone of the brand
-- Scalp-first philosophy: the brand treats scalp as skin, focuses on root causes
-- Return ONLY the translated text, no explanations or notes"""
+- Return ONLY the translated text, no explanations or notes
+
+TARA ENGLISH TONE OF VOICE:
+{TARA_TONE_EN}
+
+TARA ARABIC TONE OF VOICE:
+{TARA_TONE_AR}
+
+When translating to English, follow the English tone of voice strictly.
+When translating to Arabic, follow the Arabic tone of voice strictly.
+"""
 
 
 # Metaobject field types that contain translatable text
@@ -69,8 +95,8 @@ ARTICLE_TRANSLATABLE_METAFIELDS = {
 
 class Translator:
     def __init__(self, api_key):
-        self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = "claude-sonnet-4-20250514"
+        self.client = OpenAI(api_key=api_key)
+        self.model = "o3"  # Latest GPT with highest reasoning
 
     def translate(self, text, source_lang, target_lang):
         if not text or not text.strip():
@@ -80,16 +106,19 @@ class Translator:
         if not stripped:
             return text
 
-        message = self.client.messages.create(
+        response = self.client.chat.completions.create(
             model=self.model,
-            max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            messages=[{
-                "role": "user",
-                "content": f"Translate the following from {source_lang} to {target_lang}. Return ONLY the translation:\n\n{text}",
-            }],
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": f"Translate the following from {source_lang} to {target_lang}. "
+                               f"Follow the TARA {target_lang} tone of voice strictly. "
+                               f"Return ONLY the translation:\n\n{text}",
+                },
+            ],
         )
-        return message.content[0].text
+        return response.choices[0].message.content.strip()
 
     def translate_rich_text(self, rich_text_json, source_lang, target_lang):
         """Translate a Shopify rich text field (JSON string with text nodes)."""

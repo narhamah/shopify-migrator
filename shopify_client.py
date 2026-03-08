@@ -409,6 +409,170 @@ class ShopifyClient:
             raise Exception(f"MetafieldsSet errors: {result['userErrors']}")
         return result["metafields"]
 
+    # --- GraphQL: File / Asset uploads ---
+
+    def staged_uploads_create(self, staged_inputs):
+        """Create staged upload targets for files.
+
+        Args:
+            staged_inputs: list of dicts with filename, mimeType, resource,
+                          httpMethod (POST or PUT), fileSize
+        Returns:
+            list of staged upload targets with url, parameters, resourceUrl
+        """
+        query = """
+        mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              url
+              resourceUrl
+              parameters {
+                name
+                value
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"input": staged_inputs})
+        result = data["stagedUploadsCreate"]
+        if result["userErrors"]:
+            raise Exception(f"StagedUploadsCreate errors: {result['userErrors']}")
+        return result["stagedTargets"]
+
+    def file_create(self, files_input):
+        """Create files in Shopify from staged uploads.
+
+        Args:
+            files_input: list of dicts with alt, contentType, originalSource
+        Returns:
+            list of created file dicts with id, alt, fileStatus
+        """
+        query = """
+        mutation fileCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              id
+              alt
+              ... on MediaImage {
+                id
+                image {
+                  url
+                }
+              }
+              ... on GenericFile {
+                id
+                url
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"files": files_input})
+        result = data["fileCreate"]
+        if result["userErrors"]:
+            raise Exception(f"FileCreate errors: {result['userErrors']}")
+        return result["files"]
+
+    def get_file_by_id(self, file_id):
+        """Get a file's details and status by GID."""
+        query = """
+        query getFile($id: ID!) {
+          node(id: $id) {
+            ... on MediaImage {
+              id
+              alt
+              fileStatus
+              image {
+                url
+              }
+            }
+            ... on GenericFile {
+              id
+              alt
+              fileStatus
+              url
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"id": file_id})
+        return data.get("node")
+
+    def upload_file_from_url(self, source_url, filename=None, alt=""):
+        """Upload a file to Shopify from a public URL.
+
+        Downloads from source_url, stages the upload, and creates the file.
+        Returns the Shopify file GID.
+        """
+        import mimetypes
+        import os
+        import tempfile
+        import urllib.parse
+
+        if not filename:
+            parsed = urllib.parse.urlparse(source_url)
+            filename = os.path.basename(parsed.path) or "file"
+            # Remove query params from filename
+            filename = filename.split("?")[0]
+
+        mime_type, _ = mimetypes.guess_type(filename)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+
+        # Determine resource type
+        if mime_type.startswith("image/"):
+            resource = "IMAGE"
+        else:
+            resource = "FILE"
+
+        # Download the file
+        resp = self.session.get(source_url, stream=True)
+        resp.raise_for_status()
+        content = resp.content
+        file_size = str(len(content))
+
+        # Create staged upload
+        staged_input = [{
+            "filename": filename,
+            "mimeType": mime_type,
+            "resource": resource,
+            "httpMethod": "POST",
+            "fileSize": file_size,
+        }]
+        targets = self.staged_uploads_create(staged_input)
+        target = targets[0]
+
+        # Upload to staged target
+        form_data = {}
+        for param in target["parameters"]:
+            form_data[param["name"]] = param["value"]
+
+        import io
+        files_payload = {"file": (filename, io.BytesIO(content), mime_type)}
+
+        upload_resp = requests.post(target["url"], data=form_data, files=files_payload)
+        upload_resp.raise_for_status()
+
+        # Create the file in Shopify
+        file_input = [{
+            "alt": alt,
+            "contentType": resource,
+            "originalSource": target["resourceUrl"],
+        }]
+        created_files = self.file_create(file_input)
+        if created_files:
+            return created_files[0]["id"]
+        return None
+
     # --- GraphQL: Translations API ---
 
     def register_translations(self, resource_id, locale, translations):
