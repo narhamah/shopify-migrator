@@ -31,11 +31,11 @@ EN_DIR = "data/english"
 AR_DIR = "data/arabic"
 
 # Max fields per TOON batch — large batches = fewer API calls
-# GPT-4o handles ~8K output tokens, so we can fit ~200 short fields
+# GPT-5-mini handles ~8K output tokens, so we can fit ~200 short fields
 # or ~80 long fields (HTML body) per batch.
 BATCH_SIZE = 120
 
-# TPM (tokens per minute) budget — OpenAI free/tier-1 is 30K for gpt-4o
+# TPM (tokens per minute) budget
 TPM_LIMIT = 30000
 
 # =====================================================================
@@ -582,8 +582,8 @@ def main():
                         help="Target language: en or ar")
     parser.add_argument("--dry", action="store_true",
                         help="Dry run: show what would be translated without calling API")
-    parser.add_argument("--model", default="gpt-4o",
-                        help="OpenAI model (default: gpt-4o)")
+    parser.add_argument("--model", default="gpt-5-mini",
+                        help="OpenAI model (default: gpt-5-mini)")
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE,
                         help=f"Fields per batch (default: {BATCH_SIZE})")
     parser.add_argument("--tpm", type=int, default=TPM_LIMIT,
