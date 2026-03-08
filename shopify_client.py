@@ -507,40 +507,67 @@ class ShopifyClient:
         data = self._graphql(query, {"id": file_id})
         return data.get("node")
 
-    def upload_file_from_url(self, source_url, filename=None, alt=""):
+    def upload_file_from_url(self, source_url, filename=None, alt="", optimize=False):
         """Upload a file to Shopify from a public URL.
 
-        Downloads from source_url, stages the upload, and creates the file.
-        Returns the Shopify file GID.
+        Downloads from source_url, optionally optimizes to WebP, stages the
+        upload, and creates the file. Returns the Shopify file GID.
+
+        Args:
+            source_url: Public URL to download from.
+            filename: Override filename (optional).
+            alt: Alt text for the file.
+            optimize: If True, convert images to optimized WebP before uploading.
         """
         import mimetypes
         import os
-        import tempfile
         import urllib.parse
 
         if not filename:
             parsed = urllib.parse.urlparse(source_url)
             filename = os.path.basename(parsed.path) or "file"
-            # Remove query params from filename
             filename = filename.split("?")[0]
-
-        mime_type, _ = mimetypes.guess_type(filename)
-        if not mime_type:
-            mime_type = "application/octet-stream"
-
-        # Determine resource type
-        if mime_type.startswith("image/"):
-            resource = "IMAGE"
-        else:
-            resource = "FILE"
 
         # Download the file
         resp = self.session.get(source_url, stream=True)
         resp.raise_for_status()
         content = resp.content
+
+        # Optionally optimize images to WebP
+        if optimize:
+            try:
+                from optimize_images import optimize_image
+                content, filename = optimize_image(content, filename)
+            except ImportError:
+                pass  # Pillow not installed, skip optimization
+
+        return self.upload_file_bytes(content, filename, alt=alt)
+
+    def upload_file_bytes(self, content, filename, alt=""):
+        """Upload raw file bytes to Shopify via staged upload.
+
+        Args:
+            content: Raw file bytes.
+            filename: Filename including extension.
+            alt: Alt text for the file.
+
+        Returns:
+            Shopify file GID string, or None on failure.
+        """
+        import io
+        import mimetypes
+
+        mime_type, _ = mimetypes.guess_type(filename)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+
+        if mime_type.startswith("image/"):
+            resource = "IMAGE"
+        else:
+            resource = "FILE"
+
         file_size = str(len(content))
 
-        # Create staged upload
         staged_input = [{
             "filename": filename,
             "mimeType": mime_type,
@@ -551,18 +578,15 @@ class ShopifyClient:
         targets = self.staged_uploads_create(staged_input)
         target = targets[0]
 
-        # Upload to staged target
         form_data = {}
         for param in target["parameters"]:
             form_data[param["name"]] = param["value"]
 
-        import io
         files_payload = {"file": (filename, io.BytesIO(content), mime_type)}
 
         upload_resp = requests.post(target["url"], data=form_data, files=files_payload)
         upload_resp.raise_for_status()
 
-        # Create the file in Shopify
         file_input = [{
             "alt": alt,
             "contentType": resource,

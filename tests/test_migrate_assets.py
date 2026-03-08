@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from migrate_assets import (
-    load_json, save_json, extract_file_url_from_gid,
+    load_json, save_json, extract_file_url_from_gid, upload_optimized,
     METAOBJECT_FILE_FIELDS, ARTICLE_FILE_METAFIELDS, main,
 )
 from tests.conftest import make_metaobjects_data, make_article, make_id_map
@@ -131,7 +131,8 @@ class TestMainMetaobjectFiles:
     @patch("migrate_assets.load_dotenv")
     @patch("migrate_assets.ShopifyClient")
     @patch("migrate_assets.time.sleep")
-    def test_uploads_metaobject_files(self, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
+    @patch("migrate_assets.download_and_optimize")
+    def test_uploads_metaobject_files(self, mock_download, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
         source_mc = MagicMock()
@@ -141,7 +142,8 @@ class TestMainMetaobjectFiles:
         source_mc.get_file_by_id.return_value = {
             "id": "gid://src/1", "image": {"url": "https://cdn.shopify.com/img.jpg"}
         }
-        dest_mc.upload_file_from_url.return_value = "gid://shopify/MediaImage/NEW_1"
+        mock_download.return_value = (b"webp-bytes", "img.webp", "image/webp")
+        dest_mc.upload_file_bytes.return_value = "gid://shopify/MediaImage/NEW_1"
         dest_mc.update_metaobject.return_value = {"id": "gid://dest/1"}
 
         metaobjects = {
@@ -175,7 +177,7 @@ class TestMainMetaobjectFiles:
             for k in ["SPAIN_SHOP_URL", "SPAIN_ACCESS_TOKEN", "SAUDI_SHOP_URL", "SAUDI_ACCESS_TOKEN"]:
                 del os.environ[k]
 
-        assert dest_mc.upload_file_from_url.call_count == 2
+        assert dest_mc.upload_file_bytes.call_count == 2
         dest_mc.update_metaobject.assert_called_once()
 
 
@@ -183,7 +185,8 @@ class TestMainArticleFiles:
     @patch("migrate_assets.load_dotenv")
     @patch("migrate_assets.ShopifyClient")
     @patch("migrate_assets.time.sleep")
-    def test_uploads_article_file_metafields(self, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
+    @patch("migrate_assets.download_and_optimize")
+    def test_uploads_article_file_metafields(self, mock_download, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
         source_mc = MagicMock()
@@ -193,7 +196,8 @@ class TestMainArticleFiles:
         source_mc.get_file_by_id.return_value = {
             "id": "gid://src/1", "image": {"url": "https://cdn.shopify.com/listing.jpg"}
         }
-        dest_mc.upload_file_from_url.return_value = "gid://shopify/MediaImage/NEW_1"
+        mock_download.return_value = (b"webp-bytes", "listing.webp", "image/webp")
+        dest_mc.upload_file_bytes.return_value = "gid://shopify/MediaImage/NEW_1"
         dest_mc.set_metafields.return_value = []
 
         articles = [{
@@ -215,7 +219,7 @@ class TestMainArticleFiles:
             for k in ["SPAIN_SHOP_URL", "SPAIN_ACCESS_TOKEN", "SAUDI_SHOP_URL", "SAUDI_ACCESS_TOKEN"]:
                 del os.environ[k]
 
-        dest_mc.upload_file_from_url.assert_called_once()
+        dest_mc.upload_file_bytes.assert_called_once()
         dest_mc.set_metafields.assert_called_once()
 
 
@@ -235,7 +239,8 @@ class TestMainListFileReference:
     @patch("migrate_assets.load_dotenv")
     @patch("migrate_assets.ShopifyClient")
     @patch("migrate_assets.time.sleep")
-    def test_uploads_list_file_references(self, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
+    @patch("migrate_assets.download_and_optimize")
+    def test_uploads_list_file_references(self, mock_download, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
         source_mc = MagicMock()
@@ -245,7 +250,8 @@ class TestMainListFileReference:
         source_mc.get_file_by_id.return_value = {
             "id": "gid://src/1", "image": {"url": "https://cdn.shopify.com/sci.jpg"}
         }
-        dest_mc.upload_file_from_url.return_value = "gid://shopify/MediaImage/NEW_SCI"
+        mock_download.return_value = (b"webp-bytes", "sci.webp", "image/webp")
+        dest_mc.upload_file_bytes.return_value = "gid://shopify/MediaImage/NEW_SCI"
         dest_mc.update_metaobject.return_value = {"id": "gid://dest/1"}
 
         metaobjects = {
@@ -279,7 +285,7 @@ class TestMainListFileReference:
             for k in ["SPAIN_SHOP_URL", "SPAIN_ACCESS_TOKEN", "SAUDI_SHOP_URL", "SAUDI_ACCESS_TOKEN"]:
                 del os.environ[k]
 
-        assert dest_mc.upload_file_from_url.call_count == 2
+        assert dest_mc.upload_file_bytes.call_count == 2
         dest_mc.update_metaobject.assert_called_once()
 
 
@@ -287,7 +293,8 @@ class TestMainUploadErrors:
     @patch("migrate_assets.load_dotenv")
     @patch("migrate_assets.ShopifyClient")
     @patch("migrate_assets.time.sleep")
-    def test_upload_error_continues(self, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
+    @patch("migrate_assets.download_and_optimize")
+    def test_upload_error_continues(self, mock_download, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
 
         source_mc = MagicMock()
@@ -297,7 +304,8 @@ class TestMainUploadErrors:
         source_mc.get_file_by_id.return_value = {
             "id": "gid://src/1", "image": {"url": "https://cdn.shopify.com/img.jpg"}
         }
-        dest_mc.upload_file_from_url.side_effect = Exception("Upload failed")
+        mock_download.return_value = (b"webp-bytes", "img.webp", "image/webp")
+        dest_mc.upload_file_bytes.side_effect = Exception("Upload failed")
 
         metaobjects = {
             "ingredient": {
@@ -374,14 +382,15 @@ class TestMainUploadErrors:
 
         captured = capsys.readouterr()
         assert "could not get url" in captured.out.lower()
-        dest_mc.upload_file_from_url.assert_not_called()
+        dest_mc.upload_file_bytes.assert_not_called()
 
 
 class TestMainBlogAuthorFiles:
     @patch("migrate_assets.load_dotenv")
     @patch("migrate_assets.ShopifyClient")
     @patch("migrate_assets.time.sleep")
-    def test_uploads_blog_author_avatar(self, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
+    @patch("migrate_assets.download_and_optimize")
+    def test_uploads_blog_author_avatar(self, mock_download, mock_sleep, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
         source_mc = MagicMock()
@@ -391,7 +400,8 @@ class TestMainBlogAuthorFiles:
         source_mc.get_file_by_id.return_value = {
             "id": "gid://src/1", "image": {"url": "https://cdn.shopify.com/avatar.jpg"}
         }
-        dest_mc.upload_file_from_url.return_value = "gid://shopify/MediaImage/NEW_AV"
+        mock_download.return_value = (b"webp-bytes", "avatar.webp", "image/webp")
+        dest_mc.upload_file_bytes.return_value = "gid://shopify/MediaImage/NEW_AV"
         dest_mc.update_metaobject.return_value = {"id": "gid://dest/1"}
 
         metaobjects = {
@@ -424,7 +434,7 @@ class TestMainBlogAuthorFiles:
             for k in ["SPAIN_SHOP_URL", "SPAIN_ACCESS_TOKEN", "SAUDI_SHOP_URL", "SAUDI_ACCESS_TOKEN"]:
                 del os.environ[k]
 
-        dest_mc.upload_file_from_url.assert_called_once()
+        dest_mc.upload_file_bytes.assert_called_once()
         dest_mc.update_metaobject.assert_called_once()
 
 
@@ -472,5 +482,5 @@ class TestArticleNoMetafields:
             for k in ["SPAIN_SHOP_URL", "SPAIN_ACCESS_TOKEN", "SAUDI_SHOP_URL", "SAUDI_ACCESS_TOKEN"]:
                 del os.environ[k]
 
-        dest_mc.upload_file_from_url.assert_not_called()
+        dest_mc.upload_file_bytes.assert_not_called()
         dest_mc.set_metafields.assert_not_called()

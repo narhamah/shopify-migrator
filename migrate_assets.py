@@ -4,6 +4,7 @@
 Handles:
   - Metaobject file_reference fields (avatar, image, icon, science_images)
   - Article metafield file_reference fields (listing_image, hero_image)
+  - WebP optimization: all images are converted to WebP for optimal size
 
 Product images, collection images, and article featured images are already
 handled by import_english.py via src URL passthrough.
@@ -17,6 +18,7 @@ import time
 
 from dotenv import load_dotenv
 
+from optimize_images import download_and_optimize
 from shopify_client import ShopifyClient
 
 
@@ -62,6 +64,15 @@ def extract_file_url_from_gid(source_client, file_gid):
     except Exception as e:
         print(f"    Could not fetch file URL for {file_gid}: {e}")
     return None
+
+
+def upload_optimized(dest_client, url, alt=""):
+    """Download image, convert to WebP, upload to destination store.
+
+    Returns the Shopify file GID on success, None on failure.
+    """
+    optimized_bytes, new_filename, mime_type = download_and_optimize(url)
+    return dest_client.upload_file_bytes(optimized_bytes, new_filename, alt=alt)
 
 
 def main():
@@ -137,7 +148,7 @@ def main():
                                 continue
 
                             try:
-                                dest_file_id = dest_client.upload_file_from_url(url, alt=f"{handle}_{field_key}")
+                                dest_file_id = upload_optimized(dest_client, url, alt=f"{handle}_{field_key}")
                                 if dest_file_id:
                                     file_map[gid] = dest_file_id
                                     dest_gids.append(dest_file_id)
@@ -164,7 +175,7 @@ def main():
                                 continue
 
                             try:
-                                dest_file_id = dest_client.upload_file_from_url(url, alt=f"{handle}_{field_key}")
+                                dest_file_id = upload_optimized(dest_client, url, alt=f"{handle}_{field_key}")
                                 if dest_file_id:
                                     file_map[source_gid] = dest_file_id
                                     print(f"    {handle}.{field_key}: uploaded → {dest_file_id}")
@@ -230,8 +241,8 @@ def main():
                         continue
 
                     try:
-                        dest_file_id = dest_client.upload_file_from_url(
-                            url, alt=f"article_{article.get('handle', '')}_{mf['key']}"
+                        dest_file_id = upload_optimized(
+                            dest_client, url, alt=f"article_{article.get('handle', '')}_{mf['key']}"
                         )
                         if dest_file_id:
                             file_map[source_gid] = dest_file_id
