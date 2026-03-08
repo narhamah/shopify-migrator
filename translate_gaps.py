@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -349,6 +350,37 @@ TARA {target_lang.upper()} TONE OF VOICE:
 {tov}"""
 
 
+def _estimate_tokens(text):
+    """Rough token estimate: ~4 chars per token for English, ~2 for Arabic/CJK."""
+    return max(1, len(text) // 3)
+
+
+def adaptive_batch(fields, max_tokens=12000):
+    """Split fields into batches sized by estimated token count, not fixed count.
+
+    Prevents oversized batches when fields contain long HTML/JSON bodies.
+    Short fields (headings, taglines) get packed densely.
+    Long fields (body_html, rich_text JSON) get smaller batches.
+    """
+    batches = []
+    current_batch = []
+    current_tokens = 0
+
+    for field in fields:
+        field_tokens = _estimate_tokens(field["value"])
+        # If a single field exceeds max, it gets its own batch
+        if current_batch and (current_tokens + field_tokens > max_tokens):
+            batches.append(current_batch)
+            current_batch = []
+            current_tokens = 0
+        current_batch.append(field)
+        current_tokens += field_tokens
+
+    if current_batch:
+        batches.append(current_batch)
+    return batches
+
+
 def translate_batch(client, model, fields, source_lang, target_lang, batch_num, total_batches):
     """Translate a batch of fields using TOON format.
 
@@ -363,7 +395,8 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
         f"{toon_input}"
     )
 
-    print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields...")
+    est_tokens = sum(_estimate_tokens(f["value"]) for f in fields)
+    print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields (~{est_tokens:,} value tokens)...")
 
     for attempt in range(4):
         try:
@@ -376,12 +409,25 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
                 temperature=0.3,
             )
             result = response.choices[0].message.content.strip()
+
+            # Strip markdown code fences if model wraps output
+            if result.startswith("```"):
+                lines = result.split("\n")
+                if lines[-1].strip() == "```":
+                    result = "\n".join(lines[1:-1])
+                else:
+                    result = "\n".join(lines[1:])
+
             translated = from_toon(result)
 
             # Validate we got the right number back
             if len(translated) != len(fields):
-                print(f"    WARNING: Expected {len(fields)} fields, got {len(translated)}. Retrying...")
-                if attempt < 3:
+                print(f"    WARNING: Expected {len(fields)} fields, got {len(translated)}.")
+                # Accept if we got at least 90% — save what we have, retry missing later
+                if len(translated) >= len(fields) * 0.9:
+                    print(f"    Accepting partial result ({len(translated)}/{len(fields)})")
+                elif attempt < 3:
+                    print(f"    Retrying...")
                     time.sleep(2)
                     continue
 
@@ -394,8 +440,13 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
             input_ids = {f["id"] for f in fields}
             output_ids = set(t_map.keys())
             missing = input_ids - output_ids
+            extra = output_ids - input_ids
+            if extra:
+                # Model fabricated IDs — remove them
+                for eid in extra:
+                    del t_map[eid]
             if missing:
-                print(f"    WARNING: Missing translations for: {list(missing)[:3]}")
+                print(f"    WARNING: {len(missing)} untranslated fields (will retry on next run)")
 
             usage = response.usage
             total_tokens = usage.prompt_tokens + usage.completion_tokens
@@ -633,17 +684,21 @@ def main():
             sys.exit(1)
 
         client = OpenAI(api_key=api_key)
-        batches = []
-        for i in range(0, len(remaining), args.batch_size):
-            batches.append(remaining[i:i + args.batch_size])
+
+        # Adaptive batching: size by token count, not fixed field count
+        max_batch_tokens = args.batch_size * 100  # ~100 tokens per field average
+        batches = adaptive_batch(remaining, max_tokens=max_batch_tokens)
         total_batches = len(batches)
 
         tpm_limit = args.tpm
-        print(f"\n  Sending {total_batches} batches sequentially (TPM budget: {tpm_limit:,})")
+        batch_sizes = [len(b) for b in batches]
+        print(f"\n  {total_batches} adaptive batches (sizes: {min(batch_sizes)}-{max(batch_sizes)} fields)")
+        print(f"  TPM budget: {tpm_limit:,}")
 
         # Track tokens used in the current 60-second window
         window_start = time.time()
         window_tokens = 0
+        failed_fields = []
 
         for i, batch in enumerate(batches):
             # TPM throttle: if we'd exceed the budget, wait for the window to reset
@@ -668,8 +723,26 @@ def main():
             )
             window_tokens += tokens_used
 
-            all_translations.update(t_map)
-            save_json(all_translations, progress_file)
+            if t_map:
+                all_translations.update(t_map)
+                save_json(all_translations, progress_file)
+
+                # Track fields that were in this batch but not in the response
+                batch_ids = {f["id"] for f in batch}
+                missing_from_batch = batch_ids - set(t_map.keys())
+                if missing_from_batch:
+                    failed_fields.extend([f for f in batch if f["id"] in missing_from_batch])
+            else:
+                # Entire batch failed
+                failed_fields.extend(batch)
+
+        # Report failed fields
+        if failed_fields:
+            print(f"\n  WARNING: {len(failed_fields)} fields failed translation")
+            print(f"  Re-run this command to retry them (progress is saved)")
+            # Save failed field IDs for debugging
+            failed_ids = [f["id"] for f in failed_fields]
+            save_json(failed_ids, os.path.join(output_dir, f"_failed_fields_{args.lang}.json"))
 
     # ---- Merge translations into output data ----
     print(f"\n  Merging {len(all_translations)} translations into output files...")
@@ -682,7 +755,6 @@ def main():
     output_metaobjects = dict(scraped_metaobjects) if isinstance(scraped_metaobjects, dict) else {}
 
     # Add gap items (deep copies with Spain data as base)
-    import copy
     for p in gap_products:
         output_products.append(copy.deepcopy(p))
     for c in gap_collections:
@@ -744,8 +816,18 @@ def main():
         mo_total = sum(len(v.get("objects", [])) for v in output_metaobjects.values())
         print(f"  Metaobjects: {mo_total}")
     print(f"  Output:      {output_dir}/")
-    print(f"\n  Next: python import_english.py" if args.lang == "en" else
-          f"\n  Next: python import_arabic.py")
+
+    # Completeness check
+    translated_count = len(all_translations)
+    total_needed = len(all_fields)
+    completeness = (translated_count / total_needed * 100) if total_needed else 100
+    print(f"\n  Completeness: {translated_count}/{total_needed} fields ({completeness:.1f}%)")
+    if completeness < 100:
+        print(f"  ⚠ {total_needed - translated_count} fields still untranslated")
+        print(f"  Re-run: python translate_gaps.py --lang {args.lang}")
+    else:
+        print(f"\n  Next: python import_english.py" if args.lang == "en" else
+              f"\n  Next: python import_arabic.py")
 
 
 if __name__ == "__main__":
