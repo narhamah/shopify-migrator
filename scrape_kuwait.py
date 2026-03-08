@@ -116,6 +116,110 @@ class MagentoGraphQL:
 # ------------------------------------------------------------------
 # Explorer: discover site structure
 # ------------------------------------------------------------------
+def _fetch_robots_and_sitemaps(base_url):
+    """Fetch robots.txt and parse sitemaps for URL discovery."""
+    import xml.etree.ElementTree as ET
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    result = {"robots_txt": None, "sitemaps": [], "urls": {"products": [], "categories": [], "pages": [], "other": []}}
+
+    # 1. Fetch robots.txt
+    robots_url = f"{base_url}/robots.txt"
+    print(f"  Fetching {robots_url}")
+    try:
+        resp = http_requests.get(robots_url, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            result["robots_txt"] = resp.text
+            print(f"    {len(resp.text)} bytes")
+            # Extract Sitemap URLs
+            for line in resp.text.splitlines():
+                line = line.strip()
+                if line.lower().startswith("sitemap:"):
+                    sitemap_url = line.split(":", 1)[1].strip()
+                    result["sitemaps"].append(sitemap_url)
+                    print(f"    Sitemap: {sitemap_url}")
+                elif line.lower().startswith("disallow:"):
+                    path = line.split(":", 1)[1].strip()
+                    if path:
+                        print(f"    Disallow: {path}")
+        else:
+            print(f"    HTTP {resp.status_code}")
+    except Exception as e:
+        print(f"    Error: {e}")
+
+    # 2. Fetch and parse sitemaps
+    for sitemap_url in result["sitemaps"]:
+        time.sleep(1)
+        print(f"  Fetching sitemap: {sitemap_url}")
+        try:
+            resp = http_requests.get(sitemap_url, headers=headers, timeout=30)
+            if resp.status_code != 200:
+                print(f"    HTTP {resp.status_code}")
+                continue
+
+            content = resp.text
+            # Handle sitemap index (list of sub-sitemaps) vs regular sitemap
+            try:
+                root = ET.fromstring(content)
+            except ET.ParseError:
+                print(f"    Failed to parse XML ({len(content)} bytes)")
+                continue
+
+            ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+            tag = root.tag.split("}")[-1] if "}" in root.tag else root.tag
+
+            if tag == "sitemapindex":
+                # Sitemap index — list sub-sitemaps
+                sub_sitemaps = root.findall(".//sm:sitemap/sm:loc", ns)
+                if not sub_sitemaps:
+                    sub_sitemaps = root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
+                print(f"    Sitemap index with {len(sub_sitemaps)} sub-sitemaps:")
+                for sub in sub_sitemaps:
+                    sub_url = sub.text.strip() if sub.text else ""
+                    if sub_url:
+                        print(f"      {sub_url}")
+                        result["sitemaps"].append(sub_url)
+            else:
+                # Regular sitemap — extract URLs
+                locs = root.findall(".//sm:url/sm:loc", ns)
+                if not locs:
+                    locs = root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
+                urls = [loc.text.strip() for loc in locs if loc.text]
+                print(f"    {len(urls)} URLs found")
+
+                # Classify URLs
+                for url in urls:
+                    path = url.replace(base_url, "").strip("/")
+                    # Strip store code prefix (us-en/, ae-ar/, kw-en/, etc.)
+                    path_clean = re.sub(r"^[a-z]{2}(-[a-z]{2})?/", "", path)
+
+                    if any(seg in path for seg in ["/product/", ".html"]) or path_clean.count("/") == 0:
+                        # Could be product or category — check more
+                        pass
+
+                    if "catalog/product" in path or path_clean.endswith(".html"):
+                        result["urls"]["products"].append({"url": url, "path": path_clean})
+                    elif "catalog/category" in path or "/" not in path_clean:
+                        result["urls"]["categories"].append({"url": url, "path": path_clean})
+                    elif any(seg in path for seg in ["cms", "page", "about", "contact", "faq"]):
+                        result["urls"]["pages"].append({"url": url, "path": path_clean})
+                    else:
+                        result["urls"]["other"].append({"url": url, "path": path_clean})
+
+        except Exception as e:
+            print(f"    Error: {e}")
+
+    # Print summary
+    for cat, urls in result["urls"].items():
+        if urls:
+            print(f"    {cat}: {len(urls)} URLs")
+            for u in urls[:5]:
+                print(f"      {u['path']}")
+            if len(urls) > 5:
+                print(f"      ... and {len(urls) - 5} more")
+
+    return result
+
+
 def explore(gql_en, gql_ar, en_store, ar_store):
     print("=" * 60)
     print("EXPLORING TARA SITES")
@@ -131,6 +235,28 @@ def explore(gql_en, gql_ar, en_store, ar_store):
         "ar_store": ar_store,
         "findings": {},
     }
+
+    # 0. Robots.txt and Sitemaps
+    sites_to_check = [
+        (gql_en.base_url, "en_main"),
+        (gql_ar.base_url, "ar_main"),
+        ("https://taraformula.com.kw", "kw"),
+    ]
+    # Deduplicate
+    seen = set()
+    for base_url, label in sites_to_check:
+        if base_url in seen:
+            continue
+        seen.add(base_url)
+        print(f"\n--- Robots & Sitemaps: {base_url} ({label}) ---")
+        sitemap_data = _fetch_robots_and_sitemaps(base_url)
+        reco["findings"][f"sitemaps_{label}"] = {
+            "sitemaps": sitemap_data["sitemaps"],
+            "url_counts": {k: len(v) for k, v in sitemap_data["urls"].items()},
+            "sample_urls": {k: v[:10] for k, v in sitemap_data["urls"].items() if v},
+        }
+        if sitemap_data["robots_txt"]:
+            reco["findings"][f"robots_{label}"] = sitemap_data["robots_txt"]
 
     # 1. English site store views
     print("\n--- English Site Store Views ---")
@@ -356,6 +482,41 @@ class KuwaitScraper:
 
         # Populated during scrape_products(), used by scrape_collections()
         self.magento_category_skus = {}  # magento_category_url_key → set of SKUs
+
+        # Discover sitemap URLs for completeness checking
+        self.sitemap_urls = {"en": {}, "ar": {}}
+        self._discover_sitemaps()
+
+    def _discover_sitemaps(self):
+        """Fetch robots.txt and sitemaps from both sites for URL discovery."""
+        for label, base_url in [("en", self.gql_en.base_url), ("ar", self.gql_ar.base_url)]:
+            if base_url == self.gql_en.base_url and label == "ar":
+                # Same site, skip duplicate
+                if self.gql_en.base_url == self.gql_ar.base_url:
+                    continue
+            print(f"\n--- Sitemap discovery: {base_url} ---")
+            data = _fetch_robots_and_sitemaps(base_url)
+            self.sitemap_urls[label] = data["urls"]
+
+            # Extract url_keys from sitemap product/category URLs
+            product_keys = set()
+            for u in data["urls"].get("products", []):
+                path = u.get("path", "")
+                # Extract url_key: last segment before .html
+                key = path.replace(".html", "").split("/")[-1]
+                if key:
+                    product_keys.add(key)
+            category_keys = set()
+            for u in data["urls"].get("categories", []):
+                path = u.get("path", "")
+                key = path.replace(".html", "").split("/")[-1]
+                if key:
+                    category_keys.add(key)
+
+            if product_keys:
+                print(f"    Sitemap product url_keys: {len(product_keys)}")
+            if category_keys:
+                print(f"    Sitemap category url_keys: {len(category_keys)}")
 
     def scrape_all(self, only=None):
         os.makedirs(OUTPUT_DIR_EN, exist_ok=True)
