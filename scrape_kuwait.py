@@ -102,27 +102,33 @@ class KuwaitScraper:
         print("\n--- Checking GraphQL endpoint ---")
         self._check_graphql()
 
-        # 2. Explore English homepage
-        print("\n--- English Homepage ---")
-        self._explore_page(f"{BASE_URL}{EN_PREFIX}/")
+        # 2. Explore GraphQL in depth (products, categories, CMS pages, store views)
+        print("\n--- GraphQL: Store Views ---")
+        self._explore_graphql_store_views()
 
-        # 3. Explore Arabic homepage
-        print("\n--- Arabic Homepage ---")
-        self._explore_page(f"{BASE_URL}/")
+        print("\n--- GraphQL: Sample Products (EN) ---")
+        self._explore_graphql_products("kw_en")
 
-        # 4. Explore product listing
-        print("\n--- English Hair Care Collection ---")
-        self._explore_collection_page(f"{BASE_URL}{EN_PREFIX}/hair-care")
+        print("\n--- GraphQL: Sample Products (AR / default) ---")
+        self._explore_graphql_products(None)
 
-        # 5. Try to find a product page
-        print("\n--- Sample Product Page (EN) ---")
-        self._explore_product_page_en()
+        print("\n--- GraphQL: Categories (EN) ---")
+        self._explore_graphql_categories("kw_en")
 
-        # 6. Explore sitemap
+        print("\n--- GraphQL: Categories (AR / default) ---")
+        self._explore_graphql_categories(None)
+
+        print("\n--- GraphQL: CMS Pages ---")
+        self._explore_graphql_cms_pages("kw_en")
+
+        print("\n--- GraphQL: Custom Attributes ---")
+        self._explore_graphql_custom_attributes()
+
+        # 3. Explore sitemap
         print("\n--- Sitemap ---")
         self._explore_sitemap()
 
-        # 7. Try common Magento API endpoints
+        # 4. Try common Magento API endpoints
         print("\n--- Magento REST API ---")
         self._check_magento_api()
 
@@ -134,14 +140,16 @@ class KuwaitScraper:
                 "Content-Type": "application/json",
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             }
-            # Simple introspection query
             query = {
                 "query": """
                 {
                     storeConfig {
                         store_name
+                        store_code
                         default_display_currency_code
                         locale
+                        base_currency_code
+                        weight_unit
                     }
                 }
                 """
@@ -156,6 +164,192 @@ class KuwaitScraper:
                 print(f"  Response: {resp.text[:300]}")
         except Exception as e:
             print(f"  Error: {e}")
+
+    def _explore_graphql_store_views(self):
+        """Discover available store views (languages)."""
+        query = """
+        {
+            availableStores {
+                store_code
+                store_name
+                locale
+                base_currency_code
+                default_display_currency_code
+            }
+        }
+        """
+        result = self._graphql_query(query)
+        if result and "data" in result:
+            stores = result["data"].get("availableStores", [])
+            print(f"  Found {len(stores)} store views:")
+            for s in stores:
+                print(f"    {s.get('store_code')}: {s.get('store_name')} ({s.get('locale')}) — {s.get('default_display_currency_code')}")
+        else:
+            print("  Could not fetch store views")
+
+    def _explore_graphql_products(self, store_code):
+        """Fetch a few sample products to see available fields."""
+        query = """
+        {
+            products(search: "", pageSize: 3, currentPage: 1) {
+                total_count
+                items {
+                    id
+                    sku
+                    name
+                    url_key
+                    url_suffix
+                    type_id
+                    description { html }
+                    short_description { html }
+                    meta_title
+                    meta_description
+                    price_range {
+                        minimum_price {
+                            regular_price { value currency }
+                            final_price { value currency }
+                        }
+                    }
+                    media_gallery {
+                        url
+                        label
+                        position
+                    }
+                    categories {
+                        id
+                        name
+                        url_key
+                    }
+                }
+                page_info {
+                    total_pages
+                    current_page
+                }
+            }
+        }
+        """
+        label = store_code or "default"
+        result = self._graphql_query(query, store_code)
+        if result and "data" in result:
+            products = result["data"].get("products", {})
+            total = products.get("total_count", 0)
+            items = products.get("items", [])
+            print(f"  Store '{label}': {total} total products")
+            for item in items:
+                print(f"    - {item.get('name')} (url_key: {item.get('url_key')}, sku: {item.get('sku')})")
+                desc = item.get("description", {})
+                if desc and desc.get("html"):
+                    print(f"      description: {desc['html'][:100]}...")
+                cats = item.get("categories", [])
+                if cats:
+                    print(f"      categories: {[c.get('name') for c in cats]}")
+                price = item.get("price_range", {}).get("minimum_price", {})
+                fp = price.get("final_price", {})
+                if fp:
+                    print(f"      price: {fp.get('value')} {fp.get('currency')}")
+        else:
+            print(f"  Store '{label}': No products or query failed")
+
+    def _explore_graphql_categories(self, store_code):
+        """Fetch category tree."""
+        query = """
+        {
+            categories(filters: {}) {
+                items {
+                    id
+                    name
+                    url_key
+                    url_path
+                    product_count
+                    children_count
+                    children {
+                        id
+                        name
+                        url_key
+                        product_count
+                        children {
+                            id
+                            name
+                            url_key
+                            product_count
+                        }
+                    }
+                }
+            }
+        }
+        """
+        label = store_code or "default"
+        result = self._graphql_query(query, store_code)
+        if result and "data" in result:
+            items = result["data"].get("categories", {}).get("items", [])
+            print(f"  Store '{label}': {len(items)} top-level categories")
+            self._print_category_tree(items, indent=4)
+        else:
+            print(f"  Store '{label}': No categories or query failed")
+
+    def _print_category_tree(self, items, indent=4):
+        """Print category tree recursively."""
+        for item in items:
+            name = item.get("name", "")
+            url_key = item.get("url_key", "")
+            count = item.get("product_count", 0)
+            prefix = " " * indent
+            print(f"{prefix}{name} (url_key: {url_key}, products: {count})")
+            children = item.get("children", [])
+            if children:
+                self._print_category_tree(children, indent + 4)
+
+    def _explore_graphql_cms_pages(self, store_code):
+        """Try to discover CMS pages."""
+        # Magento doesn't have a "list all CMS pages" query, try known identifiers
+        identifiers = ["home", "about", "about-us", "contact", "faq", "privacy-policy",
+                       "terms-and-conditions", "shipping", "returns"]
+        label = store_code or "default"
+        found = []
+        for ident in identifiers:
+            query = f"""
+            {{
+                cmsPage(identifier: "{ident}") {{
+                    identifier
+                    title
+                    content_heading
+                    meta_title
+                }}
+            }}
+            """
+            result = self._graphql_query(query, store_code)
+            if result and "data" in result and result["data"].get("cmsPage"):
+                page = result["data"]["cmsPage"]
+                found.append(page)
+                print(f"  Found CMS page: {page.get('identifier')} — {page.get('title')}")
+
+        if not found:
+            print(f"  Store '{label}': No CMS pages found with common identifiers")
+
+    def _explore_graphql_custom_attributes(self):
+        """Check if custom product attributes are available."""
+        query = """
+        {
+            customAttributeMetadata(attributes: [
+                { attribute_code: "description", entity_type: "catalog_product" }
+            ]) {
+                items {
+                    attribute_code
+                    attribute_type
+                    entity_type
+                    input_type
+                }
+            }
+        }
+        """
+        result = self._graphql_query(query)
+        if result and "data" in result:
+            items = result["data"].get("customAttributeMetadata", {}).get("items", [])
+            print(f"  Custom attributes found: {len(items)}")
+            for item in items:
+                print(f"    {item.get('attribute_code')}: {item.get('input_type')} ({item.get('attribute_type')})")
+        else:
+            print("  Could not fetch custom attributes")
 
     def _explore_page(self, url):
         """Explore a page's structure."""
@@ -282,20 +476,24 @@ class KuwaitScraper:
                 break
 
     def _explore_sitemap(self):
-        """Try to fetch the sitemap."""
+        """Try to fetch the sitemap via requests (not scrapling, to avoid encoding issues)."""
+        import requests
         sitemap_urls = [
             f"{BASE_URL}/sitemap.xml",
             f"{BASE_URL}/pub/sitemap/sitemap.xml",
             f"{BASE_URL}/media/sitemap/sitemap.xml",
             f"{BASE_URL}/sitemap_index.xml",
         ]
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         for url in sitemap_urls:
-            page = self.fetch_page(url)
-            if page:
-                text = str(page.html_content) if hasattr(page, 'html_content') else ''
+            try:
+                print(f"    Trying: {url}")
+                resp = requests.get(url, headers=headers, timeout=10)
+                if resp.status_code != 200:
+                    continue
+                text = resp.text
                 if '<url>' in text or '<sitemap>' in text:
                     print(f"  Found sitemap at: {url}")
-                    # Extract URLs
                     locs = re.findall(r'<loc>(.*?)</loc>', text)
                     print(f"  Total URLs: {len(locs)}")
                     for loc in locs[:20]:
@@ -303,6 +501,8 @@ class KuwaitScraper:
                     if len(locs) > 20:
                         print(f"    ... and {len(locs) - 20} more")
                     return
+            except Exception as e:
+                print(f"    Error: {e}")
         print("  No sitemap found")
 
     def _check_magento_api(self):
