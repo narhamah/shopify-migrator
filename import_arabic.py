@@ -127,10 +127,18 @@ def main():
                     value = sanitize_rich_text_json(value)
                 arabic_fields[key] = value
 
+        # Collect Arabic image alt text for later
+        ar_image_alts = []
+        for img in ar_product.get("images", []):
+            alt = img.get("alt", "")
+            if alt:
+                ar_image_alts.append(alt)
+
         label = f"  [{i+1}/{len(en_products)}] {en_product.get('title', '')[:50]}"
 
         if args.dry_run:
-            print(f"{label} — would register {len(arabic_fields)} Arabic fields")
+            img_note = f" + {len(ar_image_alts)} image alts" if ar_image_alts else ""
+            print(f"{label} — would register {len(arabic_fields)} Arabic fields{img_note}")
             continue
 
         # Get translatable content with digests
@@ -146,10 +154,37 @@ def main():
             )
             if translations:
                 client.register_translations(gid, ARABIC_LOCALE, translations)
-                print(f"{label} — registered {len(translations)} translations")
+                msg = f"{label} — registered {len(translations)} translations"
             else:
-                print(f"{label} — no matching translatable fields")
+                msg = f"{label} — no matching translatable fields"
 
+            # Register Arabic image alt text
+            if ar_image_alts:
+                try:
+                    # Get product images from Shopify to get their GIDs
+                    img_resp = client._request("GET", f"products/{dest_id}.json",
+                                               params={"fields": "id,images"})
+                    shopify_images = img_resp.json().get("product", {}).get("images", [])
+                    img_translated = 0
+                    for idx, shopify_img in enumerate(shopify_images):
+                        if idx >= len(ar_image_alts):
+                            break
+                        img_gid = f"gid://shopify/ProductImage/{shopify_img['id']}"
+                        img_resource = client.get_translatable_resource(img_gid)
+                        if img_resource and img_resource.get("translatableContent"):
+                            img_translations = build_translation_inputs(
+                                img_resource["translatableContent"],
+                                {"alt": ar_image_alts[idx]}
+                            )
+                            if img_translations:
+                                client.register_translations(img_gid, ARABIC_LOCALE, img_translations)
+                                img_translated += 1
+                    if img_translated:
+                        msg += f" + {img_translated} image alts"
+                except Exception as img_err:
+                    msg += f" (image alt error: {img_err})"
+
+            print(msg)
             progress[f"product_{dest_id}"] = True
             save_json(progress, progress_file)
         except Exception as e:

@@ -3,7 +3,7 @@
 
 Examines the Saudi store and creates any missing:
   - Metaobject definitions (benefit, faq_entry, blog_author, ingredient)
-  - Product metafield definitions (20 fields)
+  - Product metafield definitions (19 fields)
   - Article metafield definitions (12 fields)
 
 Run this BEFORE import_english.py. It is safe to re-run — it skips
@@ -86,7 +86,7 @@ METAOBJECT_DEFINITIONS = [
 ]
 
 # =====================================================================
-# Product metafield definitions (20 fields)
+# Product metafield definitions (19 fields)
 # =====================================================================
 PRODUCT_METAFIELD_DEFINITIONS = [
     # Core
@@ -108,8 +108,6 @@ PRODUCT_METAFIELD_DEFINITIONS = [
     {"namespace": "custom", "key": "awards_content", "name": "Awards Content", "type": "rich_text_field"},
     {"namespace": "custom", "key": "fragrance_heading", "name": "Fragrance Heading", "type": "single_line_text_field"},
     {"namespace": "custom", "key": "fragrance_content", "name": "Fragrance Content", "type": "rich_text_field"},
-    # Arabic images (Shopify doesn't support per-locale images, so store Arabic URLs in a metafield)
-    {"namespace": "custom", "key": "arabic_images", "name": "Arabic Images", "type": "json"},
     # Reference fields
     {"namespace": "custom", "key": "ingredients", "name": "Ingredients", "type": "list.metaobject_reference",
      "validations": [{"name": "metaobject_definition_id", "value": "RESOLVE:ingredient"}]},
