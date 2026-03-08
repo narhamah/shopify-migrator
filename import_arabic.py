@@ -112,6 +112,7 @@ def main():
         arabic_fields = {
             "title": ar_product.get("title", ""),
             "body_html": ar_product.get("body_html", ""),
+            "handle": ar_product.get("handle", ""),
             "product_type": ar_product.get("product_type", ""),
         }
 
@@ -215,6 +216,7 @@ def main():
         arabic_fields = {
             "title": ar_coll.get("title", ""),
             "body_html": ar_coll.get("body_html", ""),
+            "handle": ar_coll.get("handle", ""),
         }
 
         label = f"  [{i+1}/{len(en_collections)}] {en_coll.get('title', '')[:50]}"
@@ -263,6 +265,7 @@ def main():
         arabic_fields = {
             "title": ar_page.get("title", ""),
             "body_html": ar_page.get("body_html", ""),
+            "handle": ar_page.get("handle", ""),
         }
 
         label = f"  [{i+1}/{len(en_pages)}] {en_page.get('title', '')[:50]}"
@@ -311,6 +314,7 @@ def main():
         arabic_fields = {
             "title": ar_art.get("title", ""),
             "body_html": ar_art.get("body_html", ""),
+            "handle": ar_art.get("handle", ""),
             "summary_html": ar_art.get("summary_html", ""),
         }
 

@@ -257,10 +257,16 @@ def extract_metaobject_fields(metaobjects_data, prefix):
 # =====================================================================
 
 def _slugify(text):
-    """Convert a translated handle to a valid URL slug."""
+    """Convert a translated handle to a valid URL slug.
+
+    Supports Unicode characters (Arabic, etc.) — Shopify handles allow
+    non-ASCII slugs for multi-language stores.
+    """
     import unicodedata
-    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
-    text = re.sub(r"[^\w\s-]", "", text.lower())
+    text = unicodedata.normalize("NFC", text)
+    # Remove characters that aren't word chars (incl. Unicode), spaces, or hyphens
+    text = re.sub(r"[^\w\s-]", "", text, flags=re.UNICODE)
+    text = text.lower()
     text = re.sub(r"[-\s]+", "-", text).strip("-")
     return text
 
@@ -393,7 +399,7 @@ TRANSLATION RULES:
 - Preserve Shopify Liquid tags ({{{{ }}}}, {{% %}}) unchanged
 - Keep URLs, JSON structure keys, and GIDs unchanged
 - For rich_text_field JSON: translate only "value" keys inside text nodes
-- For .handle fields: translate the slug to {target_lang} (e.g., "mascarilla-reparadora" → "repairing-hair-mask"). Keep lowercase, hyphens only, no special characters.
+- For .handle fields: translate the slug to {target_lang}. Use lowercase with hyphens as separators. For English: "mascarilla-reparadora" → "repairing-hair-mask". For Arabic: "mascarilla-reparadora" → "قناع-الشعر-المصلح" (Arabic words separated by hyphens).
 - For .mf.global.title_tag: translate the SEO page title
 - For .mf.global.description_tag: translate the SEO meta description
 - Return ONLY the translated TOON lines, no explanations
