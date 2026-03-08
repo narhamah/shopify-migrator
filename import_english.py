@@ -41,18 +41,18 @@ def sanitize_rich_text_json(value):
         return json.dumps(parsed, ensure_ascii=False)
     except json.JSONDecodeError:
         # Fix common corruption: literal newlines inside JSON strings
-        # Replace actual newlines inside strings with \\n
         fixed = value
-        # Remove control characters that break JSON (except \n, \r, \t)
-        fixed = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', fixed)
-        # Replace literal newlines inside JSON string values with \\n
-        # Strategy: replace all literal newlines with \\n, then re-parse
+        # First: normalize escaped-then-literal newlines like \\n followed by actual \n
+        fixed = fixed.replace('\\\r\n', '\\n').replace('\\\n', '\\n').replace('\\\r', '\\n')
+        # Then: replace remaining literal newlines with \\n
         fixed = fixed.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
+        # Remove remaining control characters (except escaped ones in \\n, \\t, etc.)
+        fixed = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', fixed)
         try:
             parsed = json.loads(fixed)
             return json.dumps(parsed, ensure_ascii=False)
         except json.JSONDecodeError:
-            # Last resort: strip all control chars
+            # Last resort: strip ALL control chars including \n, \r, \t
             fixed = re.sub(r'[\x00-\x1f]', '', value)
             try:
                 parsed = json.loads(fixed)
@@ -382,32 +382,41 @@ def main():
         # Determine if smart or custom collection
         is_smart = collection.get("rules") is not None
 
-        if is_smart:
-            coll_data = {
-                "title": collection.get("title", ""),
-                "body_html": collection.get("body_html", ""),
-                "handle": handle,
-                "rules": collection.get("rules", []),
-                "disjunctive": collection.get("disjunctive", False),
-            }
-            if collection.get("image", {}).get("src"):
-                coll_data["image"] = {"src": collection["image"]["src"]}
-            if collection.get("sort_order"):
-                coll_data["sort_order"] = collection["sort_order"]
-            created = client.create_smart_collection(coll_data)
-        else:
-            coll_data = {
-                "title": collection.get("title", ""),
-                "body_html": collection.get("body_html", ""),
-                "handle": handle,
-            }
-            if collection.get("image", {}).get("src"):
-                coll_data["image"] = {"src": collection["image"]["src"]}
-            created = client.create_custom_collection(coll_data)
-        dest_id = created.get("id")
-        print(f"  {label} — created (id: {dest_id})")
-        id_map.setdefault("collections", {})[source_id] = dest_id
-        save_json(id_map, id_map_file)
+        try:
+            if is_smart:
+                coll_data = {
+                    "title": collection.get("title", ""),
+                    "body_html": collection.get("body_html", ""),
+                    "handle": handle,
+                    "rules": collection.get("rules", []),
+                    "disjunctive": collection.get("disjunctive", False),
+                }
+                if collection.get("image", {}).get("src"):
+                    coll_data["image"] = {"src": collection["image"]["src"]}
+                if collection.get("sort_order"):
+                    coll_data["sort_order"] = collection["sort_order"]
+                created = client.create_smart_collection(coll_data)
+            else:
+                coll_data = {
+                    "title": collection.get("title", ""),
+                    "body_html": collection.get("body_html", ""),
+                    "handle": handle,
+                }
+                if collection.get("image", {}).get("src"):
+                    coll_data["image"] = {"src": collection["image"]["src"]}
+                created = client.create_custom_collection(coll_data)
+            dest_id = created.get("id")
+            print(f"  {label} — created (id: {dest_id})")
+            id_map.setdefault("collections", {})[source_id] = dest_id
+            save_json(id_map, id_map_file)
+        except Exception as e:
+            err_msg = str(e)
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    err_msg = json.dumps(e.response.json(), indent=2)
+                except Exception:
+                    pass
+            print(f"  {label} — ERROR: {err_msg}")
 
     # =============================================
     # Phase 4: Pages
