@@ -687,3 +687,195 @@ class ShopifyClient:
         """
         data = self._graphql(query, {"resourceId": resource_gid})
         return data.get("translatableResource")
+
+    # --- REST: Collects (product-collection links) ---
+
+    def get_collects(self, collection_id=None):
+        """Get all product-collection associations."""
+        params = {}
+        if collection_id:
+            params["collection_id"] = collection_id
+        return self._paginate("collects.json", "collects", params=params)
+
+    def create_collect(self, product_id, collection_id):
+        """Add a product to a collection."""
+        resp = self._request("POST", "collects.json", json={
+            "collect": {"product_id": product_id, "collection_id": collection_id}
+        })
+        return resp.json().get("collect", {})
+
+    # --- REST: Redirects ---
+
+    def get_redirects(self):
+        """Get all URL redirects."""
+        return self._paginate("redirects.json", "redirects")
+
+    def create_redirect(self, path, target):
+        """Create a URL redirect."""
+        resp = self._request("POST", "redirects.json", json={
+            "redirect": {"path": path, "target": target}
+        })
+        return resp.json().get("redirect", {})
+
+    # --- REST: Inventory ---
+
+    def get_locations(self):
+        """Get all inventory locations."""
+        data, _ = self._get_json("locations.json")
+        return data.get("locations", [])
+
+    # --- REST: Policies ---
+
+    def get_policies(self):
+        """Get shop policies."""
+        data, _ = self._get_json("policies.json")
+        return data.get("policies", [])
+
+    # --- GraphQL: Locale management ---
+
+    def enable_locale(self, locale_code):
+        """Enable a locale for the store (e.g., 'ar' for Arabic)."""
+        query = """
+        mutation shopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) {
+            shopLocale {
+              locale
+              published
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"locale": locale_code})
+        result = data["shopLocaleEnable"]
+        if result["userErrors"]:
+            errors = result["userErrors"]
+            if any("already" in e.get("message", "").lower() for e in errors):
+                return result.get("shopLocale")
+            raise Exception(f"shopLocaleEnable errors: {errors}")
+        return result["shopLocale"]
+
+    def get_locales(self):
+        """Get all enabled locales for the shop."""
+        query = """
+        {
+          shopLocales {
+            locale
+            primary
+            published
+          }
+        }
+        """
+        data = self._graphql(query)
+        return data.get("shopLocales", [])
+
+    # --- GraphQL: Inventory quantities ---
+
+    def get_inventory_item_id(self, variant_id):
+        """Get inventory item ID for a variant via GraphQL."""
+        query = """
+        query getVariant($id: ID!) {
+          productVariant(id: $id) {
+            inventoryItem {
+              id
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"id": f"gid://shopify/ProductVariant/{variant_id}"})
+        variant = data.get("productVariant")
+        if variant and variant.get("inventoryItem"):
+            return variant["inventoryItem"]["id"]
+        return None
+
+    def set_inventory_quantity(self, inventory_item_id, location_id, quantity):
+        """Set exact inventory quantity for an item at a location."""
+        query = """
+        mutation inventorySetOnHandQuantities($input: InventorySetOnHandQuantitiesInput!) {
+          inventorySetOnHandQuantities(input: $input) {
+            inventoryAdjustmentGroup {
+              reason
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {
+            "input": {
+                "reason": "correction",
+                "setQuantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": quantity,
+                }],
+            }
+        })
+        result = data["inventorySetOnHandQuantities"]
+        if result["userErrors"]:
+            raise Exception(f"inventorySetOnHandQuantities errors: {result['userErrors']}")
+        return result
+
+    # --- GraphQL: Navigation menus ---
+
+    def create_menu(self, title, handle, items):
+        """Create a navigation menu with items.
+
+        Args:
+            title: Menu title (e.g., "Main Menu")
+            handle: Menu handle (e.g., "main-menu")
+            items: List of dicts with title, url (or resourceId), and optional items (nested)
+        """
+        query = """
+        mutation menuCreate($title: String!, $handle: String!, $items: [MenuItemCreateInput!]!) {
+          menuCreate(title: $title, handle: $handle, items: $items) {
+            menu {
+              id
+              title
+              handle
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"title": title, "handle": handle, "items": items})
+        result = data["menuCreate"]
+        if result["userErrors"]:
+            errors = result["userErrors"]
+            if any("already" in e.get("message", "").lower() for e in errors):
+                return None
+            raise Exception(f"menuCreate errors: {errors}")
+        return result["menu"]
+
+    # --- GraphQL: SEO meta tags ---
+
+    def update_product_seo(self, product_id, title_tag, description_tag):
+        """Update product SEO meta tags via REST metafields."""
+        metafields = []
+        if title_tag:
+            metafields.append({
+                "ownerId": f"gid://shopify/Product/{product_id}",
+                "namespace": "global",
+                "key": "title_tag",
+                "value": title_tag,
+                "type": "single_line_text_field",
+            })
+        if description_tag:
+            metafields.append({
+                "ownerId": f"gid://shopify/Product/{product_id}",
+                "namespace": "global",
+                "key": "description_tag",
+                "value": description_tag,
+                "type": "single_line_text_field",
+            })
+        if metafields:
+            return self.set_metafields(metafields)
+        return []

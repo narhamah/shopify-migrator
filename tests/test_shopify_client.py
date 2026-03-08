@@ -763,3 +763,233 @@ class TestTranslationsAPI:
         self.c._graphql = MagicMock(return_value={})
         result = self.c.get_translatable_resource("gid://nope")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# REST: Collects
+# ---------------------------------------------------------------------------
+
+class TestCollects:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_get_collects(self):
+        self.c._paginate = MagicMock(return_value=[{"id": 1, "product_id": 10, "collection_id": 20}])
+        result = self.c.get_collects()
+        assert len(result) == 1
+        self.c._paginate.assert_called_once_with("collects.json", "collects", params={})
+
+    def test_get_collects_by_collection(self):
+        self.c._paginate = MagicMock(return_value=[])
+        self.c.get_collects(collection_id=42)
+        self.c._paginate.assert_called_once_with("collects.json", "collects", params={"collection_id": 42})
+
+    def test_create_collect(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"collect": {"id": 99, "product_id": 10, "collection_id": 20}}
+        self.c._request = MagicMock(return_value=mock_resp)
+
+        result = self.c.create_collect(10, 20)
+        assert result["id"] == 99
+
+
+# ---------------------------------------------------------------------------
+# REST: Redirects
+# ---------------------------------------------------------------------------
+
+class TestRedirects:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_get_redirects(self):
+        self.c._paginate = MagicMock(return_value=[{"id": 1, "path": "/old", "target": "/new"}])
+        result = self.c.get_redirects()
+        assert len(result) == 1
+
+    def test_create_redirect(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"redirect": {"id": 1, "path": "/old", "target": "/new"}}
+        self.c._request = MagicMock(return_value=mock_resp)
+
+        result = self.c.create_redirect("/old", "/new")
+        assert result["path"] == "/old"
+
+
+# ---------------------------------------------------------------------------
+# REST: Locations & Policies
+# ---------------------------------------------------------------------------
+
+class TestLocationsAndPolicies:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_get_locations(self):
+        self.c._get_json = MagicMock(return_value=({"locations": [{"id": 1, "name": "HQ"}]}, {}))
+        result = self.c.get_locations()
+        assert result[0]["name"] == "HQ"
+
+    def test_get_policies(self):
+        self.c._get_json = MagicMock(return_value=({"policies": [{"title": "Privacy"}]}, {}))
+        result = self.c.get_policies()
+        assert result[0]["title"] == "Privacy"
+
+
+# ---------------------------------------------------------------------------
+# GraphQL: Locales
+# ---------------------------------------------------------------------------
+
+class TestLocales:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_enable_locale(self):
+        self.c._graphql = MagicMock(return_value={
+            "shopLocaleEnable": {
+                "shopLocale": {"locale": "ar", "published": True},
+                "userErrors": [],
+            }
+        })
+        result = self.c.enable_locale("ar")
+        assert result["locale"] == "ar"
+
+    def test_enable_locale_already_exists(self):
+        self.c._graphql = MagicMock(return_value={
+            "shopLocaleEnable": {
+                "shopLocale": {"locale": "ar", "published": True},
+                "userErrors": [{"field": "locale", "message": "Locale already enabled"}],
+            }
+        })
+        result = self.c.enable_locale("ar")
+        assert result["locale"] == "ar"
+
+    def test_enable_locale_error(self):
+        self.c._graphql = MagicMock(return_value={
+            "shopLocaleEnable": {
+                "shopLocale": None,
+                "userErrors": [{"field": "locale", "message": "Invalid locale"}],
+            }
+        })
+        with pytest.raises(Exception, match="shopLocaleEnable"):
+            self.c.enable_locale("zz")
+
+    def test_get_locales(self):
+        self.c._graphql = MagicMock(return_value={
+            "shopLocales": [
+                {"locale": "en", "primary": True, "published": True},
+                {"locale": "ar", "primary": False, "published": True},
+            ]
+        })
+        result = self.c.get_locales()
+        assert len(result) == 2
+
+
+# ---------------------------------------------------------------------------
+# GraphQL: Inventory
+# ---------------------------------------------------------------------------
+
+class TestInventory:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_get_inventory_item_id(self):
+        self.c._graphql = MagicMock(return_value={
+            "productVariant": {"inventoryItem": {"id": "gid://shopify/InventoryItem/1"}}
+        })
+        result = self.c.get_inventory_item_id(123)
+        assert result == "gid://shopify/InventoryItem/1"
+
+    def test_get_inventory_item_id_not_found(self):
+        self.c._graphql = MagicMock(return_value={"productVariant": None})
+        result = self.c.get_inventory_item_id(999)
+        assert result is None
+
+    def test_set_inventory_quantity(self):
+        self.c._graphql = MagicMock(return_value={
+            "inventorySetOnHandQuantities": {
+                "inventoryAdjustmentGroup": {"reason": "correction"},
+                "userErrors": [],
+            }
+        })
+        result = self.c.set_inventory_quantity("gid://ii/1", "gid://loc/1", 50)
+        assert result is not None
+
+    def test_set_inventory_quantity_error(self):
+        self.c._graphql = MagicMock(return_value={
+            "inventorySetOnHandQuantities": {
+                "inventoryAdjustmentGroup": None,
+                "userErrors": [{"field": "qty", "message": "Invalid"}],
+            }
+        })
+        with pytest.raises(Exception, match="inventorySetOnHandQuantities"):
+            self.c.set_inventory_quantity("gid://ii/1", "gid://loc/1", -1)
+
+
+# ---------------------------------------------------------------------------
+# GraphQL: Menus
+# ---------------------------------------------------------------------------
+
+class TestMenus:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_create_menu(self):
+        self.c._graphql = MagicMock(return_value={
+            "menuCreate": {
+                "menu": {"id": "gid://1", "title": "Main", "handle": "main-menu"},
+                "userErrors": [],
+            }
+        })
+        items = [{"title": "Shop", "url": "/collections/all"}]
+        result = self.c.create_menu("Main", "main-menu", items)
+        assert result["id"] == "gid://1"
+
+    def test_create_menu_already_exists(self):
+        self.c._graphql = MagicMock(return_value={
+            "menuCreate": {
+                "menu": None,
+                "userErrors": [{"field": "handle", "message": "Handle already taken"}],
+            }
+        })
+        result = self.c.create_menu("Main", "main-menu", [])
+        assert result is None
+
+    def test_create_menu_error(self):
+        self.c._graphql = MagicMock(return_value={
+            "menuCreate": {
+                "menu": None,
+                "userErrors": [{"field": "title", "message": "Title is required"}],
+            }
+        })
+        with pytest.raises(Exception, match="menuCreate"):
+            self.c.create_menu("", "bad", [])
+
+
+# ---------------------------------------------------------------------------
+# GraphQL: SEO
+# ---------------------------------------------------------------------------
+
+class TestSEO:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_update_product_seo(self):
+        self.c.set_metafields = MagicMock(return_value=[])
+        self.c.update_product_seo(123, "Title", "Description")
+        self.c.set_metafields.assert_called_once()
+        args = self.c.set_metafields.call_args[0][0]
+        assert len(args) == 2
+        assert args[0]["key"] == "title_tag"
+        assert args[1]["key"] == "description_tag"
+
+    def test_update_product_seo_title_only(self):
+        self.c.set_metafields = MagicMock(return_value=[])
+        self.c.update_product_seo(123, "Title", None)
+        args = self.c.set_metafields.call_args[0][0]
+        assert len(args) == 1
+        assert args[0]["key"] == "title_tag"
+
+    def test_update_product_seo_no_tags(self):
+        self.c.set_metafields = MagicMock(return_value=[])
+        result = self.c.update_product_seo(123, None, None)
+        assert result == []
+        self.c.set_metafields.assert_not_called()

@@ -65,6 +65,9 @@ class TestExportMain:
         mock_client.get_metaobjects.return_value = [
             {"id": "gid://1", "handle": "h1", "type": "benefit", "fields": []}
         ]
+        mock_client.get_collects.return_value = [{"id": 1, "product_id": 1, "collection_id": 10}]
+        mock_client.get_redirects.return_value = []
+        mock_client.get_policies.return_value = []
 
         os.environ["SPAIN_SHOP_URL"] = "spain.myshopify.com"
         os.environ["SPAIN_ACCESS_TOKEN"] = "tok"
@@ -77,7 +80,8 @@ class TestExportMain:
                 main()
 
         # Verify products got metafields attached
-        assert mock_client.get_metafields.call_count == 3  # 2 products + 1 article
+        # 2 products + 1 article + 1 collection + 1 page = 5
+        assert mock_client.get_metafields.call_count == 5
 
         # Verify articles got _blog_id attached
         mock_client.get_articles.assert_called_once_with(30)
@@ -97,6 +101,9 @@ class TestExportMain:
         mock_client.get_pages.return_value = []
         mock_client.get_blogs.return_value = []
         mock_client.get_metaobject_definitions.return_value = []
+        mock_client.get_collects.return_value = []
+        mock_client.get_redirects.return_value = []
+        mock_client.get_policies.return_value = []
 
         os.environ["SPAIN_SHOP_URL"] = "spain.myshopify.com"
         os.environ["SPAIN_ACCESS_TOKEN"] = "tok"

@@ -101,6 +101,40 @@ def main():
     save_json(all_metaobjects, os.path.join(output_dir, "metaobjects.json"))
     print(f"  Exported {total_count} metaobjects across {len(definitions)} types")
 
+    # Collection membership (which products belong to which collections)
+    print("Fetching collection membership (collects)...")
+    all_collects = []
+    for collection in collections:
+        collects = client.get_collects(collection_id=collection["id"])
+        all_collects.extend(collects)
+    save_json(all_collects, os.path.join(output_dir, "collects.json"))
+    print(f"  Exported {len(all_collects)} product-collection links")
+
+    # URL Redirects
+    print("Fetching redirects...")
+    redirects = client.get_redirects()
+    save_json(redirects, os.path.join(output_dir, "redirects.json"))
+    print(f"  Exported {len(redirects)} redirects")
+
+    # Store policies
+    print("Fetching policies...")
+    policies = client.get_policies()
+    save_json(policies, os.path.join(output_dir, "policies.json"))
+    print(f"  Exported {len(policies)} policies")
+
+    # SEO metafields for collections and pages
+    print("Fetching SEO metafields for collections...")
+    for i, collection in enumerate(collections):
+        metafields = client.get_metafields("collections", collection["id"])
+        collection["metafields"] = metafields
+    save_json(collections, os.path.join(output_dir, "collections.json"))
+
+    print("Fetching SEO metafields for pages...")
+    for i, page in enumerate(pages):
+        metafields = client.get_metafields("pages", page["id"])
+        page["metafields"] = metafields
+    save_json(pages, os.path.join(output_dir, "pages.json"))
+
     # Summary
     print("\n--- Export Summary ---")
     print(f"  Products:       {len(products)}")
@@ -110,6 +144,9 @@ def main():
     print(f"  Articles:       {len(all_articles)}")
     print(f"  Metaobj types:  {len(definitions)}")
     print(f"  Metaobjects:    {total_count}")
+    print(f"  Collects:       {len(all_collects)}")
+    print(f"  Redirects:      {len(redirects)}")
+    print(f"  Policies:       {len(policies)}")
     print(f"  Output:         {output_dir}/")
 
 
