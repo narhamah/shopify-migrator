@@ -320,15 +320,31 @@ def main():
             save_json(id_map, id_map_file)
             continue
 
-        coll_data = {
-            "title": collection.get("title", ""),
-            "body_html": collection.get("body_html", ""),
-            "handle": handle,
-        }
-        if collection.get("image", {}).get("src"):
-            coll_data["image"] = {"src": collection["image"]["src"]}
+        # Determine if smart or custom collection
+        is_smart = collection.get("rules") is not None
 
-        created = client.create_custom_collection(coll_data)
+        if is_smart:
+            coll_data = {
+                "title": collection.get("title", ""),
+                "body_html": collection.get("body_html", ""),
+                "handle": handle,
+                "rules": collection.get("rules", []),
+                "disjunctive": collection.get("disjunctive", False),
+            }
+            if collection.get("image", {}).get("src"):
+                coll_data["image"] = {"src": collection["image"]["src"]}
+            if collection.get("sort_order"):
+                coll_data["sort_order"] = collection["sort_order"]
+            created = client.create_smart_collection(coll_data)
+        else:
+            coll_data = {
+                "title": collection.get("title", ""),
+                "body_html": collection.get("body_html", ""),
+                "handle": handle,
+            }
+            if collection.get("image", {}).get("src"):
+                coll_data["image"] = {"src": collection["image"]["src"]}
+            created = client.create_custom_collection(coll_data)
         dest_id = created.get("id")
         print(f"  {label} — created (id: {dest_id})")
         id_map.setdefault("collections", {})[source_id] = dest_id

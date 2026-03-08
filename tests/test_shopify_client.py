@@ -993,3 +993,97 @@ class TestSEO:
         result = self.c.update_product_seo(123, None, None)
         assert result == []
         self.c.set_metafields.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# REST: Smart Collections
+# ---------------------------------------------------------------------------
+
+class TestSmartCollections:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_create_smart_collection(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"smart_collection": {"id": 42, "title": "Sale"}}
+        self.c._request = MagicMock(return_value=mock_resp)
+
+        result = self.c.create_smart_collection({"title": "Sale", "rules": [{"column": "tag", "relation": "equals", "condition": "sale"}]})
+        assert result["id"] == 42
+
+
+# ---------------------------------------------------------------------------
+# REST: Price Rules & Discount Codes
+# ---------------------------------------------------------------------------
+
+class TestPriceRules:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_get_price_rules(self):
+        self.c._paginate = MagicMock(return_value=[{"id": 1, "title": "Sale"}])
+        result = self.c.get_price_rules()
+        assert len(result) == 1
+        self.c._paginate.assert_called_once_with("price_rules.json", "price_rules")
+
+    def test_get_discount_codes(self):
+        self.c._paginate = MagicMock(return_value=[{"id": 1, "code": "SAVE10"}])
+        result = self.c.get_discount_codes(42)
+        assert result[0]["code"] == "SAVE10"
+        self.c._paginate.assert_called_once_with("price_rules/42/discount_codes.json", "discount_codes")
+
+    def test_create_price_rule(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"price_rule": {"id": 99, "title": "Rule"}}
+        self.c._request = MagicMock(return_value=mock_resp)
+        result = self.c.create_price_rule({"title": "Rule"})
+        assert result["id"] == 99
+
+    def test_create_discount_code(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"discount_code": {"id": 1, "code": "SAVE10"}}
+        self.c._request = MagicMock(return_value=mock_resp)
+        result = self.c.create_discount_code(42, "SAVE10")
+        assert result["code"] == "SAVE10"
+
+
+# ---------------------------------------------------------------------------
+# GraphQL: Publications / Publishing
+# ---------------------------------------------------------------------------
+
+class TestPublications:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_get_publications(self):
+        self.c._graphql = MagicMock(return_value={
+            "publications": {
+                "edges": [
+                    {"node": {"id": "gid://shopify/Publication/1", "name": "Online Store"}},
+                    {"node": {"id": "gid://shopify/Publication/2", "name": "POS"}},
+                ]
+            }
+        })
+        result = self.c.get_publications()
+        assert len(result) == 2
+        assert result[0]["name"] == "Online Store"
+
+    def test_publish_resource(self):
+        self.c._graphql = MagicMock(return_value={
+            "publishablePublish": {
+                "publishable": {"availablePublicationsCount": {"count": 2}},
+                "userErrors": [],
+            }
+        })
+        result = self.c.publish_resource("gid://shopify/Product/1", ["gid://shopify/Publication/1"])
+        assert result is not None
+
+    def test_publish_resource_error(self):
+        self.c._graphql = MagicMock(return_value={
+            "publishablePublish": {
+                "publishable": None,
+                "userErrors": [{"field": "id", "message": "Not found"}],
+            }
+        })
+        with pytest.raises(Exception, match="publishablePublish"):
+            self.c.publish_resource("gid://bad", [])

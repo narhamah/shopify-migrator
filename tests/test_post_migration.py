@@ -12,6 +12,9 @@ from post_migration import (
     step_set_seo_tags,
     step_create_redirects,
     step_set_inventory,
+    step_publish_resources,
+    step_migrate_discounts,
+    step_activate_products,
     step_create_policies,
     main,
 )
@@ -305,7 +308,145 @@ class TestStepSetInventory:
 
 
 # ---------------------------------------------------------------------------
-# Step 7: Policies
+# Step 7: Publish resources
+# ---------------------------------------------------------------------------
+
+class TestStepPublishResources:
+    def test_publishes_products_and_collections(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        id_map = {"products": {"1": 10, "2": 20}, "collections": {"3": 30}}
+        (data_dir / "id_map.json").write_text(json.dumps(id_map))
+
+        client = MagicMock()
+        client.get_publications.return_value = [
+            {"id": "gid://shopify/Publication/1", "name": "Online Store"},
+        ]
+        client.publish_resource.return_value = {}
+
+        step_publish_resources(client)
+
+        # 2 products + 1 collection = 3 publish calls
+        assert client.publish_resource.call_count == 3
+
+    def test_dry_run(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+
+        client = MagicMock()
+        step_publish_resources(client, dry_run=True)
+        client.get_publications.assert_not_called()
+
+    def test_no_publications(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data" / "id_map.json").write_text("{}")
+
+        client = MagicMock()
+        client.get_publications.return_value = []
+
+        step_publish_resources(client)
+
+        captured = capsys.readouterr()
+        assert "no publications" in captured.out.lower()
+
+
+# ---------------------------------------------------------------------------
+# Step 8: Migrate discounts
+# ---------------------------------------------------------------------------
+
+class TestStepMigrateDiscounts:
+    def test_creates_price_rules_and_codes(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        data_dir = tmp_path / "data"
+        export_dir = data_dir / "spain_export"
+        export_dir.mkdir(parents=True)
+
+        price_rules = [{
+            "id": 100,
+            "title": "Summer Sale",
+            "target_type": "line_item",
+            "target_selection": "all",
+            "allocation_method": "across",
+            "value_type": "percentage",
+            "value": "-20.0",
+            "customer_selection": "all",
+            "starts_at": "2024-06-01T00:00:00Z",
+            "discount_codes": [{"code": "SUMMER20"}],
+        }]
+        (export_dir / "price_rules.json").write_text(json.dumps(price_rules))
+
+        client = MagicMock()
+        client.create_price_rule.return_value = {"id": 200}
+        client.create_discount_code.return_value = {"id": 300, "code": "SUMMER20"}
+
+        step_migrate_discounts(client)
+
+        client.create_price_rule.assert_called_once()
+        client.create_discount_code.assert_called_once_with(200, "SUMMER20")
+
+    def test_no_price_rules(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data" / "spain_export").mkdir(parents=True)
+
+        client = MagicMock()
+        step_migrate_discounts(client)
+
+        captured = capsys.readouterr()
+        assert "no price rules" in captured.out.lower()
+
+    def test_dry_run(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+        export_dir = tmp_path / "data" / "spain_export"
+        export_dir.mkdir(parents=True)
+        (export_dir / "price_rules.json").write_text(json.dumps([{
+            "id": 1, "title": "Test", "value_type": "percentage", "value": "-10",
+            "discount_codes": [{"code": "TEST10"}],
+        }]))
+
+        client = MagicMock()
+        step_migrate_discounts(client, dry_run=True)
+
+        client.create_price_rule.assert_not_called()
+        captured = capsys.readouterr()
+        assert "TEST10" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Step 9: Activate products
+# ---------------------------------------------------------------------------
+
+class TestStepActivateProducts:
+    def test_activates_products(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        id_map = {"products": {"1": 10, "2": 20}}
+        (data_dir / "id_map.json").write_text(json.dumps(id_map))
+
+        client = MagicMock()
+        client.update_product.return_value = {"id": 10, "status": "active"}
+
+        step_activate_products(client)
+
+        assert client.update_product.call_count == 2
+        client.update_product.assert_any_call(10, {"status": "active"})
+        client.update_product.assert_any_call(20, {"status": "active"})
+
+    def test_dry_run(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+
+        client = MagicMock()
+        step_activate_products(client, dry_run=True)
+        client.update_product.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Step 10: Policies
 # ---------------------------------------------------------------------------
 
 class TestStepCreatePolicies:
@@ -356,6 +497,8 @@ class TestMain:
         client.enable_locale.return_value = {"locale": "ar"}
         client.get_locations.return_value = [{"id": 1, "name": "HQ"}]
         client.get_products.return_value = []
+        client.get_publications.return_value = []
+        client.update_product.return_value = {}
 
         os.environ.update({"SAUDI_SHOP_URL": "saudi.myshopify.com", "SAUDI_ACCESS_TOKEN": "tok"})
         try:

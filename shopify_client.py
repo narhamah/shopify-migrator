@@ -855,6 +855,81 @@ class ShopifyClient:
             raise Exception(f"menuCreate errors: {errors}")
         return result["menu"]
 
+    # --- REST: Smart Collections ---
+
+    def create_smart_collection(self, collection_data):
+        """Create a smart collection with rules."""
+        resp = self._request("POST", "smart_collections.json", json={"smart_collection": collection_data})
+        return resp.json().get("smart_collection", {})
+
+    # --- REST: Price Rules & Discount Codes ---
+
+    def get_price_rules(self):
+        """Get all price rules."""
+        return self._paginate("price_rules.json", "price_rules")
+
+    def get_discount_codes(self, price_rule_id):
+        """Get discount codes for a price rule."""
+        return self._paginate(f"price_rules/{price_rule_id}/discount_codes.json", "discount_codes")
+
+    def create_price_rule(self, price_rule_data):
+        """Create a price rule."""
+        resp = self._request("POST", "price_rules.json", json={"price_rule": price_rule_data})
+        return resp.json().get("price_rule", {})
+
+    def create_discount_code(self, price_rule_id, code):
+        """Create a discount code for a price rule."""
+        resp = self._request("POST", f"price_rules/{price_rule_id}/discount_codes.json", json={
+            "discount_code": {"code": code}
+        })
+        return resp.json().get("discount_code", {})
+
+    # --- GraphQL: Publishing to sales channels ---
+
+    def get_publications(self):
+        """Get all publications (sales channels)."""
+        query = """
+        {
+          publications(first: 50) {
+            edges {
+              node {
+                id
+                name
+              }
+            }
+          }
+        }
+        """
+        data = self._graphql(query)
+        return [edge["node"] for edge in data["publications"]["edges"]]
+
+    def publish_resource(self, resource_id, publication_ids):
+        """Publish a resource to one or more sales channels.
+
+        Args:
+            resource_id: GID of the product/collection (e.g., "gid://shopify/Product/123")
+            publication_ids: List of publication GIDs
+        """
+        query = """
+        mutation publishablePublish($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable {
+              availablePublicationsCount { count }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        pub_input = [{"publicationId": pid} for pid in publication_ids]
+        data = self._graphql(query, {"id": resource_id, "input": pub_input})
+        result = data["publishablePublish"]
+        if result["userErrors"]:
+            raise Exception(f"publishablePublish errors: {result['userErrors']}")
+        return result
+
     # --- GraphQL: SEO meta tags ---
 
     def update_product_seo(self, product_id, title_tag, description_tag):

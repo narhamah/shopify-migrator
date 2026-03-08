@@ -67,6 +67,8 @@ class TestExportMain:
         ]
         mock_client.get_collects.return_value = [{"id": 1, "product_id": 1, "collection_id": 10}]
         mock_client.get_redirects.return_value = []
+        mock_client.get_price_rules.return_value = []
+        mock_client.get_discount_codes.return_value = []
         mock_client.get_policies.return_value = []
 
         os.environ["SPAIN_SHOP_URL"] = "spain.myshopify.com"
@@ -103,6 +105,7 @@ class TestExportMain:
         mock_client.get_metaobject_definitions.return_value = []
         mock_client.get_collects.return_value = []
         mock_client.get_redirects.return_value = []
+        mock_client.get_price_rules.return_value = []
         mock_client.get_policies.return_value = []
 
         os.environ["SPAIN_SHOP_URL"] = "spain.myshopify.com"

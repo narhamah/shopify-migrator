@@ -4,13 +4,16 @@
 Run AFTER import_english.py, import_arabic.py, and migrate_assets.py.
 
 Handles:
-  Step 1: Enable Arabic locale
-  Step 2: Link products to collections (collects)
-  Step 3: Build navigation menus
-  Step 4: Set SEO meta tags
-  Step 5: Create URL redirects
-  Step 6: Set inventory quantities
-  Step 7: Create store policies
+  Step 1:  Enable Arabic locale
+  Step 2:  Link products to collections (collects)
+  Step 3:  Build navigation menus
+  Step 4:  Set SEO meta tags
+  Step 5:  Create URL redirects
+  Step 6:  Set inventory quantities
+  Step 7:  Publish products/collections to sales channels
+  Step 8:  Migrate discount codes / price rules
+  Step 9:  Activate products (draft → active)
+  Step 10: Create store policies
 
 Usage:
     python post_migration.py                    # Run all steps
@@ -454,12 +457,191 @@ def step_set_inventory(client, default_quantity=100, dry_run=False):
 
 
 # =============================================
-# Step 7: Create store policies
+# Step 7: Publish to sales channels
+# =============================================
+
+def step_publish_resources(client, dry_run=False):
+    """Publish all products and collections to all sales channels."""
+    print("\n=== Step 7: Publish Resources to Sales Channels ===")
+
+    if dry_run:
+        print("  Would publish all products and collections to all sales channels")
+        return
+
+    try:
+        publications = client.get_publications()
+    except Exception as e:
+        print(f"  Error fetching publications: {e}")
+        return
+
+    if not publications:
+        print("  No publications (sales channels) found")
+        return
+
+    pub_ids = [p["id"] for p in publications]
+    pub_names = [p.get("name", "Unknown") for p in publications]
+    print(f"  Sales channels: {', '.join(pub_names)}")
+
+    id_map = load_json("data/id_map.json")
+    progress = load_json("data/publish_progress.json")
+
+    # Publish products
+    product_map = id_map.get("products", {})
+    published = 0
+    for source_id, dest_id in product_map.items():
+        key = f"product_{dest_id}"
+        if key in progress:
+            continue
+        try:
+            gid = f"gid://shopify/Product/{dest_id}"
+            client.publish_resource(gid, pub_ids)
+            published += 1
+            progress[key] = True
+        except Exception as e:
+            err = str(e)
+            if "already" in err.lower():
+                progress[key] = True
+            else:
+                print(f"  Error publishing product {dest_id}: {e}")
+
+    # Publish collections
+    collection_map = id_map.get("collections", {})
+    for source_id, dest_id in collection_map.items():
+        key = f"collection_{dest_id}"
+        if key in progress:
+            continue
+        try:
+            gid = f"gid://shopify/Collection/{dest_id}"
+            client.publish_resource(gid, pub_ids)
+            published += 1
+            progress[key] = True
+        except Exception as e:
+            err = str(e)
+            if "already" in err.lower():
+                progress[key] = True
+            else:
+                print(f"  Error publishing collection {dest_id}: {e}")
+
+    save_json(progress, "data/publish_progress.json")
+    print(f"  Published {published} resources to {len(pub_ids)} channels")
+
+
+# =============================================
+# Step 8: Migrate discount codes
+# =============================================
+
+def step_migrate_discounts(client, dry_run=False):
+    """Migrate price rules and discount codes from exported data."""
+    print("\n=== Step 8: Migrate Discount Codes ===")
+
+    price_rules = load_json("data/spain_export/price_rules.json")
+    if not price_rules:
+        print("  No price rules found in export data")
+        return
+
+    progress = load_json("data/discounts_progress.json")
+    created_rules = 0
+    created_codes = 0
+
+    for rule in price_rules:
+        source_id = str(rule.get("id", ""))
+        if source_id in progress:
+            continue
+
+        # Build price rule data (strip source-specific IDs)
+        rule_data = {
+            "title": rule.get("title", ""),
+            "target_type": rule.get("target_type", "line_item"),
+            "target_selection": rule.get("target_selection", "all"),
+            "allocation_method": rule.get("allocation_method", "across"),
+            "value_type": rule.get("value_type", "percentage"),
+            "value": rule.get("value", "0"),
+            "customer_selection": rule.get("customer_selection", "all"),
+            "starts_at": rule.get("starts_at"),
+        }
+        if rule.get("ends_at"):
+            rule_data["ends_at"] = rule["ends_at"]
+        if rule.get("usage_limit"):
+            rule_data["usage_limit"] = rule["usage_limit"]
+        if rule.get("once_per_customer") is not None:
+            rule_data["once_per_customer"] = rule["once_per_customer"]
+
+        if dry_run:
+            print(f"  Would create price rule: {rule_data['title']} ({rule_data['value_type']}: {rule_data['value']})")
+            codes = rule.get("discount_codes", [])
+            for code in codes:
+                print(f"    Would create code: {code.get('code', '')}")
+            created_rules += 1
+            created_codes += len(codes)
+            continue
+
+        try:
+            created = client.create_price_rule(rule_data)
+            dest_rule_id = created.get("id")
+            if not dest_rule_id:
+                print(f"  Failed to create price rule: {rule_data['title']}")
+                continue
+            created_rules += 1
+            progress[source_id] = str(dest_rule_id)
+
+            # Create associated discount codes
+            for code_data in rule.get("discount_codes", []):
+                code = code_data.get("code", "")
+                if code:
+                    try:
+                        client.create_discount_code(dest_rule_id, code)
+                        created_codes += 1
+                    except Exception as e:
+                        print(f"  Error creating code '{code}': {e}")
+        except Exception as e:
+            err_msg = str(e)
+            if "422" in err_msg:
+                progress[source_id] = "exists"
+            else:
+                print(f"  Error creating price rule '{rule_data['title']}': {e}")
+
+    save_json(progress, "data/discounts_progress.json")
+    print(f"  Created {created_rules} price rules, {created_codes} discount codes")
+
+
+# =============================================
+# Step 9: Activate products
+# =============================================
+
+def step_activate_products(client, dry_run=False):
+    """Set all draft products to active status."""
+    print("\n=== Step 9: Activate Products ===")
+
+    if dry_run:
+        print("  Would activate all draft products")
+        return
+
+    id_map = load_json("data/id_map.json")
+    product_map = id_map.get("products", {})
+    progress = load_json("data/activate_progress.json")
+
+    activated = 0
+    for source_id, dest_id in product_map.items():
+        if str(dest_id) in progress:
+            continue
+        try:
+            client.update_product(dest_id, {"status": "active"})
+            activated += 1
+            progress[str(dest_id)] = True
+        except Exception as e:
+            print(f"  Error activating product {dest_id}: {e}")
+
+    save_json(progress, "data/activate_progress.json")
+    print(f"  Activated {activated} products")
+
+
+# =============================================
+# Step 10: Create store policies
 # =============================================
 
 def step_create_policies(client, dry_run=False):
     """Create store policies from exported policy data or defaults."""
-    print("\n=== Step 7: Store Policies ===")
+    print("\n=== Step 10: Store Policies ===")
 
     policies = load_json("data/spain_export/policies.json")
     english_policies = load_json("data/english/policies.json")
@@ -499,7 +681,7 @@ def main():
     access_token = os.environ["SAUDI_ACCESS_TOKEN"]
     client = ShopifyClient(shop_url, access_token)
 
-    steps = args.step or [1, 2, 3, 4, 5, 6, 7]
+    steps = args.step or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     if 1 in steps:
         step_enable_arabic(client, dry_run=args.dry_run)
@@ -514,6 +696,12 @@ def main():
     if 6 in steps:
         step_set_inventory(client, default_quantity=args.inventory_qty, dry_run=args.dry_run)
     if 7 in steps:
+        step_publish_resources(client, dry_run=args.dry_run)
+    if 8 in steps:
+        step_migrate_discounts(client, dry_run=args.dry_run)
+    if 9 in steps:
+        step_activate_products(client, dry_run=args.dry_run)
+    if 10 in steps:
         step_create_policies(client, dry_run=args.dry_run)
 
     print("\n=== Post-Migration Complete ===")
@@ -526,7 +714,8 @@ def main():
     print("  5. Install and configure theme (Online Store → Themes)")
     print("  6. Set up email notifications (Settings → Notifications)")
     print("  7. Install third-party apps (Klaviyo, reviews, etc.)")
-    print("  8. Test checkout flow end-to-end")
+    print("  8. Recreate Shopify Flows (export .flow from Spain, import to Saudi)")
+    print("  9. Test checkout flow end-to-end")
 
 
 if __name__ == "__main__":

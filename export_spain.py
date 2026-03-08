@@ -122,6 +122,14 @@ def main():
     save_json(policies, os.path.join(output_dir, "policies.json"))
     print(f"  Exported {len(policies)} policies")
 
+    # Price rules and discount codes
+    print("Fetching price rules and discount codes...")
+    price_rules = client.get_price_rules()
+    for rule in price_rules:
+        rule["discount_codes"] = client.get_discount_codes(rule["id"])
+    save_json(price_rules, os.path.join(output_dir, "price_rules.json"))
+    print(f"  Exported {len(price_rules)} price rules")
+
     # SEO metafields for collections and pages
     print("Fetching SEO metafields for collections...")
     for i, collection in enumerate(collections):
@@ -146,6 +154,7 @@ def main():
     print(f"  Metaobjects:    {total_count}")
     print(f"  Collects:       {len(all_collects)}")
     print(f"  Redirects:      {len(redirects)}")
+    print(f"  Price rules:    {len(price_rules)}")
     print(f"  Policies:       {len(policies)}")
     print(f"  Output:         {output_dir}/")
 
