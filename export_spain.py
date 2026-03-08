@@ -31,11 +31,14 @@ def main():
     output_dir = "data/spain_export"
     ensure_dir(output_dir)
 
-    # Shop info
+    # Shop info (optional — may fail if read_shop scope is missing)
     print("Fetching shop info...")
-    shop = client.get_shop()
-    save_json(shop, os.path.join(output_dir, "shop.json"))
-    print(f"  Shop: {shop.get('name', 'N/A')}")
+    try:
+        shop = client.get_shop()
+        save_json(shop, os.path.join(output_dir, "shop.json"))
+        print(f"  Shop: {shop.get('name', 'N/A')}")
+    except Exception as e:
+        print(f"  Skipped (scope missing): {e}")
 
     # Products + metafields
     print("Fetching products...")
