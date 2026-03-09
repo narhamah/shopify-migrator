@@ -72,10 +72,10 @@ Exports all content to `data/spain_export/`:
 ### Step 2: Translate Spanish → English
 
 ```bash
-python translate_to_english.py
+python translate_gaps.py --lang en
 ```
 
-Translates all content from Spanish to English using Claude. Includes:
+Translates all content from Spanish to English using OpenAI. Includes:
 - Product titles, descriptions, tags, variants, options
 - Product metafields (tagline, accordion headings/content, etc.)
 - Article metafields (blog_summary, hero_caption, etc.)
@@ -108,7 +108,7 @@ python import_english.py --exchange-rate 4.13
 ### Step 4: Translate English → Arabic
 
 ```bash
-python translate_to_arabic.py
+python translate_gaps.py --lang ar
 ```
 
 Translates English content to Modern Standard Arabic (Gulf/Saudi audience).

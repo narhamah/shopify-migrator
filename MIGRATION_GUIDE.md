@@ -244,18 +244,10 @@ Each phase of `build_site.py` can also be run independently. This is useful for 
 ### Translation
 
 ```bash
-# Via translate_gaps.py (core engine, called by build_site.py)
 python translate_gaps.py --lang en              # Spanish → English
 python translate_gaps.py --lang en --dry        # Preview (no API calls)
 python translate_gaps.py --lang ar              # English → Arabic
 python translate_gaps.py --lang ar --dry        # Preview
-
-# Via CLI wrappers (same functionality, extra flags)
-python translate_to_english.py                  # Full ES → EN translation
-python translate_to_english.py --dry            # Preview
-python translate_to_english.py --model o3       # Use a different OpenAI model
-python translate_to_arabic.py                   # Full EN → AR translation
-python translate_to_arabic.py --dry             # Preview
 ```
 
 Translation flags:
@@ -540,8 +532,6 @@ Image optimization presets (all converted to WebP):
 | Script | Purpose |
 |--------|---------|
 | `translate_gaps.py` | Core translation engine — TOON-batched, scrape-first gap translation |
-| `translate_to_english.py` | CLI wrapper for ES → EN translation (calls translate_gaps.py) |
-| `translate_to_arabic.py` | CLI wrapper for EN → AR translation (calls translate_gaps.py) |
 | `translator.py` | LLM translation engine with TARA tone-of-voice system prompts |
 
 ### Import Scripts
@@ -573,7 +563,7 @@ Image optimization presets (all converted to WebP):
 | Script | Purpose |
 |--------|---------|
 | `resolve_metaobject_diffs.py` | Compare Spain/Saudi metaobject schemas and entries; fix mismatches |
-| `migrate_metaobjects.py` | Direct store-to-store metaobject migration (bypasses export/import) |
+| `migrate_metaobjects.py` | **Alternative path** — direct store-to-store metaobject migration (bypasses the translate→import pipeline; use `import_english.py` for the canonical flow) |
 
 ### Post-Migration & Setup Scripts
 
@@ -602,14 +592,6 @@ Image optimization presets (all converted to WebP):
 | `shopify_client.py` | Shopify API client — GraphQL + REST with rate limiting, pagination, batch ops |
 | `translator.py` | LLM translation engine with TARA tone-of-voice prompts |
 | `utils.py` | Shared utilities — JSON I/O, directory paths, rich-text sanitization, handle conversion |
-
-### Deprecated Scripts (superseded by migrate_all_images.py)
-
-| Script | Replacement |
-|--------|-------------|
-| `migrate_assets.py` | `migrate_all_images.py --phase 4,5` |
-| `migrate_homepage_images.py` | `migrate_all_images.py --phase 3,4` |
-| `fix_metaobject_files.py` | `migrate_all_images.py --phase 4` |
 
 ---
 
