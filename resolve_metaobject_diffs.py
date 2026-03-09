@@ -260,7 +260,16 @@ def fix_missing_definitions(spain, saudi, missing_types, spain_defs, saudi_defs,
     """Create missing metaobject definitions in Saudi store."""
     # Dependency order: benefit/faq_entry before ingredient
     DEP_ORDER = DEFINITION_ORDER
-    ordered = sorted(missing_types, key=lambda t: DEP_ORDER.index(t) if t in DEP_ORDER else 999)
+    # Skip Shopify-reserved types (shopify-- prefix) — these are managed by
+    # Shopify itself and can't be created via the API.  Entries in them can
+    # still be created, so we only skip the *definition* creation step.
+    ordered = sorted(
+        [t for t in missing_types if not t.startswith("shopify--")],
+        key=lambda t: DEP_ORDER.index(t) if t in DEP_ORDER else 999,
+    )
+    skipped = [t for t in missing_types if t.startswith("shopify--")]
+    if skipped:
+        print(f"  Skipping Shopify-managed definitions: {skipped}")
 
     for mo_type in ordered:
         spain_def = spain_defs[mo_type]

@@ -42,12 +42,14 @@ class ShopifyClient:
         all_items = []
         url = f"{self.base_url}/{endpoint}"
         while url:
-            resp = self.session.request("GET", url, params=params)
-            if resp.status_code == 429:
-                retry_after = float(resp.headers.get("Retry-After", 2))
-                print(f"  Rate limited. Retrying after {retry_after}s...")
-                time.sleep(retry_after)
-                continue
+            while True:
+                resp = self.session.request("GET", url, params=params)
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("Retry-After", 2))
+                    print(f"  Rate limited. Retrying after {retry_after}s...")
+                    time.sleep(retry_after)
+                    continue
+                break
             resp.raise_for_status()
             data = resp.json()
             items = data.get(resource_key, [])
@@ -255,8 +257,13 @@ class ShopifyClient:
         return data.get("pages", [])
 
     def get_collections_by_handle(self, handle):
+        """Search both custom and smart collections by handle."""
         data, _ = self._get_json("custom_collections.json", params={"handle": handle})
-        return data.get("custom_collections", [])
+        results = data.get("custom_collections", [])
+        if not results:
+            data, _ = self._get_json("smart_collections.json", params={"handle": handle})
+            results = data.get("smart_collections", [])
+        return results
 
     def get_blogs_by_handle(self, handle):
         data, _ = self._get_json("blogs.json", params={"handle": handle})
@@ -295,8 +302,8 @@ class ShopifyClient:
         while True:
             after_clause = f', after: "{cursor}"' if cursor else ""
             query = f"""
-            {{
-              metaobjects(type: "{metaobject_type}", first: 250{after_clause}) {{
+            query getMetaobjects($type: String!) {{
+              metaobjects(type: $type, first: 250{after_clause}) {{
                 edges {{
                   cursor
                   node {{
@@ -314,7 +321,7 @@ class ShopifyClient:
               }}
             }}
             """
-            data = self._graphql(query)
+            data = self._graphql(query, {"type": metaobject_type})
             edges = data["metaobjects"]["edges"]
             for edge in edges:
                 all_objects.append(edge["node"])
