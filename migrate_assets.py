@@ -66,12 +66,18 @@ def extract_file_url_from_gid(source_client, file_gid):
     return None
 
 
-def upload_optimized(dest_client, url, alt=""):
+def upload_optimized(dest_client, url, alt="", preset=None):
     """Download image, convert to WebP, upload to destination store.
+
+    Args:
+        dest_client: ShopifyClient for destination store.
+        url: Source image URL.
+        alt: Alt text for the uploaded file.
+        preset: Optimization preset (icon, thumbnail, product, hero, etc.).
 
     Returns the Shopify file GID on success, None on failure.
     """
-    optimized_bytes, new_filename, mime_type = download_and_optimize(url)
+    optimized_bytes, new_filename, mime_type = download_and_optimize(url, preset=preset)
     return dest_client.upload_file_bytes(optimized_bytes, new_filename, alt=alt)
 
 
@@ -144,7 +150,8 @@ def main():
                         else:
                             try:
                                 dest_file_id = upload_optimized(dest_client, scraped_image_url,
-                                                                alt=f"{handle}_image")
+                                                                alt=f"{handle}_image",
+                                                                preset="thumbnail")
                                 if dest_file_id:
                                     file_map[cache_key] = dest_file_id
                                     print(f"    {handle}.image: uploaded from Magento → {dest_file_id}")
@@ -180,8 +187,12 @@ def main():
                                 print(f"    {handle}.{field_key}: could not get URL for {gid}")
                                 continue
 
+                            # Pick preset based on field key
+                            field_preset = "icon" if "icon" in field_key else "thumbnail"
                             try:
-                                dest_file_id = upload_optimized(dest_client, url, alt=f"{handle}_{field_key}")
+                                dest_file_id = upload_optimized(dest_client, url,
+                                                                alt=f"{handle}_{field_key}",
+                                                                preset=field_preset)
                                 if dest_file_id:
                                     file_map[gid] = dest_file_id
                                     dest_gids.append(dest_file_id)
@@ -213,8 +224,12 @@ def main():
                                 print(f"    {handle}.{field_key}: could not get URL for {source_gid}")
                                 continue
 
+                            # Pick preset based on field key
+                            field_preset = "icon" if "icon" in field_key else ("thumbnail" if "avatar" in field_key else "default")
                             try:
-                                dest_file_id = upload_optimized(dest_client, url, alt=f"{handle}_{field_key}")
+                                dest_file_id = upload_optimized(dest_client, url,
+                                                                alt=f"{handle}_{field_key}",
+                                                                preset=field_preset)
                                 if dest_file_id:
                                     file_map[cache_key] = dest_file_id
                                     src_label = "URL" if is_url else "Spain"
@@ -280,9 +295,13 @@ def main():
                         print(f"  Article '{article.get('title', '')[:40]}': could not get URL for {ns_key}")
                         continue
 
+                    # Article images are hero/listing images
+                    article_preset = "hero" if "hero" in mf["key"] else "thumbnail"
                     try:
                         dest_file_id = upload_optimized(
-                            dest_client, url, alt=f"article_{article.get('handle', '')}_{mf['key']}"
+                            dest_client, url,
+                            alt=f"article_{article.get('handle', '')}_{mf['key']}",
+                            preset=article_preset,
                         )
                         if dest_file_id:
                             file_map[source_gid] = dest_file_id
