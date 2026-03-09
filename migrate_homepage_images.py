@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Migrate homepage section images from Spain store to Saudi store.
+"""DEPRECATED: Use migrate_all_images.py (phases 3-4) or build_site.py --phase 4 instead.
+
+Migrate homepage section images from Spain store to Saudi store.
 
 Reads the Spain store's homepage template (templates/index.json), finds all
 section and block settings that contain image references (shopify://shop_images/...),

@@ -561,11 +561,60 @@ python -m pytest -x                                 # Stop on first failure
 
 ## Typical Full Migration Run
 
+### Quick Start (using build_site.py)
+
 ```bash
 # 0. Install and configure
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with credentials
+
+# 1. Set up destination schema
+python setup_store.py
+
+# 2. Export from Spain
+python export_spain.py
+
+# 3. Scrape live Magento sites
+python scrape_kuwait.py --scrape
+
+# 4. Build everything (translate, import, images, configure)
+python build_site.py                  # Full build: EN + AR
+python build_site.py --lang en        # English only
+python build_site.py --lang ar        # Arabic only (after EN is done)
+python build_site.py --dry-run        # Preview all phases
+```
+
+`build_site.py` orchestrates 8 phases in the correct order:
+
+| Phase | Name | Lang | What |
+|-------|------|------|------|
+| 1 | Translate ES → EN | en | Scrape-first TOON translation |
+| 2 | Fix SAR Prices | en | Magento prices → local data + Shopify |
+| 3 | Import English | en | Create resources in Saudi store |
+| 4 | Translate EN → AR | ar | Scrape-first TOON translation |
+| 5 | Import Arabic | ar | Register translations via API |
+| 6 | Migrate All Images | en | Product, collection, homepage, metaobject, article |
+| 7 | Resolve MO Diffs | en | Fix schema mismatches and references |
+| 8 | Post-Migration Setup | en | Locale, menus, SEO, redirects, publish |
+
+```bash
+# Resume from a specific phase
+python build_site.py --from 6         # Skip translate+import, just images onwards
+
+# Run specific phases
+python build_site.py --phase 2,6      # Just fix prices and migrate images
+
+# Skip specific phases
+python build_site.py --skip 2,7       # Skip price fix and metaobject diffs
+```
+
+### Step-by-step (manual)
+
+```bash
+# 0. Install and configure
+pip install -r requirements.txt
+cp .env.example .env
 
 # 1. Set up destination schema
 python setup_store.py
@@ -582,11 +631,11 @@ python compare_data.py
 # 5. Translate gaps to English
 python translate_to_english.py
 
-# 6. Import English into Saudi store
-python import_english.py
-
-# 7. Fix SAR prices (fetches from Magento Saudi store view)
+# 6. Fix SAR prices
 python fix_prices.py --update-shopify
+
+# 7. Import English into Saudi store
+python import_english.py
 
 # 8. Translate gaps to Arabic
 python translate_to_arabic.py

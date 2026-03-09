@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Backfill file_reference fields on metaobject entries.
+"""DEPRECATED: Use migrate_all_images.py --phase 4 or build_site.py --phase 4 instead.
+
+Backfill file_reference fields on metaobject entries.
 
 During the initial import, file_reference fields (icons, images) were skipped
 because they point to source-store file GIDs. This script:
