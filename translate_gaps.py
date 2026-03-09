@@ -682,6 +682,428 @@ def find_gaps(spain_items, scraped_items, key_field="handle"):
     return [item for item in spain_items if item.get(key_field, "") not in scraped_keys]
 
 
+def match_products_by_sku(source_products, scraped_products):
+    """Match source products to scraped products by SKU.
+
+    Returns a list of (source_product, scraped_product) tuples for products
+    that exist in both datasets. Used to copy metafields from source to
+    scraped products that lack them (Magento doesn't have Shopify metafields).
+    """
+    if not scraped_products:
+        return []
+
+    # Build scraped lookup: SKU → scraped product
+    scraped_by_sku = {}
+    scraped_by_handle = {}
+    for p in scraped_products:
+        scraped_by_handle[p.get("handle", "")] = p
+        for v in p.get("variants", []):
+            sku = v.get("sku", "")
+            if sku:
+                scraped_by_sku[sku] = p
+
+    matched = []
+    seen_scraped = set()
+    for sp in source_products:
+        scraped = None
+        # Try SKU match first
+        for v in sp.get("variants", []):
+            sku = v.get("sku", "")
+            if sku and sku in scraped_by_sku:
+                scraped = scraped_by_sku[sku]
+                break
+        # Fallback to handle match
+        if not scraped:
+            scraped = scraped_by_handle.get(sp.get("handle", ""))
+        if scraped:
+            scraped_id = id(scraped)
+            if scraped_id not in seen_scraped:
+                seen_scraped.add(scraped_id)
+                matched.append((sp, scraped))
+    return matched
+
+
+def apply_metafields_to_scraped(matched_pairs, translations):
+    """Apply translated metafields from source products onto scraped products.
+
+    For each (source_product, scraped_product) pair:
+    - Source metafields were extracted with IDs like prod.{source_handle}.mf.{ns.key}
+    - The translated values are in the translations dict under those IDs
+    - We apply them onto the scraped product's metafields list
+
+    Also copies any source metafields that are missing from the scraped product.
+    """
+    for source_prod, scraped_prod in matched_pairs:
+        src_handle = source_prod.get("handle", source_prod.get("id", ""))
+
+        if "metafields" not in scraped_prod:
+            scraped_prod["metafields"] = []
+
+        # Build lookup of existing scraped metafields
+        scraped_mf_lookup = {}
+        for mf in scraped_prod["metafields"]:
+            ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+            scraped_mf_lookup[ns_key] = mf
+
+        for mf in source_prod.get("metafields", []):
+            mf_type = mf.get("type", "")
+            ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+            fid = f"prod.{src_handle}.mf.{ns_key}"
+
+            if mf_type in TEXT_METAFIELD_TYPES:
+                # Use translated value if available, otherwise use source value
+                value = translations.get(fid, mf.get("value", ""))
+            else:
+                # Non-text metafields (references, numbers): copy as-is
+                value = mf.get("value", "")
+
+            if ns_key in scraped_mf_lookup:
+                # Update existing metafield only if it's text and we have a translation
+                if mf_type in TEXT_METAFIELD_TYPES and fid in translations:
+                    scraped_mf_lookup[ns_key]["value"] = value
+            else:
+                # Add missing metafield to scraped product
+                scraped_prod["metafields"].append({
+                    "namespace": mf.get("namespace", ""),
+                    "key": mf.get("key", ""),
+                    "value": value,
+                    "type": mf_type,
+                })
+
+
+def translate_with_gaps(
+    source_dir,
+    output_dir,
+    source_lang,
+    target_lang,
+    lang_code,
+    dry=False,
+    model="gpt-5-mini",
+    batch_size=BATCH_SIZE,
+    tpm=TPM_LIMIT,
+):
+    """Core scrape-first translation: use scraped data where available, translate gaps.
+
+    Loads source data (Spain export or EN output), compares with scraped data
+    already in output_dir (from scrape_kuwait.py), identifies gaps, translates
+    only the missing content, and merges everything into output_dir.
+
+    Products are matched by SKU between source and scraped data.
+
+    Args:
+        source_dir: Directory with source data (SPAIN_DIR for ES→EN, EN_DIR for EN→AR)
+        output_dir: Directory for output (EN_DIR or AR_DIR), also read for scraped data
+        source_lang: Source language name ("Spanish" or "English")
+        target_lang: Target language name ("English" or "Arabic")
+        lang_code: Short code ("en" or "ar") for progress file naming
+        dry: If True, show what would be translated without API calls
+        model: OpenAI model to use
+        batch_size: Fields per batch
+        tpm: Tokens-per-minute budget
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Load source data
+    source_products = load_json(os.path.join(source_dir, "products.json"))
+    source_collections = load_json(os.path.join(source_dir, "collections.json"))
+    source_pages = load_json(os.path.join(source_dir, "pages.json"))
+    source_blogs = load_json(os.path.join(source_dir, "blogs.json"))
+    source_articles = load_json(os.path.join(source_dir, "articles.json"))
+    source_metaobjects = load_json(os.path.join(source_dir, "metaobjects.json"))
+
+    if not source_products and not source_collections and not source_pages:
+        print(f"ERROR: Source data in {source_dir} is empty.")
+        sys.exit(1)
+
+    # Load scraped data from output dir (if available from scrape_kuwait.py)
+    scraped_products = load_json(os.path.join(output_dir, "products.json"))
+    scraped_collections = load_json(os.path.join(output_dir, "collections.json"))
+    scraped_pages = load_json(os.path.join(output_dir, "pages.json"))
+    scraped_articles = load_json(os.path.join(output_dir, "articles.json"))
+    scraped_metaobjects = load_json(os.path.join(output_dir, "metaobjects.json"))
+
+    has_scraped = bool(scraped_products or scraped_collections or scraped_pages)
+
+    print(f"{'=' * 60}")
+    print(f"TRANSLATE {source_lang.upper()} → {target_lang.upper()} (scrape-first)")
+    print(f"{'=' * 60}")
+
+    if has_scraped:
+        print(f"\n  Scraped data found in {output_dir}/:")
+        print(f"    Products:    {len(scraped_products)}")
+        print(f"    Collections: {len(scraped_collections)}")
+        print(f"    Pages:       {len(scraped_pages)}")
+        print(f"    Articles:    {len(scraped_articles)}")
+    else:
+        print(f"\n  No scraped data found — translating everything.")
+
+    # ---- Identify gaps: what's NOT in scraped data ----
+    gap_products = find_gaps(source_products, scraped_products, key_field="sku")
+    gap_collections = find_gaps(source_collections, scraped_collections)
+    gap_pages = find_gaps(source_pages, scraped_pages)
+    # Articles are never in Magento — always need full translation
+    gap_articles = source_articles
+
+    # Metaobjects: text-type fields always need translation (scraper copies
+    # source data as-is, still in source language). Non-text types only
+    # include genuinely missing items.
+    gap_metaobjects = {}
+    if isinstance(source_metaobjects, dict):
+        for mo_type, type_data in source_metaobjects.items():
+            objs = type_data.get("objects", [])
+            if not objs:
+                continue
+            has_text_fields = any(
+                field.get("type", "") in TEXT_METAFIELD_TYPES and field.get("value")
+                for obj in objs
+                for field in obj.get("fields", [])
+            )
+            if has_text_fields:
+                gap_metaobjects[mo_type] = {
+                    "definition": type_data.get("definition", {}),
+                    "objects": objs,
+                }
+            else:
+                scraped_objs = []
+                if isinstance(scraped_metaobjects, dict) and mo_type in scraped_metaobjects:
+                    scraped_objs = scraped_metaobjects[mo_type].get("objects", [])
+                scraped_handles = {o.get("handle", "") for o in scraped_objs}
+                missing = [o for o in objs if o.get("handle") not in scraped_handles]
+                if missing:
+                    gap_metaobjects[mo_type] = {
+                        "definition": type_data.get("definition", {}),
+                        "objects": missing,
+                    }
+
+    # Products in scraped data still need their metafields translated
+    # (Magento doesn't have Shopify accordion metafields, tagline, etc.)
+    # Match by SKU so cross-language handles work correctly
+    matched_pairs = match_products_by_sku(source_products, scraped_products)
+
+    print(f"\n  Source: {len(source_products)} products, {len(source_collections)} collections, "
+          f"{len(source_pages)} pages")
+    print(f"  Gaps to translate:")
+    print(f"    Products (full):       {len(gap_products)}")
+    print(f"    Products (metafields): {len(matched_pairs)}")
+    print(f"    Collections:           {len(gap_collections)}")
+    print(f"    Pages:                 {len(gap_pages)}")
+    print(f"    Articles:              {len(gap_articles)}")
+    mo_gap_count = sum(len(td.get("objects", [])) for td in gap_metaobjects.values())
+    print(f"    Metaobjects:           {mo_gap_count}")
+
+    # ---- Extract translatable fields from gaps only ----
+    all_fields = []
+
+    # Full extraction for gap products (not in scraped data)
+    for p in gap_products:
+        all_fields.extend(extract_product_fields(p, "prod"))
+
+    # Metafield-only extraction for matched products
+    for source_prod, _scraped_prod in matched_pairs:
+        pid = source_prod.get("handle", source_prod.get("id", ""))
+        for mf in source_prod.get("metafields", []):
+            mf_type = mf.get("type", "")
+            ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+            if mf_type in TEXT_METAFIELD_TYPES and mf.get("value"):
+                all_fields.append({"id": f"prod.{pid}.mf.{ns_key}", "value": mf["value"]})
+
+    for c in gap_collections:
+        all_fields.extend(extract_collection_fields(c, "coll"))
+    for pg in gap_pages:
+        all_fields.extend(extract_page_fields(pg, "page"))
+    for a in gap_articles:
+        all_fields.extend(extract_article_fields(a, "art"))
+    for b in source_blogs:
+        all_fields.extend(extract_blog_fields(b, "blog"))
+    all_fields.extend(extract_metaobject_fields(gap_metaobjects, "mo"))
+
+    # Filter out empty values
+    all_fields = [f for f in all_fields if f.get("value") and f["value"].strip()]
+
+    print(f"\n  Total fields to translate: {len(all_fields)}")
+
+    # Breakdown
+    field_types = {}
+    for f in all_fields:
+        category = f["id"].split(".")[0]
+        field_types[category] = field_types.get(category, 0) + 1
+    print(f"  Breakdown:")
+    for cat, count in sorted(field_types.items()):
+        print(f"    {cat}: {count} fields")
+
+    if dry:
+        print("\n  DRY RUN — no API calls made")
+        print(f"\n  Sample fields (first 10):")
+        for f in all_fields[:10]:
+            val = f["value"][:80] + "..." if len(f["value"]) > 80 else f["value"]
+            print(f"    {f['id']}: {val}")
+        return
+
+    all_translations = {}
+
+    if not all_fields:
+        print("\n  Nothing to translate!")
+    else:
+        # ---- Load progress ----
+        progress_file = os.path.join(output_dir, f"_translation_progress_{lang_code}.json")
+        if os.path.exists(progress_file):
+            all_translations = load_json(progress_file)
+            if isinstance(all_translations, dict):
+                print(f"\n  Resuming: {len(all_translations)} fields already translated")
+            else:
+                all_translations = {}
+
+        remaining = [f for f in all_fields if f["id"] not in all_translations]
+        print(f"  Remaining: {len(remaining)} fields")
+
+        if not remaining:
+            print("  All fields already translated!")
+        else:
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                print("ERROR: OPENAI_API_KEY not set. Add it to .env")
+                sys.exit(1)
+
+            client = OpenAI(api_key=api_key)
+
+            max_batch_tokens = batch_size * 100
+            batches = adaptive_batch(remaining, max_tokens=max_batch_tokens)
+            total_batches = len(batches)
+            batch_sizes = [len(b) for b in batches]
+
+            print(f"\n  {total_batches} adaptive batches "
+                  f"(sizes: {min(batch_sizes)}-{max(batch_sizes)} fields)")
+            print(f"  TPM budget: {tpm:,}")
+
+            window_start = time.time()
+            window_tokens = 0
+            failed_fields = []
+
+            for i, batch_items in enumerate(batches):
+                now = time.time()
+                elapsed = now - window_start
+                if elapsed >= 60:
+                    window_start = now
+                    window_tokens = 0
+                elif window_tokens >= tpm * 0.85:
+                    wait = 60 - elapsed + 2
+                    print(f"    TPM throttle: {window_tokens:,} tokens used, waiting {wait:.0f}s...")
+                    time.sleep(wait)
+                    window_start = time.time()
+                    window_tokens = 0
+
+                t_map, tokens_used = translate_batch(
+                    client, model, batch_items,
+                    source_lang, target_lang,
+                    i + 1, total_batches,
+                )
+                window_tokens += tokens_used
+
+                if t_map:
+                    all_translations.update(t_map)
+                    save_json(all_translations, progress_file)
+                    batch_ids = {f["id"] for f in batch_items}
+                    missing_from_batch = batch_ids - set(t_map.keys())
+                    if missing_from_batch:
+                        failed_fields.extend([f for f in batch_items if f["id"] in missing_from_batch])
+                else:
+                    failed_fields.extend(batch_items)
+
+            if failed_fields:
+                print(f"\n  WARNING: {len(failed_fields)} fields failed translation")
+                print(f"  Re-run to retry (progress is saved)")
+                save_json([f["id"] for f in failed_fields],
+                          os.path.join(output_dir, f"_failed_fields_{lang_code}.json"))
+
+    # ---- Merge translations into output data ----
+    print(f"\n  Merging translations into output files...")
+
+    # Start with scraped data as base
+    output_products = list(scraped_products) if scraped_products else []
+    output_collections = list(scraped_collections) if scraped_collections else []
+    output_pages = list(scraped_pages) if scraped_pages else []
+    output_metaobjects = dict(scraped_metaobjects) if isinstance(scraped_metaobjects, dict) else {}
+
+    # Add gap items (dedup by source ID to prevent accumulation on re-runs)
+    existing_product_ids = {str(p.get("id", "")) for p in output_products}
+    for p in gap_products:
+        if str(p.get("id", "")) not in existing_product_ids:
+            output_products.append(copy.deepcopy(p))
+    existing_collection_ids = {str(c.get("id", "")) for c in output_collections}
+    for c in gap_collections:
+        if str(c.get("id", "")) not in existing_collection_ids:
+            output_collections.append(copy.deepcopy(c))
+    existing_page_ids = {str(pg.get("id", "")) for pg in output_pages}
+    for pg in gap_pages:
+        if str(pg.get("id", "")) not in existing_page_ids:
+            output_pages.append(copy.deepcopy(pg))
+
+    # Articles: always from source, fully translated
+    output_articles = [copy.deepcopy(a) for a in gap_articles]
+
+    # Metaobjects: merge gap types into scraped base
+    for mo_type, type_data in gap_metaobjects.items():
+        if mo_type not in output_metaobjects:
+            output_metaobjects[mo_type] = copy.deepcopy(type_data)
+        else:
+            existing_handles = {o.get("handle") for o in output_metaobjects[mo_type].get("objects", [])}
+            for obj in type_data.get("objects", []):
+                if obj.get("handle") not in existing_handles:
+                    output_metaobjects[mo_type]["objects"].append(copy.deepcopy(obj))
+
+    # Blogs: always from source, fully translated
+    output_blogs = [copy.deepcopy(b) for b in source_blogs]
+
+    # Apply translations to gap items
+    apply_translations(
+        all_translations,
+        output_products, output_collections, output_pages,
+        output_articles, output_metaobjects, blogs=output_blogs,
+    )
+
+    # Apply translated metafields to scraped products (matched by SKU).
+    # Uses source-handle-based field IDs to find translations and applies
+    # them onto the correct scraped products.
+    apply_metafields_to_scraped(matched_pairs, all_translations)
+
+    # ---- Save output ----
+    save_json(output_products, os.path.join(output_dir, "products.json"))
+    save_json(output_collections, os.path.join(output_dir, "collections.json"))
+    save_json(output_pages, os.path.join(output_dir, "pages.json"))
+    save_json(output_blogs, os.path.join(output_dir, "blogs.json"))
+    save_json(output_articles, os.path.join(output_dir, "articles.json"))
+    save_json(output_metaobjects, os.path.join(output_dir, "metaobjects.json"))
+
+    # Copy non-translatable files from source
+    for fname in ["metaobject_definitions.json"]:
+        src = os.path.join(source_dir, fname)
+        if os.path.exists(src):
+            save_json(load_json(src), os.path.join(output_dir, fname))
+
+    print(f"\n{'=' * 60}")
+    print(f"TRANSLATION COMPLETE → {target_lang.upper()}")
+    print(f"{'=' * 60}")
+    scraped_prod_count = len(output_products) - len(gap_products)
+    scraped_coll_count = len(output_collections) - len(gap_collections)
+    scraped_page_count = len(output_pages) - len(gap_pages)
+    print(f"  Products:    {len(output_products)} ({scraped_prod_count} from live site, {len(gap_products)} translated)")
+    print(f"  Collections: {len(output_collections)} ({scraped_coll_count} from live site, {len(gap_collections)} translated)")
+    print(f"  Pages:       {len(output_pages)} ({scraped_page_count} from live site, {len(gap_pages)} translated)")
+    print(f"  Blogs:       {len(output_blogs)}")
+    print(f"  Articles:    {len(output_articles)} (translated)")
+    if output_metaobjects:
+        mo_total = sum(len(v.get("objects", [])) for v in output_metaobjects.values())
+        print(f"  Metaobjects: {mo_total}")
+    print(f"  Output:      {output_dir}/")
+
+    translated_count = len(all_translations)
+    total_needed = len(all_fields)
+    completeness = (translated_count / total_needed * 100) if total_needed else 100
+    print(f"\n  Completeness: {translated_count}/{total_needed} fields ({completeness:.1f}%)")
+    if completeness < 100:
+        print(f"  Re-run to retry failed fields (progress is saved)")
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(description="Translate gaps using TOON batched format")
@@ -697,325 +1119,18 @@ def main():
                         help=f"Tokens-per-minute budget (default: {TPM_LIMIT})")
     args = parser.parse_args()
 
-    target_lang = "English" if args.lang == "en" else "Arabic"
-    output_dir = EN_DIR if args.lang == "en" else AR_DIR
-
-    # Load Spain data
-    spain_products = load_json(os.path.join(SPAIN_DIR, "products.json"))
-    spain_collections = load_json(os.path.join(SPAIN_DIR, "collections.json"))
-    spain_pages = load_json(os.path.join(SPAIN_DIR, "pages.json"))
-    spain_blogs = load_json(os.path.join(SPAIN_DIR, "blogs.json"))
-    spain_articles = load_json(os.path.join(SPAIN_DIR, "articles.json"))
-    spain_metaobjects = load_json(os.path.join(SPAIN_DIR, "metaobjects.json"))
-
-    if not spain_products:
-        print("ERROR: Spain export is empty. Run export_spain.py first.")
-        sys.exit(1)
-
-    # Load scraped data
-    scraped_products = load_json(os.path.join(output_dir, "products.json"))
-    scraped_collections = load_json(os.path.join(output_dir, "collections.json"))
-    scraped_pages = load_json(os.path.join(output_dir, "pages.json"))
-    scraped_articles = load_json(os.path.join(output_dir, "articles.json"))
-    scraped_metaobjects = load_json(os.path.join(output_dir, "metaobjects.json"))
-
-    print(f"{'=' * 60}")
-    print(f"TRANSLATING GAPS → {target_lang.upper()}")
-    print(f"{'=' * 60}")
-
-    # ---- Identify gaps ----
-    gap_products = find_gaps(spain_products, scraped_products, key_field="sku")
-    gap_collections = find_gaps(spain_collections, scraped_collections)
-    gap_pages = find_gaps(spain_pages, scraped_pages)
-    # Articles always need translation (not in Magento)
-    gap_articles = spain_articles
-
-    # Metaobjects: all types with text-type fields need LLM translation.
-    # The scraper copies Spain metaobjects as-is (still Spanish text).
-    gap_metaobjects = {}
-    if isinstance(spain_metaobjects, dict):
-        for mo_type, type_data in spain_metaobjects.items():
-            objs = type_data.get("objects", [])
-            if not objs:
-                continue
-
-            # Check if any object has text-type fields
-            has_text_fields = any(
-                field.get("type", "") in TEXT_METAFIELD_TYPES and field.get("value")
-                for obj in objs
-                for field in obj.get("fields", [])
-            )
-
-            if has_text_fields:
-                # Always include — scraper only copies, doesn't translate
-                gap_metaobjects[mo_type] = {
-                    "definition": type_data.get("definition", {}),
-                    "objects": objs,
-                }
-            else:
-                # Non-text types: check for genuinely missing items
-                scraped_objs = []
-                if isinstance(scraped_metaobjects, dict) and mo_type in scraped_metaobjects:
-                    scraped_objs = scraped_metaobjects[mo_type].get("objects", [])
-                scraped_handles = {o.get("handle", "") for o in scraped_objs}
-                missing = [o for o in objs if o.get("handle") not in scraped_handles]
-                if missing:
-                    gap_metaobjects[mo_type] = {
-                        "definition": type_data.get("definition", {}),
-                        "objects": missing,
-                    }
-
-    # Also, products that WERE scraped still need text-type metafield translation
-    # (Magento doesn't have Shopify accordion metafields)
-    matched_products_needing_metafields = []
-    if scraped_products:
-        scraped_handles = {p.get("handle", "") for p in scraped_products}
-        for sp in spain_products:
-            if sp.get("handle") in scraped_handles:
-                has_metafields = any(
-                    mf.get("type", "") in TEXT_METAFIELD_TYPES and mf.get("value")
-                    for mf in sp.get("metafields", [])
-                )
-                if has_metafields:
-                    matched_products_needing_metafields.append(sp)
-
-    # ---- Extract all translatable fields ----
-    all_fields = []
-
-    for p in gap_products:
-        all_fields.extend(extract_product_fields(p, "prod"))
-
-    # For matched products, only extract metafields (title/body already scraped)
-    for p in matched_products_needing_metafields:
-        pid = p.get("handle", p.get("id", ""))
-        for mf in p.get("metafields", []):
-            mf_type = mf.get("type", "")
-            ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-            if mf_type in TEXT_METAFIELD_TYPES and mf.get("value"):
-                all_fields.append({"id": f"prod.{pid}.mf.{ns_key}", "value": mf["value"]})
-
-    for c in gap_collections:
-        all_fields.extend(extract_collection_fields(c, "coll"))
-
-    for pg in gap_pages:
-        all_fields.extend(extract_page_fields(pg, "page"))
-
-    for a in gap_articles:
-        all_fields.extend(extract_article_fields(a, "art"))
-
-    # Blogs always need translation (title, handle, tags)
-    for b in spain_blogs:
-        all_fields.extend(extract_blog_fields(b, "blog"))
-
-    all_fields.extend(extract_metaobject_fields(gap_metaobjects, "mo"))
-
-    # Filter out empty values
-    all_fields = [f for f in all_fields if f.get("value") and f["value"].strip()]
-
-    print(f"\n  Total fields to translate: {len(all_fields)}")
-    print(f"  Batch size: {args.batch_size}")
-    print(f"  Estimated batches: {max(1, (len(all_fields) + args.batch_size - 1) // args.batch_size)}")
-
-    # Breakdown
-    field_types = {}
-    for f in all_fields:
-        category = f["id"].split(".")[0]
-        field_types[category] = field_types.get(category, 0) + 1
-    print(f"\n  Breakdown:")
-    for cat, count in sorted(field_types.items()):
-        print(f"    {cat}: {count} fields")
-
-    if args.dry:
-        print("\n  DRY RUN — no API calls made")
-        print(f"\n  Sample fields (first 10):")
-        for f in all_fields[:10]:
-            val = f["value"][:80] + "..." if len(f["value"]) > 80 else f["value"]
-            print(f"    {f['id']}: {val}")
-        return
-
-    if not all_fields:
-        print("\n  Nothing to translate!")
-        return
-
-    # ---- Load progress ----
-    progress_file = os.path.join(output_dir, f"_translation_progress_{args.lang}.json")
-    all_translations = {}
-    if os.path.exists(progress_file):
-        all_translations = load_json(progress_file)
-        if isinstance(all_translations, dict):
-            print(f"\n  Resuming: {len(all_translations)} fields already translated")
-        else:
-            all_translations = {}
-
-    # Filter out already translated
-    remaining = [f for f in all_fields if f["id"] not in all_translations]
-    print(f"  Remaining: {len(remaining)} fields")
-
-    if not remaining:
-        print("  All fields already translated!")
+    if args.lang == "en":
+        translate_with_gaps(
+            source_dir=SPAIN_DIR, output_dir=EN_DIR,
+            source_lang="Spanish", target_lang="English", lang_code="en",
+            dry=args.dry, model=args.model, batch_size=args.batch_size, tpm=args.tpm,
+        )
     else:
-        # ---- Translate in parallel batches ----
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            print("ERROR: OPENAI_API_KEY not set. Add it to .env")
-            sys.exit(1)
-
-        client = OpenAI(api_key=api_key)
-
-        # Adaptive batching: size by token count, not fixed field count
-        max_batch_tokens = args.batch_size * 100  # ~100 tokens per field average
-        batches = adaptive_batch(remaining, max_tokens=max_batch_tokens)
-        total_batches = len(batches)
-
-        tpm_limit = args.tpm
-        batch_sizes = [len(b) for b in batches]
-        print(f"\n  {total_batches} adaptive batches (sizes: {min(batch_sizes)}-{max(batch_sizes)} fields)")
-        print(f"  TPM budget: {tpm_limit:,}")
-
-        # Track tokens used in the current 60-second window
-        window_start = time.time()
-        window_tokens = 0
-        failed_fields = []
-
-        for i, batch in enumerate(batches):
-            # TPM throttle: if we'd exceed the budget, wait for the window to reset
-            now = time.time()
-            elapsed = now - window_start
-            if elapsed >= 60:
-                # New window
-                window_start = now
-                window_tokens = 0
-            elif window_tokens >= tpm_limit * 0.85:
-                # We've used 85%+ of the budget — wait for window to reset
-                wait = 60 - elapsed + 2
-                print(f"    TPM throttle: {window_tokens:,} tokens used, waiting {wait:.0f}s for window reset...")
-                time.sleep(wait)
-                window_start = time.time()
-                window_tokens = 0
-
-            t_map, tokens_used = translate_batch(
-                client, args.model, batch,
-                "Spanish", target_lang,
-                i + 1, total_batches,
-            )
-            window_tokens += tokens_used
-
-            if t_map:
-                all_translations.update(t_map)
-                save_json(all_translations, progress_file)
-
-                # Track fields that were in this batch but not in the response
-                batch_ids = {f["id"] for f in batch}
-                missing_from_batch = batch_ids - set(t_map.keys())
-                if missing_from_batch:
-                    failed_fields.extend([f for f in batch if f["id"] in missing_from_batch])
-            else:
-                # Entire batch failed
-                failed_fields.extend(batch)
-
-        # Report failed fields
-        if failed_fields:
-            print(f"\n  WARNING: {len(failed_fields)} fields failed translation")
-            print(f"  Re-run this command to retry them (progress is saved)")
-            # Save failed field IDs for debugging
-            failed_ids = [f["id"] for f in failed_fields]
-            save_json(failed_ids, os.path.join(output_dir, f"_failed_fields_{args.lang}.json"))
-
-    # ---- Merge translations into output data ----
-    print(f"\n  Merging {len(all_translations)} translations into output files...")
-
-    # Start with scraped data as base, add gap items
-    output_products = list(scraped_products) if scraped_products else []
-    output_collections = list(scraped_collections) if scraped_collections else []
-    output_pages = list(scraped_pages) if scraped_pages else []
-    output_articles = list(scraped_articles) if scraped_articles else []
-    output_metaobjects = dict(scraped_metaobjects) if isinstance(scraped_metaobjects, dict) else {}
-
-    # Add gap items (deep copies with Spain data as base)
-    # Deduplicate by source ID to prevent accumulation on re-runs
-    existing_product_ids = {str(p.get("id", "")) for p in output_products}
-    for p in gap_products:
-        if str(p.get("id", "")) not in existing_product_ids:
-            output_products.append(copy.deepcopy(p))
-    existing_collection_ids = {str(c.get("id", "")) for c in output_collections}
-    for c in gap_collections:
-        if str(c.get("id", "")) not in existing_collection_ids:
-            output_collections.append(copy.deepcopy(c))
-    existing_page_ids = {str(pg.get("id", "")) for pg in output_pages}
-    for pg in gap_pages:
-        if str(pg.get("id", "")) not in existing_page_ids:
-            output_pages.append(copy.deepcopy(pg))
-
-    # Articles: replace entirely (all need translation)
-    output_articles = [copy.deepcopy(a) for a in gap_articles]
-
-    # Metaobjects: merge gap types
-    for mo_type, type_data in gap_metaobjects.items():
-        if mo_type not in output_metaobjects:
-            output_metaobjects[mo_type] = copy.deepcopy(type_data)
-        else:
-            existing_handles = {o.get("handle") for o in output_metaobjects[mo_type].get("objects", [])}
-            for obj in type_data.get("objects", []):
-                if obj.get("handle") not in existing_handles:
-                    output_metaobjects[mo_type]["objects"].append(copy.deepcopy(obj))
-
-    # Blogs: deep copy from Spain, apply translations
-    output_blogs = [copy.deepcopy(b) for b in spain_blogs]
-
-    # Apply translations to all output data
-    apply_translations(
-        all_translations,
-        output_products, output_collections, output_pages,
-        output_articles, output_metaobjects, blogs=output_blogs,
-    )
-
-    # Also apply metafield translations to scraped products
-    for p in output_products:
-        pid = p.get("handle", p.get("id", ""))
-        for mf in p.get("metafields", []):
-            ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-            fid = f"prod.{pid}.mf.{ns_key}"
-            if fid in all_translations:
-                mf["value"] = all_translations[fid]
-
-    # ---- Save output ----
-    save_json(output_products, os.path.join(output_dir, "products.json"))
-    save_json(output_collections, os.path.join(output_dir, "collections.json"))
-    save_json(output_pages, os.path.join(output_dir, "pages.json"))
-    save_json(output_articles, os.path.join(output_dir, "articles.json"))
-    save_json(output_blogs, os.path.join(output_dir, "blogs.json"))
-    save_json(output_metaobjects, os.path.join(output_dir, "metaobjects.json"))
-
-    # Copy non-translatable files from Spain
-    for fname in ["metaobject_definitions.json"]:
-        src = os.path.join(SPAIN_DIR, fname)
-        if os.path.exists(src):
-            data = load_json(src)
-            save_json(data, os.path.join(output_dir, fname))
-
-    print(f"\n{'=' * 60}")
-    print(f"TRANSLATION COMPLETE → {target_lang.upper()}")
-    print(f"{'=' * 60}")
-    print(f"  Products:    {len(output_products)}")
-    print(f"  Collections: {len(output_collections)}")
-    print(f"  Pages:       {len(output_pages)}")
-    print(f"  Articles:    {len(output_articles)}")
-    if output_metaobjects:
-        mo_total = sum(len(v.get("objects", [])) for v in output_metaobjects.values())
-        print(f"  Metaobjects: {mo_total}")
-    print(f"  Output:      {output_dir}/")
-
-    # Completeness check
-    translated_count = len(all_translations)
-    total_needed = len(all_fields)
-    completeness = (translated_count / total_needed * 100) if total_needed else 100
-    print(f"\n  Completeness: {translated_count}/{total_needed} fields ({completeness:.1f}%)")
-    if completeness < 100:
-        print(f"  ⚠ {total_needed - translated_count} fields still untranslated")
-        print(f"  Re-run: python translate_gaps.py --lang {args.lang}")
-    else:
-        print(f"\n  Next: python import_english.py" if args.lang == "en" else
-              f"\n  Next: python import_arabic.py")
+        translate_with_gaps(
+            source_dir=EN_DIR, output_dir=AR_DIR,
+            source_lang="English", target_lang="Arabic", lang_code="ar",
+            dry=args.dry, model=args.model, batch_size=args.batch_size, tpm=args.tpm,
+        )
 
 
 if __name__ == "__main__":
