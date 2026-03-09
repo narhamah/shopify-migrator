@@ -108,46 +108,14 @@ TARA_TONE_EN = _load_tov("tara_tov_en.txt")
 TARA_TONE_AR = _load_tov("tara_tov_ar.txt")
 
 # =====================================================================
-# Translatable field definitions (from translator.py)
+# Translatable field type detection
 # =====================================================================
 
-PRODUCT_TRANSLATABLE_METAFIELDS = {
-    "custom.tagline", "custom.short_description", "custom.size_ml",
-    "custom.key_benefits_heading", "custom.key_benefits_content",
-    "custom.clinical_results_heading", "custom.clinical_results_content",
-    "custom.how_to_use_heading", "custom.how_to_use_content",
-    "custom.whats_inside_heading", "custom.whats_inside_content",
-    "custom.free_of_heading", "custom.free_of_content",
-    "custom.awards_heading", "custom.awards_content",
-    "custom.fragrance_heading", "custom.fragrance_content",
-    # SEO fields
-    "global.title_tag", "global.description_tag",
-}
-
-ARTICLE_TRANSLATABLE_METAFIELDS = {
-    "custom.blog_summary", "custom.hero_caption", "custom.short_title",
-}
-
-METAOBJECT_TRANSLATABLE_FIELDS = {
-    "benefit": {"title", "description", "category", "icon_label"},
-    "faq_entry": {"question", "answer"},
-    "blog_author": {"name", "bio"},
-    "ingredient": {
-        "name", "one_line_benefit", "description", "source", "origin",
-        "category", "concern",
-    },
-    # Shopify standard taxonomy metaobjects — all have a "name" field in Spanish
-    "shopify--suitable-for-hair-type": {"name"},
-    "shopify--target-gender": {"name"},
-    "shopify--hair-care-items-included": {"name"},
-    "shopify--hair-loss-type": {"name"},
-    "shopify--treatment-type": {"name"},
-    "shopify--constitutive-ingredients": {"name"},
-    "shopify--product-certifications-standards": {"name"},
-    "shopify--conditioner-effect": {"name"},
-    "shopify--age-group": {"name"},
-    "shopify--product-form": {"name"},
-    "shopify--scalp-concern": {"name"},
+# Metafield types that contain translatable text (shared with translator.py)
+TEXT_METAFIELD_TYPES = {
+    "single_line_text_field",
+    "multi_line_text_field",
+    "rich_text_field",
 }
 
 
@@ -160,7 +128,7 @@ def extract_product_fields(product, prefix):
     fields = []
     pid = product.get("handle", product.get("id", ""))
 
-    # Handle (URL slug) — translate to English slug
+    # Handle (URL slug)
     if product.get("handle"):
         fields.append({"id": f"{prefix}.{pid}.handle", "value": product["handle"]})
 
@@ -171,6 +139,8 @@ def extract_product_fields(product, prefix):
         fields.append({"id": f"{prefix}.{pid}.body_html", "value": product["body_html"]})
     if product.get("product_type"):
         fields.append({"id": f"{prefix}.{pid}.product_type", "value": product["product_type"]})
+    if product.get("vendor"):
+        fields.append({"id": f"{prefix}.{pid}.vendor", "value": product["vendor"]})
     if product.get("tags"):
         tags = product["tags"] if isinstance(product["tags"], str) else ", ".join(product["tags"])
         fields.append({"id": f"{prefix}.{pid}.tags", "value": tags})
@@ -190,10 +160,16 @@ def extract_product_fields(product, prefix):
         for j, val in enumerate(opt.get("values", [])):
             fields.append({"id": f"{prefix}.{pid}.opt{i}.val{j}", "value": val})
 
-    # Metafields
+    # Image alt text
+    for i, img in enumerate(product.get("images", [])):
+        if img.get("alt"):
+            fields.append({"id": f"{prefix}.{pid}.img{i}.alt", "value": img["alt"]})
+
+    # All text-type metafields
     for mf in product.get("metafields", []):
+        mf_type = mf.get("type", "")
         ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-        if ns_key in PRODUCT_TRANSLATABLE_METAFIELDS and mf.get("value"):
+        if mf_type in TEXT_METAFIELD_TYPES and mf.get("value"):
             fields.append({"id": f"{prefix}.{pid}.mf.{ns_key}", "value": mf["value"]})
 
     return fields
@@ -208,10 +184,14 @@ def extract_collection_fields(collection, prefix):
         fields.append({"id": f"{prefix}.{cid}.title", "value": collection["title"]})
     if collection.get("body_html"):
         fields.append({"id": f"{prefix}.{cid}.body_html", "value": collection["body_html"]})
-    # SEO metafields
+    # Collection image alt text
+    if collection.get("image") and collection["image"].get("alt"):
+        fields.append({"id": f"{prefix}.{cid}.image.alt", "value": collection["image"]["alt"]})
+    # All text-type metafields
     for mf in collection.get("metafields", []):
+        mf_type = mf.get("type", "")
         ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-        if ns_key in ("global.title_tag", "global.description_tag") and mf.get("value"):
+        if mf_type in TEXT_METAFIELD_TYPES and mf.get("value"):
             fields.append({"id": f"{prefix}.{cid}.mf.{ns_key}", "value": mf["value"]})
     return fields
 
@@ -225,40 +205,70 @@ def extract_page_fields(page, prefix):
         fields.append({"id": f"{prefix}.{pid}.title", "value": page["title"]})
     if page.get("body_html"):
         fields.append({"id": f"{prefix}.{pid}.body_html", "value": page["body_html"]})
+    # All text-type metafields
+    for mf in page.get("metafields", []):
+        mf_type = mf.get("type", "")
+        ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+        if mf_type in TEXT_METAFIELD_TYPES and mf.get("value"):
+            fields.append({"id": f"{prefix}.{pid}.mf.{ns_key}", "value": mf["value"]})
+    return fields
+
+
+def extract_blog_fields(blog, prefix):
+    fields = []
+    bid = blog.get("handle", blog.get("id", ""))
+    if blog.get("title"):
+        fields.append({"id": f"{prefix}.{bid}.title", "value": blog["title"]})
+    if blog.get("handle"):
+        fields.append({"id": f"{prefix}.{bid}.handle", "value": blog["handle"]})
+    if blog.get("tags"):
+        tags = blog["tags"] if isinstance(blog["tags"], str) else ", ".join(blog["tags"])
+        fields.append({"id": f"{prefix}.{bid}.tags", "value": tags})
     return fields
 
 
 def extract_article_fields(article, prefix):
     fields = []
     aid = article.get("handle", article.get("id", ""))
+    if article.get("handle"):
+        fields.append({"id": f"{prefix}.{aid}.handle", "value": article["handle"]})
     if article.get("title"):
         fields.append({"id": f"{prefix}.{aid}.title", "value": article["title"]})
     if article.get("body_html"):
         fields.append({"id": f"{prefix}.{aid}.body_html", "value": article["body_html"]})
     if article.get("summary_html"):
         fields.append({"id": f"{prefix}.{aid}.summary_html", "value": article["summary_html"]})
+    if article.get("author"):
+        fields.append({"id": f"{prefix}.{aid}.author", "value": article["author"]})
     if article.get("tags"):
         tags = article["tags"] if isinstance(article["tags"], str) else ", ".join(article["tags"])
         fields.append({"id": f"{prefix}.{aid}.tags", "value": tags})
-
+    # Image alt text
+    if article.get("image") and article["image"].get("alt"):
+        fields.append({"id": f"{prefix}.{aid}.image.alt", "value": article["image"]["alt"]})
+    # All text-type metafields
     for mf in article.get("metafields", []):
+        mf_type = mf.get("type", "")
         ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-        if ns_key in ARTICLE_TRANSLATABLE_METAFIELDS and mf.get("value"):
+        if mf_type in TEXT_METAFIELD_TYPES and mf.get("value"):
             fields.append({"id": f"{prefix}.{aid}.mf.{ns_key}", "value": mf["value"]})
 
     return fields
 
 
 def extract_metaobject_fields(metaobjects_data, prefix):
+    """Extract all text-type fields from all metaobjects."""
     fields = []
     for mo_type, type_data in metaobjects_data.items():
-        translatable_keys = METAOBJECT_TRANSLATABLE_FIELDS.get(mo_type, set())
-        if not translatable_keys:
-            continue
         for obj in type_data.get("objects", []):
             handle = obj.get("handle", obj.get("id", ""))
+            # Metaobject handle
+            if obj.get("handle"):
+                fields.append({"id": f"{prefix}.{mo_type}.{handle}.handle", "value": obj["handle"]})
+            # All text-type fields (type-based, not whitelist-based)
             for field in obj.get("fields", []):
-                if field["key"] in translatable_keys and field.get("value"):
+                field_type = field.get("type", "")
+                if field_type in TEXT_METAFIELD_TYPES and field.get("value"):
                     fid = f"{prefix}.{mo_type}.{handle}.{field['key']}"
                     fields.append({"id": fid, "value": field["value"]})
     return fields
@@ -310,7 +320,7 @@ def _regenerate_metaobject_handles(metaobjects):
                 obj["handle"] = _slugify(name_val)
 
 
-def apply_translations(translations, products, collections, pages, articles, metaobjects):
+def apply_translations(translations, products, collections, pages, articles, metaobjects, blogs=None):
     """Apply a dict of {field_id: translated_value} back to data structures."""
     t = translations
 
@@ -330,6 +340,8 @@ def apply_translations(translations, products, collections, pages, articles, met
                 p["body_html"] = t[f"{prefix}.{pid}.body_html"]
             if f"{prefix}.{pid}.product_type" in t:
                 p["product_type"] = t[f"{prefix}.{pid}.product_type"]
+            if f"{prefix}.{pid}.vendor" in t:
+                p["vendor"] = t[f"{prefix}.{pid}.vendor"]
             if f"{prefix}.{pid}.tags" in t:
                 p["tags"] = t[f"{prefix}.{pid}.tags"]
 
@@ -346,6 +358,11 @@ def apply_translations(translations, products, collections, pages, articles, met
                 for j in range(len(opt.get("values", []))):
                     if f"{prefix}.{pid}.opt{i}.val{j}" in t:
                         opt["values"][j] = t[f"{prefix}.{pid}.opt{i}.val{j}"]
+
+            # Image alt text
+            for i, img in enumerate(p.get("images", [])):
+                if f"{prefix}.{pid}.img{i}.alt" in t:
+                    img["alt"] = t[f"{prefix}.{pid}.img{i}.alt"]
 
             for mf in p.get("metafields", []):
                 ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
@@ -366,6 +383,10 @@ def apply_translations(translations, products, collections, pages, articles, met
                 c["title"] = t[f"{prefix}.{cid}.title"]
             if f"{prefix}.{cid}.body_html" in t:
                 c["body_html"] = t[f"{prefix}.{cid}.body_html"]
+            # Collection image alt
+            if f"{prefix}.{cid}.image.alt" in t:
+                if c.get("image"):
+                    c["image"]["alt"] = t[f"{prefix}.{cid}.image.alt"]
 
             for mf in c.get("metafields", []):
                 ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
@@ -387,17 +408,48 @@ def apply_translations(translations, products, collections, pages, articles, met
             if f"{prefix}.{pid}.body_html" in t:
                 pg["body_html"] = t[f"{prefix}.{pid}.body_html"]
 
+            for mf in pg.get("metafields", []):
+                ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+                fid = f"{prefix}.{pid}.mf.{ns_key}"
+                if fid in t:
+                    mf["value"] = t[fid]
+
+    if blogs:
+        for b in blogs:
+            bid = b.get("handle", b.get("id", ""))
+            for prefix in ["blog"]:
+                if f"{prefix}.{bid}.title" in t:
+                    b["title"] = t[f"{prefix}.{bid}.title"]
+                handle_key = f"{prefix}.{bid}.handle"
+                if handle_key in t:
+                    new_handle = _slugify(t[handle_key])
+                    if new_handle:
+                        b["handle"] = new_handle
+                if f"{prefix}.{bid}.tags" in t:
+                    b["tags"] = t[f"{prefix}.{bid}.tags"]
+
     for a in articles:
         aid = a.get("handle", a.get("id", ""))
         for prefix in ["art", "article"]:
+            handle_key = f"{prefix}.{aid}.handle"
+            if handle_key in t:
+                new_handle = _slugify(t[handle_key])
+                if new_handle:
+                    a["handle"] = new_handle
             if f"{prefix}.{aid}.title" in t:
                 a["title"] = t[f"{prefix}.{aid}.title"]
             if f"{prefix}.{aid}.body_html" in t:
                 a["body_html"] = t[f"{prefix}.{aid}.body_html"]
             if f"{prefix}.{aid}.summary_html" in t:
                 a["summary_html"] = t[f"{prefix}.{aid}.summary_html"]
+            if f"{prefix}.{aid}.author" in t:
+                a["author"] = t[f"{prefix}.{aid}.author"]
             if f"{prefix}.{aid}.tags" in t:
                 a["tags"] = t[f"{prefix}.{aid}.tags"]
+            # Article image alt
+            if f"{prefix}.{aid}.image.alt" in t:
+                if a.get("image"):
+                    a["image"]["alt"] = t[f"{prefix}.{aid}.image.alt"]
             for mf in a.get("metafields", []):
                 ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
                 fid = f"{prefix}.{aid}.mf.{ns_key}"
@@ -409,6 +461,12 @@ def apply_translations(translations, products, collections, pages, articles, met
             for obj in type_data.get("objects", []):
                 handle = obj.get("handle", obj.get("id", ""))
                 for prefix in ["mo", "metaobject"]:
+                    # Metaobject handle
+                    handle_key = f"{prefix}.{mo_type}.{handle}.handle"
+                    if handle_key in t:
+                        new_handle = _slugify(t[handle_key])
+                        if new_handle:
+                            obj["handle"] = new_handle
                     for field in obj.get("fields", []):
                         fid = f"{prefix}.{mo_type}.{handle}.{field['key']}"
                         if fid in t:
@@ -636,6 +694,7 @@ def main():
     spain_products = load_json(os.path.join(SPAIN_DIR, "products.json"))
     spain_collections = load_json(os.path.join(SPAIN_DIR, "collections.json"))
     spain_pages = load_json(os.path.join(SPAIN_DIR, "pages.json"))
+    spain_blogs = load_json(os.path.join(SPAIN_DIR, "blogs.json"))
     spain_articles = load_json(os.path.join(SPAIN_DIR, "articles.json"))
     spain_metaobjects = load_json(os.path.join(SPAIN_DIR, "metaobjects.json"))
 
@@ -661,25 +720,30 @@ def main():
     # Articles always need translation (not in Magento)
     gap_articles = spain_articles
 
-    # Metaobjects: types with translatable fields ALWAYS need LLM translation.
+    # Metaobjects: all types with text-type fields need LLM translation.
     # The scraper copies Spain metaobjects as-is (still Spanish text).
-    # All shopify-- types have a "name" field that needs translation too.
     gap_metaobjects = {}
     if isinstance(spain_metaobjects, dict):
         for mo_type, type_data in spain_metaobjects.items():
-            has_translatable = mo_type in METAOBJECT_TRANSLATABLE_FIELDS
             objs = type_data.get("objects", [])
             if not objs:
                 continue
 
-            if has_translatable:
+            # Check if any object has text-type fields
+            has_text_fields = any(
+                field.get("type", "") in TEXT_METAFIELD_TYPES and field.get("value")
+                for obj in objs
+                for field in obj.get("fields", [])
+            )
+
+            if has_text_fields:
                 # Always include — scraper only copies, doesn't translate
                 gap_metaobjects[mo_type] = {
                     "definition": type_data.get("definition", {}),
                     "objects": objs,
                 }
             else:
-                # Non-translatable types: check for genuinely missing items
+                # Non-text types: check for genuinely missing items
                 scraped_objs = []
                 if isinstance(scraped_metaobjects, dict) and mo_type in scraped_metaobjects:
                     scraped_objs = scraped_metaobjects[mo_type].get("objects", [])
@@ -691,18 +755,16 @@ def main():
                         "objects": missing,
                     }
 
-    # Also, products that WERE scraped still need metafield translation
+    # Also, products that WERE scraped still need text-type metafield translation
     # (Magento doesn't have Shopify accordion metafields)
     matched_products_needing_metafields = []
     if scraped_products:
         scraped_handles = {p.get("handle", "") for p in scraped_products}
         for sp in spain_products:
             if sp.get("handle") in scraped_handles:
-                # Check if it has translatable metafields not in scraped version
                 has_metafields = any(
-                    f"{mf.get('namespace', '')}.{mf.get('key', '')}" in PRODUCT_TRANSLATABLE_METAFIELDS
+                    mf.get("type", "") in TEXT_METAFIELD_TYPES and mf.get("value")
                     for mf in sp.get("metafields", [])
-                    if mf.get("value")
                 )
                 if has_metafields:
                     matched_products_needing_metafields.append(sp)
@@ -717,8 +779,9 @@ def main():
     for p in matched_products_needing_metafields:
         pid = p.get("handle", p.get("id", ""))
         for mf in p.get("metafields", []):
+            mf_type = mf.get("type", "")
             ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-            if ns_key in PRODUCT_TRANSLATABLE_METAFIELDS and mf.get("value"):
+            if mf_type in TEXT_METAFIELD_TYPES and mf.get("value"):
                 all_fields.append({"id": f"prod.{pid}.mf.{ns_key}", "value": mf["value"]})
 
     for c in gap_collections:
@@ -729,6 +792,10 @@ def main():
 
     for a in gap_articles:
         all_fields.extend(extract_article_fields(a, "art"))
+
+    # Blogs always need translation (title, handle, tags)
+    for b in spain_blogs:
+        all_fields.extend(extract_blog_fields(b, "blog"))
 
     all_fields.extend(extract_metaobject_fields(gap_metaobjects, "mo"))
 
@@ -882,11 +949,14 @@ def main():
                 if obj.get("handle") not in existing_handles:
                     output_metaobjects[mo_type]["objects"].append(copy.deepcopy(obj))
 
+    # Blogs: deep copy from Spain, apply translations
+    output_blogs = [copy.deepcopy(b) for b in spain_blogs]
+
     # Apply translations to all output data
     apply_translations(
         all_translations,
         output_products, output_collections, output_pages,
-        output_articles, output_metaobjects,
+        output_articles, output_metaobjects, blogs=output_blogs,
     )
 
     # Also apply metafield translations to scraped products
@@ -903,10 +973,11 @@ def main():
     save_json(output_collections, os.path.join(output_dir, "collections.json"))
     save_json(output_pages, os.path.join(output_dir, "pages.json"))
     save_json(output_articles, os.path.join(output_dir, "articles.json"))
+    save_json(output_blogs, os.path.join(output_dir, "blogs.json"))
     save_json(output_metaobjects, os.path.join(output_dir, "metaobjects.json"))
 
     # Copy non-translatable files from Spain
-    for fname in ["blogs.json", "metaobject_definitions.json"]:
+    for fname in ["metaobject_definitions.json"]:
         src = os.path.join(SPAIN_DIR, fname)
         if os.path.exists(src):
             data = load_json(src)

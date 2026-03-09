@@ -1,184 +1,109 @@
-"""Tests for translate_to_arabic.py."""
+"""Tests for translate_to_arabic.py (TOON batched translation)."""
 import json
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from translate_to_arabic import load_json, save_json, load_or_init, main
-
-
-class TestLoadJson:
-    def test_load_valid_json(self, tmp_path):
-        f = tmp_path / "data.json"
-        f.write_text(json.dumps({"key": "val"}))
-        result = load_json(str(f))
-        assert result == {"key": "val"}
-
-
-class TestSaveJson:
-    def test_save_json(self, tmp_path):
-        f = str(tmp_path / "out.json")
-        save_json([1, 2], f)
-        with open(f) as fh:
-            assert json.load(fh) == [1, 2]
-
-
-class TestLoadOrInit:
-    def test_existing_file(self, tmp_path):
-        f = tmp_path / "data.json"
-        f.write_text(json.dumps([{"id": 1}]))
-        result = load_or_init(str(f))
-        assert result == [{"id": 1}]
-
-    def test_nonexistent_file(self):
-        result = load_or_init("/tmp/nonexistent_12345.json")
-        assert result == []
+from translate_gaps import (
+    to_toon, from_toon,
+    extract_product_fields, extract_collection_fields,
+    extract_page_fields, extract_blog_fields,
+    extract_article_fields, extract_metaobject_fields,
+    apply_translations, adaptive_batch, load_json, save_json,
+    TEXT_METAFIELD_TYPES,
+)
 
 
 class TestResumeLogic:
-    def test_skip_already_translated(self):
-        existing_ids = {1, 2}
-        products = [{"id": 1}, {"id": 2}, {"id": 3}]
-        to_translate = [p for p in products if p["id"] not in existing_ids]
-        assert len(to_translate) == 1
-        assert to_translate[0]["id"] == 3
+    """Test the TOON progress-based resume at the unit level."""
 
-    def test_metaobject_resume_by_handle(self):
-        existing_handles = {"shine", "glow"}
-        objects = [{"handle": "shine"}, {"handle": "glow"}, {"handle": "new"}]
-        to_translate = [o for o in objects if o["handle"] not in existing_handles]
-        assert len(to_translate) == 1
-        assert to_translate[0]["handle"] == "new"
+    def test_progress_filters_remaining(self):
+        all_fields = [
+            {"id": "prod.p1.title", "value": "T1"},
+            {"id": "prod.p2.title", "value": "T2"},
+        ]
+        already_done = {"prod.p1.title": "Translated"}
+        remaining = [f for f in all_fields if f["id"] not in already_done]
+        assert len(remaining) == 1
+        assert remaining[0]["id"] == "prod.p2.title"
 
 
-class TestMainIntegration:
-    @patch("translate_to_arabic.load_dotenv")
-    @patch("translate_to_arabic.Translator")
-    def test_full_pipeline(self, MockTranslator, mock_dotenv, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+class TestTextMetafieldTypes:
+    def test_text_types(self):
+        assert "single_line_text_field" in TEXT_METAFIELD_TYPES
+        assert "multi_line_text_field" in TEXT_METAFIELD_TYPES
+        assert "rich_text_field" in TEXT_METAFIELD_TYPES
 
-        mock_translator = MagicMock()
-        MockTranslator.return_value = mock_translator
-        mock_translator.translate_product.side_effect = lambda p, s, t: {**p, "title": "AR"}
-        mock_translator.translate_collection.side_effect = lambda c, s, t: {**c, "title": "AR"}
-        mock_translator.translate_page.side_effect = lambda p, s, t: {**p, "title": "AR"}
-        mock_translator.translate_article.side_effect = lambda a, s, t: {**a, "title": "AR"}
-        mock_translator.translate_blog.side_effect = lambda b, s, t: {**b, "title": "AR"}
-        mock_translator.translate_metaobject.side_effect = lambda m, s, t: m
+    def test_non_text_types_excluded(self):
+        assert "metaobject_reference" not in TEXT_METAFIELD_TYPES
+        assert "number_integer" not in TEXT_METAFIELD_TYPES
+        assert "boolean" not in TEXT_METAFIELD_TYPES
 
-        input_dir = tmp_path / "data" / "english"
-        input_dir.mkdir(parents=True)
 
-        (input_dir / "products.json").write_text(json.dumps([{"id": 1, "title": "Prod"}]))
-        (input_dir / "collections.json").write_text(json.dumps([{"id": 2, "title": "Coll"}]))
-        (input_dir / "pages.json").write_text(json.dumps([{"id": 3, "title": "Page"}]))
-        (input_dir / "articles.json").write_text(json.dumps([{"id": 4, "title": "Art"}]))
-        (input_dir / "blogs.json").write_text(json.dumps([{"id": 5, "title": "Blog"}]))
+class TestCollectionMetafields:
+    def test_text_type_metafields_extracted(self):
+        coll = {
+            "handle": "c1",
+            "title": "Coll",
+            "metafields": [
+                {"namespace": "global", "key": "title_tag", "type": "single_line_text_field", "value": "SEO Title"},
+                {"namespace": "custom", "key": "ref", "type": "metaobject_reference", "value": "gid://"},
+            ],
+        }
+        fields = extract_collection_fields(coll, "coll")
+        mf_fields = [f for f in fields if ".mf." in f["id"]]
+        assert len(mf_fields) == 1
+        assert mf_fields[0]["id"] == "coll.c1.mf.global.title_tag"
 
-        os.environ["OPENAI_API_KEY"] = "fake"
-        try:
-            main()
-        finally:
-            del os.environ["OPENAI_API_KEY"]
 
-        mock_translator.translate_product.assert_called_once()
-        mock_translator.translate_collection.assert_called_once()
-        mock_translator.translate_page.assert_called_once()
-        mock_translator.translate_article.assert_called_once()
+class TestPageMetafields:
+    def test_text_type_metafields_extracted(self):
+        page = {
+            "handle": "about",
+            "title": "About",
+            "metafields": [
+                {"namespace": "custom", "key": "subtitle", "type": "multi_line_text_field", "value": "Sub"},
+                {"namespace": "custom", "key": "color", "type": "color", "value": "#fff"},
+            ],
+        }
+        fields = extract_page_fields(page, "page")
+        mf_fields = [f for f in fields if ".mf." in f["id"]]
+        assert len(mf_fields) == 1
 
-        output_dir = tmp_path / "data" / "arabic"
-        assert (output_dir / "products.json").exists()
-        assert (output_dir / "blogs.json").exists()
 
-    @patch("translate_to_arabic.load_dotenv")
-    @patch("translate_to_arabic.Translator")
-    def test_empty_inputs(self, MockTranslator, mock_dotenv, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+class TestApplyTranslationsArabic:
+    def test_apply_collection_image_alt(self):
+        collections = [{"handle": "c1", "title": "C", "image": {"alt": "Old"}}]
+        translations = {"coll.c1.image.alt": "New"}
+        apply_translations(translations, [], collections, [], [], {})
+        assert collections[0]["image"]["alt"] == "New"
 
-        mock_translator = MagicMock()
-        MockTranslator.return_value = mock_translator
+    def test_apply_article_author(self):
+        articles = [{"handle": "a1", "title": "T", "author": "Old"}]
+        translations = {"art.a1.author": "New Author"}
+        apply_translations(translations, [], [], [], articles, {})
+        assert articles[0]["author"] == "New Author"
 
-        input_dir = tmp_path / "data" / "english"
-        input_dir.mkdir(parents=True)
-
-        for name in ["products.json", "collections.json", "pages.json", "articles.json", "blogs.json"]:
-            (input_dir / name).write_text(json.dumps([]))
-
-        os.environ["OPENAI_API_KEY"] = "fake"
-        try:
-            main()
-        finally:
-            del os.environ["OPENAI_API_KEY"]
-
-        mock_translator.translate_product.assert_not_called()
-
-    @patch("translate_to_arabic.load_dotenv")
-    @patch("translate_to_arabic.Translator")
-    def test_with_metaobjects(self, MockTranslator, mock_dotenv, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-
-        mock_translator = MagicMock()
-        MockTranslator.return_value = mock_translator
-        mock_translator.translate_product.side_effect = lambda p, s, t: {**p, "title": "AR"}
-        mock_translator.translate_collection.side_effect = lambda c, s, t: c
-        mock_translator.translate_page.side_effect = lambda p, s, t: p
-        mock_translator.translate_article.side_effect = lambda a, s, t: a
-        mock_translator.translate_metaobject.side_effect = lambda m, s, t: {**m, "_ar": True}
-
-        input_dir = tmp_path / "data" / "english"
-        input_dir.mkdir(parents=True)
-
-        (input_dir / "products.json").write_text(json.dumps([{"id": 1, "title": "Prod"}]))
-        (input_dir / "collections.json").write_text(json.dumps([]))
-        (input_dir / "pages.json").write_text(json.dumps([]))
-        (input_dir / "articles.json").write_text(json.dumps([]))
-        (input_dir / "blogs.json").write_text(json.dumps([]))
-        (input_dir / "metaobjects.json").write_text(json.dumps({
+    def test_apply_metaobject_handle(self):
+        metaobjects = {
             "benefit": {
-                "definition": {"type": "benefit"},
-                "objects": [{"handle": "shine", "type": "benefit", "fields": []}],
-            }
-        }))
-        (input_dir / "metaobject_definitions.json").write_text(json.dumps([{"type": "benefit"}]))
+                "definition": {},
+                "objects": [{"handle": "old-handle", "fields": []}],
+            },
+        }
+        translations = {"mo.benefit.old-handle.handle": "new handle text"}
+        apply_translations(translations, [], [], [], [], metaobjects)
+        assert metaobjects["benefit"]["objects"][0]["handle"] == "new-handle-text"
 
-        os.environ["OPENAI_API_KEY"] = "fake"
-        try:
-            main()
-        finally:
-            del os.environ["OPENAI_API_KEY"]
-
-        mock_translator.translate_metaobject.assert_called_once()
-
-    @patch("translate_to_arabic.load_dotenv")
-    @patch("translate_to_arabic.Translator")
-    def test_resume_skips_existing(self, MockTranslator, mock_dotenv, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-
-        mock_translator = MagicMock()
-        MockTranslator.return_value = mock_translator
-        mock_translator.translate_product.side_effect = lambda p, s, t: {**p, "title": "AR"}
-        mock_translator.translate_collection.side_effect = lambda c, s, t: c
-        mock_translator.translate_page.side_effect = lambda p, s, t: p
-        mock_translator.translate_article.side_effect = lambda a, s, t: a
-
-        input_dir = tmp_path / "data" / "english"
-        input_dir.mkdir(parents=True)
-        output_dir = tmp_path / "data" / "arabic"
-        output_dir.mkdir(parents=True)
-
-        (input_dir / "products.json").write_text(json.dumps([{"id": 1, "title": "P1"}, {"id": 2, "title": "P2"}]))
-        (input_dir / "collections.json").write_text(json.dumps([]))
-        (input_dir / "pages.json").write_text(json.dumps([]))
-        (input_dir / "articles.json").write_text(json.dumps([]))
-        (input_dir / "blogs.json").write_text(json.dumps([]))
-        (output_dir / "products.json").write_text(json.dumps([{"id": 1, "title": "AR-P1"}]))
-
-        os.environ["OPENAI_API_KEY"] = "fake"
-        try:
-            main()
-        finally:
-            del os.environ["OPENAI_API_KEY"]
-
-        assert mock_translator.translate_product.call_count == 1
-        assert mock_translator.translate_product.call_args[0][0]["id"] == 2
+    def test_apply_page_metafields(self):
+        pages = [{
+            "handle": "about",
+            "title": "About",
+            "metafields": [
+                {"namespace": "global", "key": "title_tag", "type": "single_line_text_field", "value": "Old SEO"},
+            ],
+        }]
+        translations = {"page.about.mf.global.title_tag": "New SEO"}
+        apply_translations(translations, [], [], pages, [], {})
+        assert pages[0]["metafields"][0]["value"] == "New SEO"

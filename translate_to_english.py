@@ -1,177 +1,239 @@
 #!/usr/bin/env python3
 """Step 2: Translate exported Spain content from Spanish to English.
 
-Translates products (with metafields), collections, pages, articles
-(with metafields), and metaobjects. Saves progress after each item
-so it can be resumed if interrupted.
+Uses TOON (Token-Oriented Object Notation) to batch translate all fields
+in a single pipeline, reducing API calls by ~40x vs per-field translation.
+Includes TARA tone of voice for brand-consistent translations.
+
+Resumable: saves progress after each batch.
+
+Usage:
+    python translate_to_english.py              # Full translation
+    python translate_to_english.py --dry        # Show what would be translated
+    python translate_to_english.py --model o3   # Use a different model
 """
 
-import json
+import argparse
+import copy
 import os
+import sys
+import time
 
 from dotenv import load_dotenv
+from openai import OpenAI
 
-from translator import Translator
-
-
-from utils import load_json, save_json
-
-
-def load_or_init(filepath):
-    if os.path.exists(filepath):
-        return load_json(filepath)
-    return []
+from translate_gaps import (
+    SPAIN_DIR,
+    EN_DIR,
+    BATCH_SIZE,
+    TPM_LIMIT,
+    TEXT_METAFIELD_TYPES,
+    extract_product_fields,
+    extract_collection_fields,
+    extract_page_fields,
+    extract_blog_fields,
+    extract_article_fields,
+    extract_metaobject_fields,
+    apply_translations,
+    adaptive_batch,
+    translate_batch,
+    load_json,
+    save_json,
+    _regenerate_metaobject_handles,
+)
 
 
 def main():
     load_dotenv()
-    api_key = os.environ["OPENAI_API_KEY"]
+    parser = argparse.ArgumentParser(description="Translate Spain export ES → EN using TOON batches")
+    parser.add_argument("--dry", action="store_true", help="Dry run: show fields without calling API")
+    parser.add_argument("--model", default="gpt-5-mini", help="OpenAI model (default: gpt-5-mini)")
+    parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help=f"Fields per batch (default: {BATCH_SIZE})")
+    parser.add_argument("--tpm", type=int, default=TPM_LIMIT, help=f"Tokens-per-minute budget (default: {TPM_LIMIT})")
+    args = parser.parse_args()
 
-    translator = Translator(api_key)
-    input_dir = "data/spain_export"
-    output_dir = "data/english"
+    output_dir = EN_DIR
     os.makedirs(output_dir, exist_ok=True)
 
-    # --- Products ---
-    products_file = os.path.join(output_dir, "products.json")
-    products = load_json(os.path.join(input_dir, "products.json"))
-    translated_products = load_or_init(products_file)
-    existing_ids = {p["id"] for p in translated_products}
+    # Load Spain export data
+    products = load_json(os.path.join(SPAIN_DIR, "products.json"))
+    collections = load_json(os.path.join(SPAIN_DIR, "collections.json"))
+    pages = load_json(os.path.join(SPAIN_DIR, "pages.json"))
+    blogs = load_json(os.path.join(SPAIN_DIR, "blogs.json"))
+    articles = load_json(os.path.join(SPAIN_DIR, "articles.json"))
+    metaobjects = load_json(os.path.join(SPAIN_DIR, "metaobjects.json"))
 
-    print(f"Translating products (ES → EN)... ({len(existing_ids)} already done)")
-    for i, product in enumerate(products):
-        if product["id"] in existing_ids:
-            print(f"  [{i+1}/{len(products)}] Skipping (already translated): {product.get('title', '')[:50]}")
-            continue
-        print(f"  [{i+1}/{len(products)}] Translating: {product.get('title', '')[:50]}")
-        translated = translator.translate_product(product, "Spanish", "English")
-        translated_products.append(translated)
-        save_json(translated_products, products_file)
-    print(f"  Done: {len(translated_products)} products")
+    if not products and not collections and not pages:
+        print("ERROR: Spain export is empty. Run export_spain.py first.")
+        sys.exit(1)
 
-    # --- Collections ---
-    collections_file = os.path.join(output_dir, "collections.json")
-    collections = load_json(os.path.join(input_dir, "collections.json"))
-    translated_collections = load_or_init(collections_file)
-    existing_ids = {c["id"] for c in translated_collections}
+    print(f"{'=' * 60}")
+    print(f"TRANSLATE SPAIN EXPORT → ENGLISH (TOON batched)")
+    print(f"{'=' * 60}")
 
-    print(f"Translating collections (ES → EN)... ({len(existing_ids)} already done)")
-    for i, collection in enumerate(collections):
-        if collection["id"] in existing_ids:
-            print(f"  [{i+1}/{len(collections)}] Skipping: {collection.get('title', '')[:50]}")
-            continue
-        print(f"  [{i+1}/{len(collections)}] Translating: {collection.get('title', '')[:50]}")
-        translated = translator.translate_collection(collection, "Spanish", "English")
-        translated_collections.append(translated)
-        save_json(translated_collections, collections_file)
-    print(f"  Done: {len(translated_collections)} collections")
+    # ---- Extract ALL translatable fields ----
+    all_fields = []
 
-    # --- Pages ---
-    pages_file = os.path.join(output_dir, "pages.json")
-    pages = load_json(os.path.join(input_dir, "pages.json"))
-    translated_pages = load_or_init(pages_file)
-    existing_ids = {p["id"] for p in translated_pages}
+    for p in products:
+        all_fields.extend(extract_product_fields(p, "prod"))
+    for c in collections:
+        all_fields.extend(extract_collection_fields(c, "coll"))
+    for pg in pages:
+        all_fields.extend(extract_page_fields(pg, "page"))
+    for b in blogs:
+        all_fields.extend(extract_blog_fields(b, "blog"))
+    for a in articles:
+        all_fields.extend(extract_article_fields(a, "art"))
+    if isinstance(metaobjects, dict):
+        all_fields.extend(extract_metaobject_fields(metaobjects, "mo"))
 
-    print(f"Translating pages (ES → EN)... ({len(existing_ids)} already done)")
-    for i, page in enumerate(pages):
-        if page["id"] in existing_ids:
-            print(f"  [{i+1}/{len(pages)}] Skipping: {page.get('title', '')[:50]}")
-            continue
-        print(f"  [{i+1}/{len(pages)}] Translating: {page.get('title', '')[:50]}")
-        translated = translator.translate_page(page, "Spanish", "English")
-        translated_pages.append(translated)
-        save_json(translated_pages, pages_file)
-    print(f"  Done: {len(translated_pages)} pages")
+    # Filter out empty values
+    all_fields = [f for f in all_fields if f.get("value") and f["value"].strip()]
 
-    # --- Articles ---
-    articles_file = os.path.join(output_dir, "articles.json")
-    articles = load_json(os.path.join(input_dir, "articles.json"))
-    translated_articles = load_or_init(articles_file)
-    existing_ids = {a["id"] for a in translated_articles}
+    print(f"\n  Total fields to translate: {len(all_fields)}")
 
-    print(f"Translating articles (ES → EN)... ({len(existing_ids)} already done)")
-    for i, article in enumerate(articles):
-        if article["id"] in existing_ids:
-            print(f"  [{i+1}/{len(articles)}] Skipping: {article.get('title', '')[:50]}")
-            continue
-        print(f"  [{i+1}/{len(articles)}] Translating: {article.get('title', '')[:50]}")
-        translated = translator.translate_article(article, "Spanish", "English")
-        translated_articles.append(translated)
-        save_json(translated_articles, articles_file)
-    print(f"  Done: {len(translated_articles)} articles")
+    # Breakdown
+    field_types = {}
+    for f in all_fields:
+        category = f["id"].split(".")[0]
+        field_types[category] = field_types.get(category, 0) + 1
+    print(f"  Breakdown:")
+    for cat, count in sorted(field_types.items()):
+        print(f"    {cat}: {count} fields")
 
-    # --- Blogs ---
-    blogs_file = os.path.join(output_dir, "blogs.json")
-    blogs = load_json(os.path.join(input_dir, "blogs.json"))
-    translated_blogs = load_or_init(blogs_file)
-    existing_ids = {b["id"] for b in translated_blogs}
+    if args.dry:
+        print(f"\n  DRY RUN — no API calls made")
+        print(f"\n  Sample fields (first 10):")
+        for f in all_fields[:10]:
+            val = f["value"][:80] + "..." if len(f["value"]) > 80 else f["value"]
+            print(f"    {f['id']}: {val}")
+        return
 
-    print(f"Translating blogs (ES → EN)... ({len(existing_ids)} already done)")
-    for i, blog in enumerate(blogs):
-        if blog["id"] in existing_ids:
-            print(f"  [{i+1}/{len(blogs)}] Skipping: {blog.get('title', '')[:50]}")
-            continue
-        print(f"  [{i+1}/{len(blogs)}] Translating: {blog.get('title', '')[:50]}")
-        translated = translator.translate_blog(blog, "Spanish", "English")
-        translated_blogs.append(translated)
-        save_json(translated_blogs, blogs_file)
-    print(f"  Done: {len(translated_blogs)} blogs")
+    if not all_fields:
+        print("\n  Nothing to translate!")
+        return
 
-    # --- Metaobjects ---
-    metaobjects_input = os.path.join(input_dir, "metaobjects.json")
-    if os.path.exists(metaobjects_input):
-        metaobjects_file = os.path.join(output_dir, "metaobjects.json")
-        all_metaobjects = load_json(metaobjects_input)
+    # ---- Load progress ----
+    progress_file = os.path.join(output_dir, "_translation_progress_en.json")
+    all_translations = {}
+    if os.path.exists(progress_file):
+        all_translations = load_json(progress_file)
+        if isinstance(all_translations, dict):
+            print(f"\n  Resuming: {len(all_translations)} fields already translated")
+        else:
+            all_translations = {}
 
-        # Load existing progress
-        translated_metaobjects = {}
-        if os.path.exists(metaobjects_file):
-            translated_metaobjects = load_json(metaobjects_file)
+    remaining = [f for f in all_fields if f["id"] not in all_translations]
+    print(f"  Remaining: {len(remaining)} fields")
 
-        total_translated = 0
-        for mo_type, type_data in all_metaobjects.items():
-            objects = type_data.get("objects", [])
-            if not objects:
-                continue
+    if not remaining:
+        print("  All fields already translated!")
+    else:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            print("ERROR: OPENAI_API_KEY not set. Add it to .env")
+            sys.exit(1)
 
-            # Init output structure for this type
-            if mo_type not in translated_metaobjects:
-                translated_metaobjects[mo_type] = {
-                    "definition": type_data["definition"],
-                    "objects": [],
-                }
+        client = OpenAI(api_key=api_key)
 
-            existing_handles = {
-                o.get("handle") for o in translated_metaobjects[mo_type].get("objects", [])
-            }
+        max_batch_tokens = args.batch_size * 100
+        batches = adaptive_batch(remaining, max_tokens=max_batch_tokens)
+        total_batches = len(batches)
+        batch_sizes = [len(b) for b in batches]
 
-            print(f"Translating metaobjects '{mo_type}' (ES → EN)... ({len(existing_handles)} already done)")
-            for j, obj in enumerate(objects):
-                handle = obj.get("handle", "")
-                if handle in existing_handles:
-                    print(f"  [{j+1}/{len(objects)}] Skipping: {handle}")
-                    continue
-                print(f"  [{j+1}/{len(objects)}] Translating: {handle}")
-                translated = translator.translate_metaobject(obj, "Spanish", "English")
-                translated_metaobjects[mo_type]["objects"].append(translated)
-                save_json(translated_metaobjects, metaobjects_file)
-                total_translated += 1
+        print(f"\n  {total_batches} adaptive batches (sizes: {min(batch_sizes)}-{max(batch_sizes)} fields)")
+        print(f"  TPM budget: {args.tpm:,}")
 
-        print(f"  Done: {total_translated} metaobjects translated")
+        window_start = time.time()
+        window_tokens = 0
+        failed_fields = []
 
-        # Copy definitions file
-        defs = load_json(os.path.join(input_dir, "metaobject_definitions.json"))
-        save_json(defs, os.path.join(output_dir, "metaobject_definitions.json"))
+        for i, batch in enumerate(batches):
+            now = time.time()
+            elapsed = now - window_start
+            if elapsed >= 60:
+                window_start = now
+                window_tokens = 0
+            elif window_tokens >= args.tpm * 0.85:
+                wait = 60 - elapsed + 2
+                print(f"    TPM throttle: {window_tokens:,} tokens used, waiting {wait:.0f}s...")
+                time.sleep(wait)
+                window_start = time.time()
+                window_tokens = 0
 
-    print("\n--- Translation Summary (ES → EN) ---")
-    print(f"  Products:    {len(translated_products)}")
-    print(f"  Collections: {len(translated_collections)}")
-    print(f"  Pages:       {len(translated_pages)}")
-    print(f"  Articles:    {len(translated_articles)}")
-    if os.path.exists(metaobjects_input):
-        mo_count = sum(len(td.get("objects", [])) for td in translated_metaobjects.values())
-        print(f"  Metaobjects: {mo_count}")
+            t_map, tokens_used = translate_batch(
+                client, args.model, batch,
+                "Spanish", "English",
+                i + 1, total_batches,
+            )
+            window_tokens += tokens_used
+
+            if t_map:
+                all_translations.update(t_map)
+                save_json(all_translations, progress_file)
+                batch_ids = {f["id"] for f in batch}
+                missing_from_batch = batch_ids - set(t_map.keys())
+                if missing_from_batch:
+                    failed_fields.extend([f for f in batch if f["id"] in missing_from_batch])
+            else:
+                failed_fields.extend(batch)
+
+        if failed_fields:
+            print(f"\n  WARNING: {len(failed_fields)} fields failed translation")
+            print(f"  Re-run to retry (progress is saved)")
+            save_json([f["id"] for f in failed_fields], os.path.join(output_dir, "_failed_fields_en.json"))
+
+    # ---- Build output data ----
+    print(f"\n  Merging {len(all_translations)} translations into output files...")
+
+    output_products = [copy.deepcopy(p) for p in products]
+    output_collections = [copy.deepcopy(c) for c in collections]
+    output_pages = [copy.deepcopy(pg) for pg in pages]
+    output_blogs = [copy.deepcopy(b) for b in blogs]
+    output_articles = [copy.deepcopy(a) for a in articles]
+    output_metaobjects = copy.deepcopy(metaobjects) if isinstance(metaobjects, dict) else {}
+
+    apply_translations(
+        all_translations,
+        output_products, output_collections, output_pages,
+        output_articles, output_metaobjects, blogs=output_blogs,
+    )
+
+    # ---- Save ----
+    save_json(output_products, os.path.join(output_dir, "products.json"))
+    save_json(output_collections, os.path.join(output_dir, "collections.json"))
+    save_json(output_pages, os.path.join(output_dir, "pages.json"))
+    save_json(output_blogs, os.path.join(output_dir, "blogs.json"))
+    save_json(output_articles, os.path.join(output_dir, "articles.json"))
+    save_json(output_metaobjects, os.path.join(output_dir, "metaobjects.json"))
+
+    # Copy non-translatable files
+    for fname in ["metaobject_definitions.json"]:
+        src = os.path.join(SPAIN_DIR, fname)
+        if os.path.exists(src):
+            save_json(load_json(src), os.path.join(output_dir, fname))
+
+    print(f"\n{'=' * 60}")
+    print(f"TRANSLATION COMPLETE → ENGLISH")
+    print(f"{'=' * 60}")
+    print(f"  Products:    {len(output_products)}")
+    print(f"  Collections: {len(output_collections)}")
+    print(f"  Pages:       {len(output_pages)}")
+    print(f"  Blogs:       {len(output_blogs)}")
+    print(f"  Articles:    {len(output_articles)}")
+    if output_metaobjects:
+        mo_total = sum(len(v.get("objects", [])) for v in output_metaobjects.values())
+        print(f"  Metaobjects: {mo_total}")
     print(f"  Output:      {output_dir}/")
+
+    translated_count = len(all_translations)
+    total_needed = len(all_fields)
+    completeness = (translated_count / total_needed * 100) if total_needed else 100
+    print(f"\n  Completeness: {translated_count}/{total_needed} fields ({completeness:.1f}%)")
+    if completeness < 100:
+        print(f"  Re-run: python translate_to_english.py")
+    else:
+        print(f"\n  Next: python translate_to_arabic.py")
 
 
 if __name__ == "__main__":
