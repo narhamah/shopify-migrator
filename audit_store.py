@@ -943,7 +943,7 @@ def main():
         "sections": report.sections,
         "all_pass": all_pass,
     }
-    with open("data/audit_report.json", "w") as f:
+    with open("data/audit_report.json", "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2, ensure_ascii=False)
     print(f"\n  Detailed report saved to data/audit_report.json")
 

@@ -23,7 +23,62 @@ import requests
 
 from dotenv import load_dotenv
 from shopify_client import ShopifyClient
-from utils import load_json
+from utils import load_json, SPAIN_DIR, EN_DIR
+
+
+# ─── Handle Mapping (Spain → English) ───
+
+def _build_handle_map(spain_file, english_file, id_key="id"):
+    """Build a {spanish_handle: english_handle} dict using shared IDs."""
+    sp_items = load_json(spain_file)
+    en_items = load_json(english_file)
+    sp_by_id = {item[id_key]: item.get("handle", "") for item in sp_items}
+    en_by_id = {item[id_key]: item.get("handle", "") for item in en_items}
+    mapping = {}
+    for item_id, sp_handle in sp_by_id.items():
+        en_handle = en_by_id.get(item_id)
+        if en_handle and sp_handle:
+            mapping[sp_handle] = en_handle
+    return mapping
+
+
+def _build_metaobject_handle_map(mo_type):
+    """Build a {spanish_handle: english_handle} dict for a metaobject type."""
+    sp_data = load_json(os.path.join(SPAIN_DIR, "metaobjects.json"), default={})
+    en_data = load_json(os.path.join(EN_DIR, "metaobjects.json"), default={})
+    sp_objs = sp_data.get(mo_type, {}).get("objects", [])
+    en_objs = en_data.get(mo_type, {}).get("objects", [])
+    sp_by_id = {o["id"]: o.get("handle", "") for o in sp_objs}
+    en_by_id = {o["id"]: o.get("handle", "") for o in en_objs}
+    mapping = {}
+    for obj_id, sp_handle in sp_by_id.items():
+        en_handle = en_by_id.get(obj_id)
+        if en_handle and sp_handle:
+            mapping[sp_handle] = en_handle
+    return mapping
+
+
+def load_all_handle_maps():
+    """Load all Spain→English handle mappings from local data files."""
+    return {
+        "products": _build_handle_map(
+            os.path.join(SPAIN_DIR, "products.json"),
+            os.path.join(EN_DIR, "products.json"),
+        ),
+        "collections": _build_handle_map(
+            os.path.join(SPAIN_DIR, "collections.json"),
+            os.path.join(EN_DIR, "collections.json"),
+        ),
+        "pages": _build_handle_map(
+            os.path.join(SPAIN_DIR, "pages.json"),
+            os.path.join(EN_DIR, "pages.json"),
+        ),
+        "articles": _build_handle_map(
+            os.path.join(SPAIN_DIR, "articles.json"),
+            os.path.join(EN_DIR, "articles.json"),
+        ),
+        "ingredients": _build_metaobject_handle_map("ingredient"),
+    }
 
 
 # ─── Report ───
@@ -93,7 +148,8 @@ class ComparisonReport:
 
 # ─── API Comparisons ───
 
-def compare_pages(spain, saudi, report):
+def compare_pages(spain, saudi, report, handle_map=None):
+    handle_map = handle_map or {}
     report.section("PAGES")
 
     spain_pages = spain.get_pages()
@@ -104,32 +160,38 @@ def compare_pages(spain, saudi, report):
 
     report.info(f"Spain: {len(spain_pages)} pages | Saudi: {len(saudi_pages)} pages")
 
+    matched_saudi = set()
     for handle, sp in spain_handles.items():
         title = sp.get("title", "")
         template = sp.get("template_suffix", "") or "(default)"
-        if handle in saudi_handles:
-            sa = saudi_handles[handle]
-            sa_template = sa.get("template_suffix", "") or "(default)"
-            if template == sa_template:
-                report.match(f"Page '/{handle}' exists with template '{template}'")
-            else:
-                report.diff(f"Page '/{handle}' template: Spain='{template}' vs Saudi='{sa_template}'")
+        # Try direct handle match first, then mapped English handle
+        en_handle = handle_map.get(handle, handle)
+        sa = saudi_handles.get(handle) or saudi_handles.get(en_handle)
+        matched_key = handle if handle in saudi_handles else en_handle
 
-            # Check body content
+        if sa:
+            matched_saudi.add(matched_key)
+            sa_template = sa.get("template_suffix", "") or "(default)"
+            label = f"/{handle}" if handle == matched_key else f"/{handle} → /{matched_key}"
+            if template == sa_template:
+                report.match(f"Page '{label}' exists with template '{template}'")
+            else:
+                report.diff(f"Page '{label}' template: Spain='{template}' vs Saudi='{sa_template}'")
+
             sp_body_len = len(sp.get("body_html", "") or "")
             sa_body_len = len(sa.get("body_html", "") or "")
             if sp_body_len > 0 and sa_body_len == 0:
-                report.missing(f"Page '/{handle}' has empty body in Saudi (Spain has {sp_body_len} chars)")
+                report.missing(f"Page '{label}' has empty body in Saudi (Spain has {sp_body_len} chars)")
         else:
             report.missing(f"Page '/{handle}' ({title}, template: {template})")
 
-    # Check for Saudi pages not in Spain (shouldn't be an issue but good to know)
     for handle in saudi_handles:
-        if handle not in spain_handles:
+        if handle not in spain_handles and handle not in matched_saudi:
             report.info(f"Saudi-only page: /{handle}")
 
 
-def compare_collections(spain, saudi, report):
+def compare_collections(spain, saudi, report, handle_map=None):
+    handle_map = handle_map or {}
     report.section("COLLECTIONS")
 
     spain_cols = spain.get_collections()
@@ -143,14 +205,17 @@ def compare_collections(spain, saudi, report):
     missing_collections = []
     for handle, sc in spain_handles.items():
         title = sc.get("title", "")
-        if handle in saudi_handles:
-            sa = saudi_handles[handle]
-            # Compare images
+        en_handle = handle_map.get(handle, handle)
+        sa = saudi_handles.get(handle) or saudi_handles.get(en_handle)
+        matched_key = handle if handle in saudi_handles else en_handle
+
+        if sa:
             sp_img = bool(sc.get("image"))
             sa_img = bool(sa.get("image"))
+            label = f"/{handle}" if handle == matched_key else f"/{handle} → /{matched_key}"
             if sp_img and not sa_img:
-                report.diff(f"Collection '/{handle}': Spain has image, Saudi doesn't")
-            report.match(f"Collection '/{handle}' ({title})")
+                report.diff(f"Collection '{label}': Spain has image, Saudi doesn't")
+            report.match(f"Collection '{label}' ({title} → {sa.get('title', '')})")
         else:
             missing_collections.append((handle, title))
             report.missing(f"Collection '/{handle}' ({title})")
@@ -159,39 +224,55 @@ def compare_collections(spain, saudi, report):
         report.info(f"\n  {len(missing_collections)} collections missing in Saudi")
 
 
-def compare_products(spain, saudi, report):
+def compare_products(spain, saudi, report, handle_map=None):
+    handle_map = handle_map or {}
     report.section("PRODUCTS")
 
     spain_prods = spain.get_products()
     saudi_prods = saudi.get_products()
 
-    spain_by_title = {p.get("title", "").lower(): p for p in spain_prods}
-    saudi_by_title = {p.get("title", "").lower(): p for p in saudi_prods}
-
-    spain_handles = {p.get("handle", ""): p for p in spain_prods}
     saudi_handles = {p.get("handle", ""): p for p in saudi_prods}
 
     report.info(f"Spain: {len(spain_prods)} products | Saudi: {len(saudi_prods)} products")
 
+    # Deduplicate Spain products by handle (old/new handle pairs share same title)
+    seen_handles = set()
     for sp in spain_prods:
         sp_title = sp.get("title", "")
         sp_handle = sp.get("handle", "")
         sp_images = len(sp.get("images", []))
         sp_variants = len(sp.get("variants", []))
 
-        # Try to find matching Saudi product by handle or similar title
-        sa = saudi_handles.get(sp_handle)
+        # Use English handle mapping first, then direct handle, then fuzzy title
+        en_handle = handle_map.get(sp_handle)
+        sa = None
+        matched_label = ""
+
+        if en_handle:
+            sa = saudi_handles.get(en_handle)
+            matched_label = f"/{sp_handle} → /{en_handle}"
+            # Skip if we already matched this English handle from another Spanish handle
+            if en_handle in seen_handles:
+                continue
+            seen_handles.add(en_handle)
         if not sa:
-            # Try matching by partial title
+            sa = saudi_handles.get(sp_handle)
+            if sa:
+                matched_label = f"/{sp_handle}"
+                if sp_handle in seen_handles:
+                    continue
+                seen_handles.add(sp_handle)
+        if not sa:
+            # Fuzzy title match as last resort
             for sa_p in saudi_prods:
                 sa_title_lower = sa_p.get("title", "").lower()
                 sp_title_lower = sp_title.lower()
-                # Check for similar words
                 sp_words = set(sp_title_lower.split())
                 sa_words = set(sa_title_lower.split())
                 overlap = sp_words & sa_words
                 if len(overlap) >= 2 or sp_title_lower in sa_title_lower or sa_title_lower in sp_title_lower:
                     sa = sa_p
+                    matched_label = f"/{sp_handle} ~> /{sa.get('handle', '')}"
                     break
 
         if sa:
@@ -199,7 +280,7 @@ def compare_products(spain, saudi, report):
             sa_variants = len(sa.get("variants", []))
             sa_status = sa.get("status", "")
 
-            report.match(f"Product '{sp_title[:40]}' → '{sa.get('title', '')[:40]}'")
+            report.match(f"Product '{sp_title[:40]}' → '{sa.get('title', '')[:40]}' ({matched_label})")
 
             if sp_images > 0 and sa_images == 0:
                 report.broken(f"  '{sp_title[:30]}': Spain has {sp_images} images, Saudi has 0")
@@ -215,12 +296,14 @@ def compare_products(spain, saudi, report):
             report.missing(f"Product '{sp_title}' (/{sp_handle})")
 
 
-def compare_product_features(spain, saudi, report):
+def compare_product_features(spain, saudi, report, handle_map=None):
     """Deep comparison of product page features — metafields, accordions, ingredients."""
+    handle_map = handle_map or {}
     report.section("PRODUCT PAGE FEATURES")
 
     spain_prods = spain.get_products()
     saudi_prods = saudi.get_products()
+    saudi_handles = {p.get("handle", ""): p for p in saudi_prods}
 
     # Sample up to 5 products from Spain
     sample_spain = spain_prods[:5]
@@ -254,16 +337,21 @@ def compare_product_features(spain, saudi, report):
         sp_mfs = spain.get_metafields("products", sp["id"])
         sp_mf_keys = {f"{mf['namespace']}.{mf['key']}": mf for mf in sp_mfs}
 
-        # Find matching Saudi product
-        sa = None
-        for sa_p in saudi_prods:
-            sa_title_lower = sa_p.get("title", "").lower()
-            sp_title_lower = sp.get("title", "").lower()
-            sp_words = set(sp_title_lower.split())
-            sa_words = set(sa_title_lower.split())
-            if len(sp_words & sa_words) >= 2 or sp_title_lower in sa_title_lower:
-                sa = sa_p
-                break
+        # Find matching Saudi product via handle map first
+        en_handle = handle_map.get(sp_handle)
+        sa = saudi_handles.get(en_handle) if en_handle else None
+        if not sa:
+            sa = saudi_handles.get(sp_handle)
+        if not sa:
+            # Fuzzy title match as last resort
+            for sa_p in saudi_prods:
+                sa_title_lower = sa_p.get("title", "").lower()
+                sp_title_lower = sp.get("title", "").lower()
+                sp_words = set(sp_title_lower.split())
+                sa_words = set(sa_title_lower.split())
+                if len(sp_words & sa_words) >= 2 or sp_title_lower in sa_title_lower:
+                    sa = sa_p
+                    break
 
         if not sa:
             report.info(f"Cannot find Saudi match for '{sp_title}' — skipping metafield comparison")
@@ -290,7 +378,8 @@ def compare_product_features(spain, saudi, report):
                 report.info(f"  {field}: Saudi has value, Spain doesn't (extra)")
 
 
-def compare_metaobjects(spain, saudi, report):
+def compare_metaobjects(spain, saudi, report, ingredient_handle_map=None):
+    ingredient_handle_map = ingredient_handle_map or {}
     report.section("METAOBJECTS")
 
     sp_defs = spain.get_metaobject_definitions()
@@ -334,13 +423,14 @@ def compare_metaobjects(spain, saudi, report):
 
             # For ingredients: check individual entries for missing data
             if mo_type == "ingredient":
-                _compare_ingredient_entries(sp_entries, sa_entries, report)
+                _compare_ingredient_entries(sp_entries, sa_entries, report, ingredient_handle_map)
         else:
             report.missing(f"Metaobject definition '{mo_type}'")
 
 
-def _compare_ingredient_entries(sp_entries, sa_entries, report):
+def _compare_ingredient_entries(sp_entries, sa_entries, report, handle_map=None):
     """Compare individual ingredient entries between stores."""
+    handle_map = handle_map or {}
     sp_by_handle = {e["handle"]: e for e in sp_entries}
     sa_by_handle = {e["handle"]: e for e in sa_entries}
 
@@ -349,11 +439,14 @@ def _compare_ingredient_entries(sp_entries, sa_entries, report):
         sp_fields = {f["key"]: f.get("value") for f in sp_ing.get("fields", [])}
         name = sp_fields.get("name", handle)
 
-        if handle not in sa_by_handle:
+        # Try direct handle, then English mapped handle
+        en_handle = handle_map.get(handle, handle)
+        sa_ing = sa_by_handle.get(handle) or sa_by_handle.get(en_handle)
+
+        if not sa_ing:
             missing_ingredients.append(name)
             continue
 
-        sa_ing = sa_by_handle[handle]
         sa_fields = {f["key"]: f.get("value") for f in sa_ing.get("fields", [])}
 
         # Check key fields
@@ -411,7 +504,10 @@ def compare_navigation(spain, saudi, report):
                     # Match by URL path (different domains but same path)
                     sp_path = sp_url.split(".com")[-1] if ".com" in sp_url else sp_url
                     sa_path = sa_url.split(".com")[-1] if ".com" in sa_url else sa_url
-                    if sp_path == sa_path:
+                    # Normalize: strip /en/ prefix, strip leading/trailing slashes
+                    sp_path_norm = re.sub(r"^/en/", "/", sp_path).strip("/")
+                    sa_path_norm = re.sub(r"^/en/", "/", sa_path).strip("/")
+                    if sp_path_norm == sa_path_norm:
                         sa_item = sa_i
                         break
 
@@ -442,7 +538,8 @@ def compare_navigation(spain, saudi, report):
                 report.info(f"  → {item.get('title', '')} [{item.get('url', '')}]")
 
 
-def compare_blogs(spain, saudi, report):
+def compare_blogs(spain, saudi, report, article_handle_map=None):
+    article_handle_map = article_handle_map or {}
     report.section("BLOGS & ARTICLES")
 
     sp_blogs = spain.get_blogs()
@@ -463,11 +560,16 @@ def compare_blogs(spain, saudi, report):
             if len(sp_articles) != len(sa_articles):
                 report.diff(f"Blog '{handle}' article count: Spain={len(sp_articles)}, Saudi={len(sa_articles)}")
 
-            # Compare individual articles
+            # Compare individual articles using handle map
             sp_art_handles = {a.get("handle", ""): a for a in sp_articles}
             sa_art_handles = {a.get("handle", ""): a for a in sa_articles}
             for art_handle, sp_art in sp_art_handles.items():
-                if art_handle not in sa_art_handles:
+                en_art_handle = article_handle_map.get(art_handle, art_handle)
+                if art_handle in sa_art_handles:
+                    report.match(f"Article '/{handle}/{art_handle}'")
+                elif en_art_handle in sa_art_handles:
+                    report.match(f"Article '/{handle}/{art_handle}' → '/{handle}/{en_art_handle}'")
+                else:
                     report.missing(f"Article '/{handle}/{art_handle}' ({sp_art.get('title', '')[:40]})")
         else:
             report.missing(f"Blog '{handle}' ({sp_blog.get('title', '')})")
@@ -972,6 +1074,11 @@ def main():
     saudi = ShopifyClient(saudi_url, saudi_token)
     report = ComparisonReport()
 
+    # Load Spain→English handle mappings from local translated data
+    handle_maps = load_all_handle_maps()
+    map_counts = {k: len(v) for k, v in handle_maps.items()}
+    print(f"\n  Handle mappings loaded: {map_counts}")
+
     print("=" * 70)
     print("  STORE COMPARISON: Spain ↔ Saudi")
     print("=" * 70)
@@ -981,13 +1088,13 @@ def main():
 
     if not args.scrape_only:
         # API-based comparisons
-        compare_pages(spain, saudi, report)
-        compare_collections(spain, saudi, report)
-        compare_products(spain, saudi, report)
-        compare_product_features(spain, saudi, report)
-        compare_metaobjects(spain, saudi, report)
+        compare_pages(spain, saudi, report, handle_maps.get("pages", {}))
+        compare_collections(spain, saudi, report, handle_maps.get("collections", {}))
+        compare_products(spain, saudi, report, handle_maps.get("products", {}))
+        compare_product_features(spain, saudi, report, handle_maps.get("products", {}))
+        compare_metaobjects(spain, saudi, report, handle_maps.get("ingredients", {}))
         compare_navigation(spain, saudi, report)
-        compare_blogs(spain, saudi, report)
+        compare_blogs(spain, saudi, report, handle_maps.get("articles", {}))
         compare_theme_templates(spain, saudi, report)
         compare_homepage_sections(spain, saudi, report)
         compare_product_collections(spain, saudi, report)
@@ -1016,7 +1123,7 @@ def main():
         "all_pass": all_good,
     }
     os.makedirs("data", exist_ok=True)
-    with open("data/comparison_report.json", "w") as f:
+    with open("data/comparison_report.json", "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2, ensure_ascii=False)
     print(f"\n  Detailed report saved to data/comparison_report.json")
 
