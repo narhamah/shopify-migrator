@@ -77,6 +77,9 @@ def inspect_value(value, path, registry, depth=0):
                 "max_length": 0,
             }
         entry = registry[path]
+        # Skip if this path was already registered as an array
+        if not isinstance(entry.get("type"), set):
+            return
         if value is None:
             entry["type"].add("null")
         elif isinstance(value, bool):
