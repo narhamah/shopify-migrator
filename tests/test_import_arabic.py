@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from import_arabic import build_translation_inputs, ARABIC_LOCALE, main
-from utils import load_json, save_json
+from tara_migrate.pipeline.import_arabic import build_translation_inputs, ARABIC_LOCALE, main
+from tara_migrate.core import load_json, save_json
 from tests.conftest import (
     make_product, make_collection, make_page, make_article,
     make_blog, make_id_map, make_metaobjects_data,
@@ -119,8 +119,8 @@ def _setup_arabic_data(base_path, id_map=None, progress=None,
 # ---------------------------------------------------------------------------
 
 class TestMainDryRun:
-    @patch("import_arabic.load_dotenv")
-    @patch("sys.argv", ["import_arabic.py", "--dry-run"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py", "--dry-run"])
     def test_dry_run_output(self, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path)
@@ -130,9 +130,9 @@ class TestMainDryRun:
 
 
 class TestMainProducts:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_registers_product_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path)
@@ -158,9 +158,9 @@ class TestMainProducts:
 
         mc.register_translations.assert_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_skips_already_done(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path, progress={"product_9001": True})
@@ -178,9 +178,9 @@ class TestMainProducts:
 
         mc.get_translatable_resource.assert_not_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_no_dest_id_skips(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path, id_map={"products": {}})
@@ -198,9 +198,9 @@ class TestMainProducts:
 
         mc.get_translatable_resource.assert_not_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_no_arabic_translation_skips(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         product = make_product()
@@ -221,9 +221,9 @@ class TestMainProducts:
 
         mc.get_translatable_resource.assert_not_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_translation_error_continues(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path)
@@ -243,9 +243,9 @@ class TestMainProducts:
         captured = capsys.readouterr()
         assert "error" in captured.out.lower()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_no_translatable_content(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path)
@@ -267,9 +267,9 @@ class TestMainProducts:
 
 
 class TestMainCollections:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_registers_collection_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         coll = make_collection()
@@ -304,9 +304,9 @@ class TestMainCollections:
 
 
 class TestMainPages:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_registers_page_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         page = make_page()
@@ -340,9 +340,9 @@ class TestMainPages:
 
 
 class TestMainArticles:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_registers_article_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         art = make_article()
@@ -378,9 +378,9 @@ class TestMainArticles:
 
 
 class TestMainMetaobjects:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_registers_metaobject_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
@@ -428,9 +428,9 @@ class TestMainMetaobjects:
 
         mc.register_translations.assert_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_arabic.py"])
     def test_metaobject_no_dest_id_falls_back_to_handle(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 

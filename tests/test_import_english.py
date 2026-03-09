@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from import_english import prepare_product_for_import, main
-from utils import load_json, save_json
+from tara_migrate.pipeline.import_english import prepare_product_for_import, main
+from tara_migrate.core import load_json, save_json
 
 from tests.conftest import (
     make_product, make_collection, make_page, make_blog, make_article,
@@ -139,8 +139,8 @@ def _setup_english_data(base_path):
 
 
 class TestMainDryRun:
-    @patch("import_english.load_dotenv")
-    @patch("sys.argv", ["import_english.py", "--dry-run"])
+    @patch("tara_migrate.pipeline.import_english.load_dotenv")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_english.py", "--dry-run"])
     def test_dry_run(self, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)
@@ -153,9 +153,9 @@ class TestMainDryRun:
 
 
 class TestMainPhases:
-    @patch("import_english.load_dotenv")
-    @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py"])
+    @patch("tara_migrate.pipeline.import_english.load_dotenv")
+    @patch("tara_migrate.pipeline.import_english.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_english.py"])
     def test_creates_products(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)
@@ -196,9 +196,9 @@ class TestMainPhases:
 class TestMainExistingResources:
     """Test that existing resources get mapped rather than re-created."""
 
-    @patch("import_english.load_dotenv")
-    @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py"])
+    @patch("tara_migrate.pipeline.import_english.load_dotenv")
+    @patch("tara_migrate.pipeline.import_english.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_english.py"])
     def test_existing_product_mapped(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)
@@ -229,9 +229,9 @@ class TestMainExistingResources:
         mc.create_page.assert_not_called()
         mc.create_blog.assert_not_called()
 
-    @patch("import_english.load_dotenv")
-    @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py"])
+    @patch("tara_migrate.pipeline.import_english.load_dotenv")
+    @patch("tara_migrate.pipeline.import_english.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_english.py"])
     def test_phase6_remaps_references(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         """Integration test of Phase 6 reference remapping."""
         monkeypatch.chdir(tmp_path)
@@ -261,9 +261,9 @@ class TestMainExistingResources:
         # and set_metafields for product→ingredient and article→author remapping
         assert mc.update_metaobject.called or mc.set_metafields.called
 
-    @patch("import_english.load_dotenv")
-    @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py"])
+    @patch("tara_migrate.pipeline.import_english.load_dotenv")
+    @patch("tara_migrate.pipeline.import_english.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_english.py"])
     def test_error_handling_in_creation(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)

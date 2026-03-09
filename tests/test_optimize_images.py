@@ -4,7 +4,7 @@ import io
 import pytest
 from PIL import Image
 
-from optimize_images import optimize_image, download_and_optimize, _guess_mime
+from tara_migrate.tools.optimize_images import optimize_image, download_and_optimize, _guess_mime
 
 
 def _make_image_bytes(fmt="PNG", size=(100, 100), mode="RGB"):

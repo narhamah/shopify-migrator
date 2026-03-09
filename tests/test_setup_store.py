@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from setup_store import (
+from tara_migrate.setup.setup_store import (
     METAOBJECT_DEFINITIONS,
     PRODUCT_METAFIELD_DEFINITIONS,
     ARTICLE_METAFIELD_DEFINITIONS,
@@ -93,9 +93,9 @@ class TestResolveMetaobjectDefinitionIds:
 # ---------------------------------------------------------------------------
 
 class TestMain:
-    @patch("setup_store.load_dotenv")
-    @patch("setup_store.ShopifyClient")
-    @patch("sys.argv", ["setup_store.py"])
+    @patch("tara_migrate.setup.setup_store.load_dotenv")
+    @patch("tara_migrate.setup.setup_store.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.setup.setup_store.py"])
     def test_main_creates_all_definitions(self, MockClient, mock_dotenv):
         mock_client = MagicMock()
         MockClient.return_value = mock_client
@@ -120,17 +120,17 @@ class TestMain:
         # 19 product + 12 article = 31 metafield definitions
         assert mock_client.create_metafield_definition.call_count == 31
 
-    @patch("setup_store.load_dotenv")
-    @patch("sys.argv", ["setup_store.py", "--dry-run"])
+    @patch("tara_migrate.setup.setup_store.load_dotenv")
+    @patch("sys.argv", ["tara_migrate.setup.setup_store.py", "--dry-run"])
     def test_main_dry_run(self, mock_dotenv, capsys):
         main()
         captured = capsys.readouterr()
         assert "DRY RUN" in captured.out
         assert "would create" in captured.out
 
-    @patch("setup_store.load_dotenv")
-    @patch("setup_store.ShopifyClient")
-    @patch("sys.argv", ["setup_store.py"])
+    @patch("tara_migrate.setup.setup_store.load_dotenv")
+    @patch("tara_migrate.setup.setup_store.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.setup.setup_store.py"])
     def test_main_skips_existing(self, MockClient, mock_dotenv):
         mock_client = MagicMock()
         MockClient.return_value = mock_client
@@ -161,9 +161,9 @@ class TestMain:
         mock_client.create_metaobject_definition.assert_not_called()
         mock_client.create_metafield_definition.assert_not_called()
 
-    @patch("setup_store.load_dotenv")
-    @patch("setup_store.ShopifyClient")
-    @patch("sys.argv", ["setup_store.py"])
+    @patch("tara_migrate.setup.setup_store.load_dotenv")
+    @patch("tara_migrate.setup.setup_store.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.setup.setup_store.py"])
     def test_main_handles_creation_error(self, MockClient, mock_dotenv, capsys):
         mock_client = MagicMock()
         MockClient.return_value = mock_client
@@ -183,9 +183,9 @@ class TestMain:
         captured = capsys.readouterr()
         assert "error" in captured.out.lower()
 
-    @patch("setup_store.load_dotenv")
-    @patch("setup_store.ShopifyClient")
-    @patch("sys.argv", ["setup_store.py"])
+    @patch("tara_migrate.setup.setup_store.load_dotenv")
+    @patch("tara_migrate.setup.setup_store.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.setup.setup_store.py"])
     def test_main_already_exists_via_api(self, MockClient, mock_dotenv):
         mock_client = MagicMock()
         MockClient.return_value = mock_client

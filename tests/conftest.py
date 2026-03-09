@@ -1,12 +1,7 @@
 """Shared fixtures for the shopify-migrator test suite."""
 import json
-import os
-import sys
 
 import pytest
-
-# Ensure project root is on path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ def _patch_tov_files(monkeypatch):
     pass  # Files exist in the repo, so import works normally
 
 
-from translator import (
+from tara_migrate.translation.translator import (
     Translator,
     SYSTEM_PROMPT,
     TRANSLATABLE_FIELD_TYPES,
@@ -75,7 +75,7 @@ class TestConstants:
 
 class TestTranslate:
     def _make_translator(self):
-        with patch("translator.OpenAI") as MockOpenAI:
+        with patch("tara_migrate.translation.translator.OpenAI") as MockOpenAI:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             t = Translator("fake-key")
@@ -126,7 +126,7 @@ class TestTranslate:
 
 class TestTranslateRichText:
     def _make_translator(self):
-        with patch("translator.OpenAI") as MockOpenAI:
+        with patch("tara_migrate.translation.translator.OpenAI") as MockOpenAI:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             t = Translator("fake-key")
@@ -200,7 +200,7 @@ class TestTranslateRichText:
 
 class TestTranslateProduct:
     def _make_translator(self):
-        with patch("translator.OpenAI") as MockOpenAI:
+        with patch("tara_migrate.translation.translator.OpenAI") as MockOpenAI:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             t = Translator("fake-key")
@@ -324,7 +324,7 @@ class TestTranslateProduct:
 
 class TestTranslatePage:
     def _make_translator(self):
-        with patch("translator.OpenAI") as MockOpenAI:
+        with patch("tara_migrate.translation.translator.OpenAI") as MockOpenAI:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             t = Translator("fake-key")
@@ -405,7 +405,7 @@ class TestTranslatePage:
 
 class TestTranslateMetaobject:
     def _make_translator(self):
-        with patch("translator.OpenAI") as MockOpenAI:
+        with patch("tara_migrate.translation.translator.OpenAI") as MockOpenAI:
             mock_client = MagicMock()
             MockOpenAI.return_value = mock_client
             t = Translator("fake-key")
