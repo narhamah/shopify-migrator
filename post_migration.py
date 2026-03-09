@@ -140,10 +140,185 @@ def step_link_products_to_collections(client, dry_run=False):
 # Step 3: Build navigation menus
 # =============================================
 
+def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
+    """Resolve a Spain menu item to a Saudi menu item.
+
+    Maps collection/page/product URLs from Spain to Saudi by looking up
+    resources by handle on the Saudi store.
+    """
+    title = item.get("title", "")
+    url = item.get("url", "")
+    resource_id = item.get("resourceId", "")
+
+    result = {"title": title}
+
+    # Try to resolve by resource type
+    if "/Collection/" in resource_id:
+        # Find collection by handle on Saudi
+        # Extract handle from URL
+        handle = ""
+        if url:
+            parts = url.rstrip("/").split("/")
+            if "collections" in parts:
+                idx = parts.index("collections")
+                if idx + 1 < len(parts):
+                    handle = parts[idx + 1]
+
+        if handle:
+            saudi_colls = saudi.get_collections_by_handle(handle)
+            if saudi_colls:
+                result["resourceId"] = f"gid://shopify/Collection/{saudi_colls[0]['id']}"
+                return result
+
+        # Fallback: use URL path
+        if url:
+            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            if not path.startswith("/"):
+                path = "/" + path
+            result["url"] = path
+        return result
+
+    elif "/Page/" in resource_id or "/OnlineStorePage/" in resource_id:
+        handle = ""
+        if url:
+            parts = url.rstrip("/").split("/")
+            if "pages" in parts:
+                idx = parts.index("pages")
+                if idx + 1 < len(parts):
+                    handle = parts[idx + 1]
+        if handle:
+            saudi_pages = saudi.get_pages_by_handle(handle)
+            if saudi_pages:
+                result["resourceId"] = f"gid://shopify/OnlineStorePage/{saudi_pages[0]['id']}"
+                return result
+        if url:
+            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            if not path.startswith("/"):
+                path = "/" + path
+            result["url"] = path
+        return result
+
+    elif "/Product/" in resource_id:
+        handle = ""
+        if url:
+            parts = url.rstrip("/").split("/")
+            if "products" in parts:
+                idx = parts.index("products")
+                if idx + 1 < len(parts):
+                    handle = parts[idx + 1]
+        if handle:
+            saudi_prods = saudi.get_products_by_handle(handle)
+            if saudi_prods:
+                result["resourceId"] = f"gid://shopify/Product/{saudi_prods[0]['id']}"
+                return result
+        if url:
+            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            if not path.startswith("/"):
+                path = "/" + path
+            result["url"] = path
+        return result
+
+    else:
+        # Generic URL-based item (HTTP link, frontpage, search, etc.)
+        if url:
+            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            if not path.startswith("/") and not path.startswith("http"):
+                path = "/" + path
+            result["url"] = path
+        return result
+
+
 def step_build_navigation(client, dry_run=False):
-    """Build main menu and footer menu from collections and pages."""
+    """Mirror Spain's navigation menus to Saudi store.
+
+    Strategy: read Spain's menus, resolve each item's target on Saudi
+    (by handle lookup), and create matching menus.
+    Falls back to id_map-based approach if Spain client unavailable.
+    """
     print("\n=== Step 3: Build Navigation Menus ===")
 
+    spain_url = os.environ.get("SPAIN_SHOP_URL", "")
+    spain_token = os.environ.get("SPAIN_ACCESS_TOKEN", "")
+    saudi_url = os.environ.get("SAUDI_SHOP_URL", "")
+
+    if not spain_url or not spain_token:
+        print("  No Spain credentials — falling back to id_map approach")
+        _step_build_navigation_from_idmap(client, dry_run)
+        return
+
+    spain = ShopifyClient(spain_url, spain_token)
+
+    try:
+        spain_menus = spain.get_menus()
+    except Exception as e:
+        print(f"  Error reading Spain menus: {e}")
+        _step_build_navigation_from_idmap(client, dry_run)
+        return
+
+    if not spain_menus:
+        print("  No menus found on Spain store")
+        return
+
+    print(f"  Found {len(spain_menus)} menus on Spain store")
+
+    # Check existing Saudi menus
+    try:
+        saudi_menus = client.get_menus()
+        saudi_handles = {m.get("handle"): m for m in saudi_menus}
+    except Exception:
+        saudi_handles = {}
+
+    for menu in spain_menus:
+        title = menu.get("title", "")
+        handle = menu.get("handle", "")
+        spain_items = menu.get("items", [])
+
+        print(f"\n  Menu: '{title}' ({handle}) — {len(spain_items)} items")
+
+        if handle in saudi_handles:
+            print(f"    Already exists on Saudi (id: {saudi_handles[handle]['id']})")
+            continue
+
+        # Resolve each item
+        saudi_items = []
+        for item in spain_items:
+            resolved = _resolve_menu_item_for_saudi(item, client, spain_url, saudi_url)
+            if resolved:
+                # Handle sub-items
+                sub_items = item.get("items", [])
+                if sub_items:
+                    resolved_subs = []
+                    for sub in sub_items:
+                        resolved_sub = _resolve_menu_item_for_saudi(sub, client, spain_url, saudi_url)
+                        if resolved_sub:
+                            resolved_subs.append(resolved_sub)
+                    if resolved_subs:
+                        resolved["items"] = resolved_subs
+
+                saudi_items.append(resolved)
+                has_target = resolved.get("resourceId") or resolved.get("url")
+                print(f"    {'✓' if has_target else '?'} {resolved['title']}")
+
+        if not saudi_items:
+            print("    No items resolved — skipping")
+            continue
+
+        if dry_run:
+            print(f"    Would create menu '{title}' with {len(saudi_items)} items")
+            continue
+
+        try:
+            result = client.create_menu(title, handle, saudi_items)
+            if result:
+                print(f"    Created menu '{title}' (id: {result['id']})")
+            else:
+                print(f"    Menu '{title}' already exists")
+        except Exception as e:
+            print(f"    Error creating menu '{title}': {e}")
+
+
+def _step_build_navigation_from_idmap(client, dry_run=False):
+    """Fallback: Build menus from id_map (original approach)."""
     id_map = load_json("data/id_map.json", default={})
     collections = load_json("data/english/collections.json")
     pages = load_json("data/english/pages.json")
@@ -163,7 +338,7 @@ def step_build_navigation(client, dry_run=False):
             })
 
     if not main_items:
-        print("  No collections found for main menu")
+        print("  No collections found for main menu (no collection mappings in id_map)")
     else:
         print(f"  Main menu: {len(main_items)} items")
         if dry_run:
@@ -191,7 +366,7 @@ def step_build_navigation(client, dry_run=False):
             })
 
     if not footer_items:
-        print("  No pages found for footer menu")
+        print("  No pages found for footer menu (no page mappings in id_map)")
     else:
         print(f"  Footer menu: {len(footer_items)} items")
         if dry_run:
