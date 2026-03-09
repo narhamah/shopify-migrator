@@ -303,6 +303,24 @@ def main():
             if not objects:
                 continue
 
+            # Deduplicate by handle (translated FAQs can collide)
+            seen_handles = set()
+            deduped = []
+            for obj in objects:
+                h = _ascii_slugify(obj.get("handle", ""))
+                if not h:
+                    for f in obj.get("fields", []):
+                        if f["key"] in ("name", "title", "question", "full_name") and f.get("value"):
+                            h = _ascii_slugify(f["value"][:80])
+                            break
+                if h and h in seen_handles:
+                    continue
+                seen_handles.add(h)
+                deduped.append(obj)
+            if len(deduped) < len(objects):
+                print(f"\n  {mo_type}: deduplicated {len(objects)} → {len(deduped)} entries")
+            objects = deduped
+
             print(f"\nImporting {len(objects)} '{mo_type}' metaobjects...")
             for j, obj in enumerate(objects):
                 handle = _ascii_slugify(obj.get("handle", ""))

@@ -307,7 +307,12 @@ _METAOBJECT_NAME_FIELDS = {
 
 
 def _regenerate_metaobject_handles(metaobjects):
-    """Regenerate metaobject handles from their translated name/title field."""
+    """Regenerate metaobject handles from their translated name/title field.
+
+    Also deduplicates entries: when multiple source entries translate to the
+    same handle (e.g., identical FAQ questions on different products), only
+    the first is kept.
+    """
     for mo_type, type_data in metaobjects.items():
         name_field_key = _METAOBJECT_NAME_FIELDS.get(mo_type, "name")
         for obj in type_data.get("objects", []):
@@ -318,6 +323,20 @@ def _regenerate_metaobject_handles(metaobjects):
                     break
             if name_val:
                 obj["handle"] = _slugify(name_val)
+
+        # Deduplicate by handle (keep first occurrence)
+        seen = set()
+        unique_objs = []
+        for obj in type_data.get("objects", []):
+            h = obj.get("handle", "")
+            if h and h in seen:
+                continue
+            seen.add(h)
+            unique_objs.append(obj)
+        before = len(type_data.get("objects", []))
+        type_data["objects"] = unique_objs
+        if before != len(unique_objs):
+            print(f"    {mo_type}: deduplicated {before} → {len(unique_objs)} entries")
 
 
 def apply_translations(translations, products, collections, pages, articles, metaobjects, blogs=None):
@@ -1049,17 +1068,26 @@ def translate_with_gaps(
     # Metaobjects: for text-field types, REPLACE scraped data entirely
     # (scraped data is just untranslated source text with slugified handles).
     # For non-text types, merge missing items into scraped base.
+    print("\n  Metaobject merge:")
     for mo_type, type_data in gap_metaobjects.items():
+        source_count = len(type_data.get("objects", []))
+        scraped_count = len(output_metaobjects.get(mo_type, {}).get("objects", []))
         if mo_type in _full_replace_mo_types:
             # Replace: use source objects (will be translated below)
             output_metaobjects[mo_type] = copy.deepcopy(type_data)
+            print(f"    {mo_type}: REPLACE scraped ({scraped_count}) with source ({source_count})")
         elif mo_type not in output_metaobjects:
             output_metaobjects[mo_type] = copy.deepcopy(type_data)
+            print(f"    {mo_type}: NEW ({source_count} entries)")
         else:
             existing_handles = {o.get("handle") for o in output_metaobjects[mo_type].get("objects", [])}
+            added = 0
             for obj in type_data.get("objects", []):
                 if obj.get("handle") not in existing_handles:
                     output_metaobjects[mo_type]["objects"].append(copy.deepcopy(obj))
+                    added += 1
+            if added:
+                print(f"    {mo_type}: MERGE +{added} new entries (was {scraped_count})")
 
     # Blogs: always from source, fully translated
     output_blogs = [copy.deepcopy(b) for b in source_blogs]
