@@ -1,0 +1,599 @@
+PS C:\Users\narha\shopify-migrator> python .\compare_stores.py
+======================================================================
+  STORE COMPARISON: Spain ↔ Saudi
+======================================================================
+  Spain: jp9wv0-d7.myshopify.com
+  Saudi: xkgw0m-sm.myshopify.com
+  Mode:  Full
+
+======================================================================
+  PAGES
+======================================================================
+    Spain: 8 pages | Saudi: 12 pages
+  ✓ Page '/contact' exists with template 'contact'
+  ✗ MISSING: Page '/philosophy' (Filosofía, template: (default))
+  ✓ Page '/ingredients' exists with template 'ingredients'
+  ✗ MISSING: Page '/para-faramcias' (Para Farmacias, template: para-framacias)
+  ✗ MISSING: Page '/puntos-de-venta' (Puntos de venta, template: store-locator)
+  ✓ Page '/quiz' exists with template 'quiz'
+  ✓ Page '/quiz-results' exists with template 'quiz-results'
+  ✗ MISSING: Page '/suscripcion-newsletter' (Suscripción Newsletter, template: page)
+    Saudi-only page: /faq
+    Saudi-only page: /for-pharmacies
+    Saudi-only page: /home-page-en
+    Saudi-only page: /newsletter-subscription
+    Saudi-only page: /philosophy-en
+    Saudi-only page: /store-locator
+    Saudi-only page: /privacy-policy-en
+    Saudi-only page: /terms-and-conditions-en
+
+======================================================================
+  COLLECTIONS
+======================================================================
+    Spain: 55 collections | Saudi: 21 collections
+  ✗ MISSING: Collection '/accesorios' (Accesorios)
+  ✗ MISSING: Collection '/ajo-negro-ceramidas' (Ajo Negro+ Ceramidas)
+  ✗ MISSING: Collection '/cebolla-peptidos' (Cebolla+ Péptidos)
+  ✗ MISSING: Collection '/cabello' (Cuidado Capilar)
+  ✗ MISSING: Collection '/datil-multivitaminico' (Dátil+ Multivitamínico)
+  ✓ Collection '/detox' (Detox)
+  ✗ MISSING: Collection '/fresa-nmf' (Fresa+ NMF)
+  ✗ MISSING: Collection '/mas-vendidos' (Más Vendidos)
+  ✗ MISSING: Collection '/mascarillas-capilares' (Mascarillas Capilares)
+  ✗ MISSING: Collection '/novedades' (Novedades)
+  ✗ MISSING: Collection '/por-producto' (Por Producto)
+  ✗ MISSING: Collection '/premiados' (Premiados)
+  ✗ MISSING: Collection '/productos-de-acabado' (Productos de Acabado)
+  ✗ MISSING: Collection '/romero-peptidos' (Romero+ Péptidos)
+  ✗ MISSING: Collection '/salvia-multivitaminico' (Salvia+ Multivitamínico)
+  ✗ MISSING: Collection '/serums-cuero-cabelludo' (Sérums Cuero Cabelludo)
+  ✗ MISSING: Collection '/sets-capilares' (Sets Capilares)
+  ✗ MISSING: Collection '/aceite-de-aguacate' (Aceite de Aguacate)
+  ✗ MISSING: Collection '/aceite-de-argan' (Aceite de argan)
+  ✗ MISSING: Collection '/aceite-de-oliva' (Aceite de oliva)
+  ✗ MISSING: Collection '/aceite-de-sesamo' (Aceite de sésamo)
+  ✗ MISSING: Collection '/aceite-de-uva' (Aceite de uva)
+  ✗ MISSING: Collection '/acetil-tetrapeptido-3' (Acetil Tetrapéptido-3)
+  ✗ MISSING: Collection '/acido-salicilico' (Ácido Salicílico)
+  ✗ MISSING: Collection '/acondicionadores' (Acondicionadores)
+  ✗ MISSING: Collection '/ajo-negro' (Ajo Negro)
+  ✗ MISSING: Collection '/alga-roja' (Alga Roja)
+  ✗ MISSING: Collection '/arcilla-ghassoul' (Arcilla Ghassoul)
+  ✗ MISSING: Collection '/biotinoyl-tripeptido-1' (Biotinoyl Tripéptido-1)
+  ✗ MISSING: Collection '/carbon-activado' (Carbón Activado)
+  ✗ MISSING: Collection '/ceramida-np' (Ceramida NP)
+  ✗ MISSING: Collection '/ceramidas' (Ceramidas)
+  ✗ MISSING: Collection '/champus' (Champús)
+  ✗ MISSING: Collection '/colageno-hidrolizado' (Colágeno hidrolizado)
+  ✗ MISSING: Collection '/colageno-vegetal' (Colágeno Vegetal)
+  ✗ MISSING: Collection '/complejo-multivitaminico' (Complejo Multivitamínico)
+  ✗ MISSING: Collection '/corteza-de-inga-alba' (Corteza de Inga Alba)
+  ✗ MISSING: Collection '/extracto-de-cebolla-roja' (Extracto de Cebolla Roja)
+  ✗ MISSING: Collection '/extracto-de-datil' (Extracto de Dátil)
+  ✗ MISSING: Collection '/extracto-de-fresa' (Extracto de Fresa)
+  ✗ MISSING: Collection '/extracto-de-levadura' (Extracto de Levadura)
+  ✗ MISSING: Collection '/extracto-de-nopal-cactus' (Extracto de Nopal (Cactus))
+  ✗ MISSING: Collection '/extracto-de-romero' (Extracto de Romero)
+  ✗ MISSING: Collection '/extracto-de-salvia' (Extracto de Salvia)
+  ✗ MISSING: Collection '/extracto-de-soja' (Extracto de soja)
+  ✗ MISSING: Collection '/factor-natural-de-hidratacion-nmf' (Factor Natural de Hidratación (NMF))
+  ✗ MISSING: Collection '/manteca-de-karite' (Manteca de Karité)
+  ✗ MISSING: Collection '/manteca-de-mango' (Manteca de Mango)
+  ✗ MISSING: Collection '/manteca-de-mango-1' (Manteca de Mango)
+  ✗ MISSING: Collection '/micro-queratina' (Micro Queratina)
+  ✗ MISSING: Collection '/niacinamida' (Niacinamida)
+  ✗ MISSING: Collection '/palmitoil-dipeptido-52' (Palmitoil Dipéptido-52)
+  ✗ MISSING: Collection '/raiz-de-jengibre' (Raíz de Jengibre)
+  ✗ MISSING: Collection '/semilla-de-apio' (Semilla de Apio)
+  ✗ MISSING: Collection '/vitamina-b-5' (Vitamina B5)
+
+  54 collections missing in Saudi
+
+======================================================================
+  PRODUCTS
+======================================================================
+    Spain: 42 products | Saudi: 36 products
+  ✗ MISSING: Product 'Acondicionador Densificante' (/acondicionador-densificante)
+  ✗ MISSING: Product 'Acondicionador Hidratante' (/acondicionador-hidratante)
+  ✗ MISSING: Product 'Acondicionador Nutritivo' (/acondicionador-hidratante-1)
+  ✗ MISSING: Product 'Acondicionador Regenerativo' (/acondicionador-reparador)
+  ✗ MISSING: Product 'Acondicionador sin Aclarado Hidratante' (/acondicionador-sin-aclarado-hidratante)
+  ✗ MISSING: Product 'Acondicionador Suavizante' (/acondicionador-suavizante)
+  ✗ MISSING: Product 'Acondicionador Voluminizador' (/acondicionador-voluminizador)
+  ✗ MISSING: Product 'Champú Densificante Preparador del Cuero Cabelludo' (/champu-densificante)
+  ✗ MISSING: Product 'Champú Exfoliante Carbón + Salicílico' (/champu-exfoliante)
+  ✗ MISSING: Product 'Champú Hidratante' (/champu-hidratante)
+  ✗ MISSING: Product 'Champú Nutritivo' (/champu-nutritivo)
+  ✗ MISSING: Product 'Champú Regenerativo' (/champu-revitalizante)
+  ✗ MISSING: Product 'Champú Revitalizante' (/ajo-negro-champu-revitalizante)
+  ✗ MISSING: Product 'Champú Voluminizador' (/champu-voluminizador)
+  ✗ MISSING: Product 'Mascarilla Reparadora' (/ajo-negro-ceramidas-mascarilla-reparadora)
+  ✗ MISSING: Product 'Neceser de Belleza' (/neceser-de-belleza)
+  ✗ MISSING: Product 'Rutina Ajo Negro+ Ceramidas Muestra Deluxe' (/rutina-ajo-negro-ceramidas-muestra-deluxe)
+  ✗ MISSING: Product 'Rutina Anticaída y Volumen' (/tratamiento-voluminizador-anticaida)
+  ✗ MISSING: Product 'Rutina Anticaída y Volumen' (/rutina-anticaida-y-volumen)
+  ✗ MISSING: Product 'Rutina Cebolla+ Péptidos Muestra Deluxe' (/rutina-cebolla-peptidos-muestra-deluxe)
+  ✗ MISSING: Product 'Rutina Dátil+ Multivitamínico Muestra Deluxe' (/rutina-datil-multivitaminico-muestra-deluxe)
+  ✗ MISSING: Product 'Rutina Densificante' (/tratamiento-densificador)
+  ✗ MISSING: Product 'Rutina Densificante' (/rutina-densificante)
+  ✗ MISSING: Product 'Rutina Hidratante' (/sistema-hidratante)
+  ✗ MISSING: Product 'Rutina Hidratante' (/rutina-hidratante)
+  ✗ MISSING: Product 'Rutina Nutritiva y Bienestar Capilar' (/sistema-bienestar-capilar)
+  ✗ MISSING: Product 'Rutina Nutritiva y Bienestar Capilar' (/rutina-nutritiva-y-bienestar-capilar)
+  ✗ MISSING: Product 'Rutina Regenerativa “Age-Well”' (/sistema-regenerativo-age-well)
+  ✗ MISSING: Product 'Rutina Regenerativa “Age-Well”' (/rutina-regenerativa-age-well)
+  ✗ MISSING: Product 'Rutina Reparadora y Fortalecedora' (/sistema-fortalecedor-del-cabello)
+  ✗ MISSING: Product 'Rutina Reparadora y Fortalecedora' (/rutina-reparadora-y-fortalecedora)
+  ✗ MISSING: Product 'Rutina Revitalizante para Cuero Cabelludo' (/tratamiento-revitalizante-para-cuero-cabelludo)
+  ✗ MISSING: Product 'Rutina Revitalizante para Cuero Cabelludo' (/rutina-revitalizante-para-cuero-cabelludo)
+  ✗ MISSING: Product 'Rutina Romero+ Péptidos Muestra Deluxe' (/rutina-romero-peptidos-muestra-deluxe)
+  ✗ MISSING: Product 'Rutina Salvia+ Multivitamínico Muestra Deluxe' (/rutina-salvia-multivitaminico-muestra-deluxe)
+  ✗ MISSING: Product 'Sérum Age-Well para el Cuero Cabelludo' (/serum-cuero-cabelludo)
+  ✗ MISSING: Product 'Sérum Calmante para el Cuero Cabelludo' (/serum-calmante-para-el-cuero-cabelludo)
+  ✗ MISSING: Product 'Sérum de Apoyo para el Cuero Cabelludo' (/serum-de-apoyo-para-el-cuero-cabelludo)
+  ✗ MISSING: Product 'Sérum Densificante para el Cuero Cabelludo' (/serum-foliculoestimulante)
+  ✗ MISSING: Product 'Sérum Foliculoestimulante para el Cuero Cabelludo' (/serum-foliculoestimulante-para-cuero-cabelludo)
+  ✗ MISSING: Product 'Sérum Fortalecedor para el Cuero Cabelludo' (/serum-fortalecedor-para-el-cuero-cabelludo)
+  ✓ Product 'Signature Tote Bag' → 'Signature Tote Bag'
+  ✗ BROKEN:   'Signature Tote Bag': Saudi status is 'draft' (not active)
+
+======================================================================
+  PRODUCT PAGE FEATURES
+======================================================================
+    Cannot find Saudi match for 'Acondicionador Densificante' — skipping metafield comparison
+    Cannot find Saudi match for 'Acondicionador Hidratante' — skipping metafield comparison
+    Cannot find Saudi match for 'Acondicionador Nutritivo' — skipping metafield comparison
+    Cannot find Saudi match for 'Acondicionador Regenerativo' — skipping metafield comparison
+    Cannot find Saudi match for 'Acondicionador sin Aclarado Hi' — skipping metafield comparison
+
+======================================================================
+  METAOBJECTS
+======================================================================
+    Spain: 15 definitions | Saudi: 16 definitions
+  ✓ Definition 'shopify--suitable-for-hair-type' exists on both stores
+      shopify--suitable-for-hair-type: Spain=17 entries, Saudi=17 entries
+  ✓ Definition 'shopify--target-gender' exists on both stores
+      shopify--target-gender: Spain=1 entries, Saudi=1 entries
+  ✓ Definition 'shopify--hair-care-items-included' exists on both stores
+      shopify--hair-care-items-included: Spain=7 entries, Saudi=7 entries
+  ✓ Definition 'faq_entry' exists on both stores
+      faq_entry: Spain=124 entries, Saudi=124 entries
+  ✓ Definition 'shopify--hair-loss-type' exists on both stores
+      shopify--hair-loss-type: Spain=2 entries, Saudi=2 entries
+  ✓ Definition 'shopify--treatment-type' exists on both stores
+      shopify--treatment-type: Spain=1 entries, Saudi=1 entries
+  ✓ Definition 'shopify--constitutive-ingredients' exists on both stores
+      shopify--constitutive-ingredients: Spain=3 entries, Saudi=3 entries
+  ✓ Definition 'shopify--product-certifications-standards' exists on both stores
+      shopify--product-certifications-standards: Spain=6 entries, Saudi=6 entries
+  ✓ Definition 'shopify--conditioner-effect' exists on both stores
+      shopify--conditioner-effect: Spain=17 entries, Saudi=17 entries
+  ✓ Definition 'shopify--age-group' exists on both stores
+      shopify--age-group: Spain=2 entries, Saudi=2 entries
+  ✓ Definition 'ingredient' exists on both stores
+      ingredient: Spain=34 entries, Saudi=34 entries
+  ✗ MISSING:   12 ingredients missing in Saudi: ['Capixyl™ (Acetil Tetrapéptido-3)', 'Procapil® (Biotinoyl Tripéptido-1)', 'Silverfree™ (Palmitoyl Dipeptide-52)', 'Ajo Negro (ABG10+®)', 'Queratina Hidrolizada']
+  ✓ Definition 'shopify--product-form' exists on both stores
+      shopify--product-form: Spain=1 entries, Saudi=1 entries
+  ✓ Definition 'benefit' exists on both stores
+      benefit: Spain=122 entries, Saudi=122 entries
+  ✓ Definition 'shopify--scalp-concern' exists on both stores
+      shopify--scalp-concern: Spain=9 entries, Saudi=9 entries
+  ✓ Definition 'store_location' exists on both stores
+      store_location: Spain=0 entries, Saudi=0 entries
+
+======================================================================
+  NAVIGATION MENUS
+======================================================================
+    Spain: 4 menus | Saudi: 4 menus
+  ✓ Menu 'main-menu': Spain=5 items, Saudi=2 items
+  ~ DIFF: Menu 'main-menu' item count differs
+  ✗ MISSING:   Menu item 'Cuidado Capilar' (/en/collections/cabello)
+  ✗ MISSING:   Menu item 'Diagnóstico Capilar ' (/en/pages/quiz)
+  ✗ MISSING:   Menu item 'Ingredientes' (/en/pages/ingredients)
+  ✗ MISSING:   Menu item 'Filosofía ' (/en/pages/philosophy)
+  ✗ MISSING:   Menu item 'Diario' (/en/blogs/journal)
+      Saudi menu: 'Home' → /
+      Saudi menu: 'Catalog' → /collections/all
+  ✓ Menu 'footer': Spain=5 items, Saudi=1 items
+  ~ DIFF: Menu 'footer' item count differs
+  ✗ MISSING:   Menu item 'Comprar Cuidado Capilar' (/en/collections/cabello)
+  ✗ MISSING:   Menu item 'Diagnóstico Capilar' (/en/policies/privacy-policy)
+  ✗ MISSING:   Menu item 'Nuestra Filosofía' (/en/pages/philosophy)
+  ✗ MISSING:   Menu item 'Nuestros Ingredientes' (/en/pages/ingredients)
+  ✗ MISSING:   Menu item 'Buscar un Producto' (/en/search)
+      Saudi menu: 'Search' → /search
+  ✓ Menu 'customer-account-main-menu': Spain=3 items, Saudi=2 items
+  ~ DIFF: Menu 'customer-account-main-menu' item count differs
+  ✗ MISSING:   Menu item 'Orders' (https://shopify.com/70614384682/account/orders)
+  ✗ MISSING:   Menu item 'Profile' (https://shopify.com/70614384682/account/profile)
+  ✗ MISSING:   Menu item 'My Account' (https://shopify.com/70614384682/account/pages/6971b1a1-27f6-4c27-b8b0-3009fd3b921d)
+      Saudi menu: 'Orders' → https://shopify.com/79840575721/account/orders
+      Saudi menu: 'Profile' → https://shopify.com/79840575721/account/profile
+  ✓ Menu 'footer-servicio-al-cliente': Spain=4 items, Saudi=4 items
+      'Política de Privacidad y Cookies' → 'Política de Privacidad y Cookies'
+      'Términos y Condiciones de Venta' → 'Términos y Condiciones de Venta'
+      'Política de Envío y Devoluciones' → 'Política de Privacidad y Cookies'
+  ✗ MISSING:   Menu item 'Contacta con nosotros' (/en/pages/contact)
+      Saudi menu: 'Política de Privacidad y Cookies' → /en/policies/privacy-policy
+      Saudi menu: 'Términos y Condiciones de Venta' → /en/policies/terms-of-service
+      Saudi menu: 'Política de Envío y Devoluciones' → /en/policies/privacy-policy
+      Saudi menu: 'Contacta con nosotros' → /pages/contact
+
+======================================================================
+  BLOGS & ARTICLES
+======================================================================
+    Spain: 2 blogs | Saudi: 2 blogs
+  ✓ Blog 'journal': Spain=3 articles, Saudi=3 articles
+  ✗ MISSING: Article '/journal/cuidado-cuero-cabelludo-ingredientes-botanicos' (Ciencia y botánica para un cuero cabellu)
+  ✗ MISSING: Article '/journal/metodo-de-aplicacion-de-tara-guia-para-aplicar-nuestros-productos-y-potenciar-resultados' (Método de Aplicación de Tara: Guía para )
+  ✗ MISSING: Article '/journal/como-cepillar-el-cabello-fino-correctamente' (Cómo cepillar el cabello fino correctame)
+  ✓ Blog 'hero': Spain=0 articles, Saudi=0 articles
+
+======================================================================
+  THEME TEMPLATES
+======================================================================
+    Spain: 21 templates | Saudi: 21 templates
+  ✓ Template: templates/404.json
+  ✓ Template: templates/article.json
+  ✓ Template: templates/article.tara.json
+  ✓ Template: templates/blog.json
+  ✓ Template: templates/blog.tara.json
+  ✓ Template: templates/cart.json
+  ✓ Template: templates/collection.json
+  ✓ Template: templates/gift_card.liquid
+  ✓ Template: templates/index.json
+  ✓ Template: templates/list-collections.json
+  ✓ Template: templates/metaobject/ingredient.json
+  ✓ Template: templates/page.contact.json
+  ✓ Template: templates/page.ingredients.json
+  ✓ Template: templates/page.json
+  ✗ MISSING: Template: templates/page.para-framacias.json
+  ✓ Template: templates/page.quiz-results.json
+  ✓ Template: templates/page.quiz.json
+  ✓ Template: templates/page.store-locator.json
+  ✓ Template: templates/password.json
+  ✓ Template: templates/product.json
+  ✓ Template: templates/search.json
+
+Spain: 61 sections | Saudi: 61 sections
+  ✓ All 61 sections present in Saudi
+
+Spain: 118 snippets | Saudi: 118 snippets
+  ✓ All 118 snippets present in Saudi
+
+======================================================================
+  HOMEPAGE CONTENT
+======================================================================
+    Spain: 13 sections | Saudi: 12 sections
+    Spain section types: ['hero', 'section', 'hero', '_blocks', 'product-list', 'section', 'section', '_blocks', 'icon-row-with-heading', 'ingredient-listing', 'section', 'faq', 'collection-list']
+    Saudi section types: ['hero', 'section', 'hero', '_blocks', 'product-list', 'section', 'section', 'icon-row-with-heading', 'ingredient-listing', 'section', 'faq', 'collection-list']
+  ✓ Section type 'ingredient-listing' present on both homepages
+  ✓ Section type 'product-list' present on both homepages
+  ✓ Section type 'collection-list' present on both homepages
+  ✓ Section type 'section' present on both homepages
+  ✓ Section type 'faq' present on both homepages
+  ✓ Section type '_blocks' present on both homepages
+  ✓ Section type 'hero' present on both homepages
+  ✓ Section type 'icon-row-with-heading' present on both homepages
+      [hero_JdUAKa] type=hero, images=4 set, 0 empty
+      [section_KPkrGJ] type=section, images=1 set, 0 empty
+      [hero_X6DGwJ] type=hero, images=2 set, 0 empty
+      [17710990838fd55331] type=_blocks, images=1 set, 0 empty
+      [product_list_fa6P9H] type=product-list, images=1 set, 0 empty, collection='best-sellers'
+      [section_T8xnnA] type=section, images=1 set, 0 empty
+      [section_6xbiJX] type=section, images=4 set, 0 empty
+      [icon_row_with_heading_dT4] type=icon-row-with-heading, heading='Formulas You Can Feel Good About'
+      [ingredient_listing_HY7xw9] type=ingredient-listing, images=1 set, 1 empty
+  ✗ BROKEN:   Section 'ingredient_listing_HY7xw9' has 1 empty image slots
+      [section_mLJgtc] type=section, images=3 set, 0 empty
+      [faq_ghk6Xg] type=faq, heading='FAQs'
+      [collection_list_fGeHYT] type=collection-list, images=1 set, 0 empty
+  ✗ BROKEN:   Product section 'collection_list_fGeHYT' ('') has NO collection assigned!
+
+======================================================================
+  PRODUCT-COLLECTION LINKS
+======================================================================
+    Saudi: 21 collections
+  ✗ BROKEN: 21 Saudi collections have 0 products:
+      - accessories (Accessories)
+      - award-winners (Award‑Winners)
+      - best-sellers (Best Sellers)
+      - black-friday-sets (BLACK FRIDAY SETS)
+      - black-garlic-ceramides (Black Garlic+ Ceramides)
+      - by-product (By Product)
+      - date-multivitamin (Date+ Multivitamin)
+      - detox (Detox)
+      - finishing-products (Finishing Products)
+      - hair-masks (Hair Masks)
+      - new-arrivals (New Arrivals)
+      - onion-peptides (Onion + Peptides)
+      - rosemary-peptides (Rosemary+ Peptides)
+      - sage-multivitamin (Sage+ Multivitamin)
+      - scalp-serums (Scalp Serums)
+      - shop-hair (Shop Hair)
+      - shop-skin (Shop Skin)
+      - strawberry-nmf (Strawberry+ NMF)
+      - tara-formula (Tara Formula)
+      - conditioners (Conditioners)
+      - shampoos (Shampoos)
+
+======================================================================
+  URL REDIRECTS
+======================================================================
+    Spain: 90 redirects | Saudi: 90 redirects
+  ✓ Saudi has 90 URL redirects configured
+
+======================================================================
+  STOREFRONT RENDERING (Public Scrape)
+======================================================================
+
+  Homepage (/):
+        Spain: HTTP 200 (417 KB)
+        Saudi: HTTP 200 (255 KB)
+      Images: Spain=69, Saudi=52
+      Product links: Spain=4, Saudi=4
+  ✓ Homepage has product links
+      Collection links: Spain=17, Saudi=6
+      Headings on Spain homepage (26):
+        - Tara
+        - Tu carrito esta vacío
+        - Tu carrito esta vacío
+        - Dentro de la Fórmula. Dentro de la Ciencia.
+        - Nuestros mejores productos
+        - Sérum Calmante para el Cuero Cabelludo
+        - Mascarilla Reparadora
+        - Champú Voluminizador
+        - Rutina Anticaída y Volumen
+        - Champú Exfoliante Carbón + Salicílico
+      Headings on Saudi homepage (50):
+        - Tara Saudi
+        - Your cart is empty
+        - Your cart is empty
+        - Inside the Formula. Inside the Science.
+        - Our Best Products
+        - Formulas You Can Feel Good About
+        - Our Key Ingredients
+        - Aceite de Aguacate
+        - Aceite de Argán Puro
+        - Aceite de Oliva
+      Spain title: Tara
+      Saudi title: Tara Saudi
+
+  Collections Index (/collections):
+        Spain: HTTP 200 (261 KB)
+        Saudi: HTTP 200 (279 KB)
+      Images: Spain=27, Saudi=17
+      Product links: Spain=4, Saudi=4
+  ✓ Collections Index has product links
+      Collection links: Spain=33, Saudi=21
+      Spain title: Colecciones
+ &ndash; Tara
+      Saudi title: Collections
+ &ndash; Tara Saudi
+
+  Ingredients Library (/pages/ingredients):
+        Spain: HTTP 200 (274 KB)
+        Saudi: HTTP 200 (257 KB)
+      Images: Spain=44, Saudi=72
+      Product links: Spain=4, Saudi=4
+  ✓ Ingredients Library has product links
+      Collection links: Spain=17, Saudi=1
+      Ingredient links: Spain=43, Saudi=3
+  ✓ Ingredients page has 3 clickable ingredient links
+      Spain title: Extractos botánicos y activos avanzados | TARA
+ &ndash; Tara
+      Saudi title: Our Ingredients
+ &ndash; Tara Saudi
+
+  Hair Quiz (/pages/quiz):
+        Spain: HTTP 200 (199 KB)
+        Saudi: HTTP 200 (150 KB)
+      Images: Spain=10, Saudi=9
+      Product links: Spain=4, Saudi=4
+  ✓ Hair Quiz has product links
+      Collection links: Spain=17, Saudi=1
+      Spain title: Quiz
+ &ndash; Tara
+      Saudi title: Quiz
+ &ndash; Tara Saudi
+
+  Contact (/pages/contact):
+        Spain: HTTP 200 (203 KB)
+        Saudi: HTTP 200 (154 KB)
+      Images: Spain=9, Saudi=8
+      Product links: Spain=4, Saudi=4
+  ✓ Contact has product links
+      Collection links: Spain=17, Saudi=1
+      Spain title: Contact
+ &ndash; Tara
+      Saudi title: Contact
+ &ndash; Tara Saudi
+
+  Blog (/blogs):
+        Spain: HTTP 404 (281 KB)
+        Saudi: HTTP 404 (230 KB)
+      Both stores return non-200 for /blogs — may be password-protected
+
+======================================================================
+  PRODUCT PAGE RENDERING
+======================================================================
+    Spain: /products/acondicionador-densificante → HTTP 200 (339 KB)
+    Saudi: /products/age-well-system → HTTP 200 (530 KB)
+  ✓ Add to cart button present
+    Product-related images: Spain=13, Saudi=105
+    Accordion/collapsible elements: Spain=179, Saudi=159
+  ✓ Price displayed on product page
+    Ingredient references: Spain=54, Saudi=44
+  ✓ Reviews section present on product page
+  ✓ Subscription option present
+
+======================================================================
+  INGREDIENT DETAIL PAGES
+======================================================================
+    Testing 3 ingredient detail pages...
+  ✗ BROKEN: Ingredient 'Extracto de Cebolla Roja' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/extracto-de-cebolla-roja
+  ✗ BROKEN: Ingredient 'Capixyl™ (Acetyl Tetrapeptide-3)' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/capixyl-acetyl-tetrapeptide-3
+  ✗ BROKEN: Ingredient 'Procapil® (Biotinoyl Tripeptide-1)' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/procapil-biotinoyl-tripeptide-1
+
+======================================================================
+  COMPARISON SUMMARY
+======================================================================
+  ✗ PAGES: 4 match, 4 missing, 0 broken, 0 diff
+  ✗ COLLECTIONS: 1 match, 54 missing, 0 broken, 0 diff
+  ✗ PRODUCTS: 1 match, 41 missing, 1 broken, 0 diff
+  ✓ PRODUCT PAGE FEATURES: 0 match, 0 missing, 0 broken, 0 diff
+  ✗ METAOBJECTS: 15 match, 1 missing, 0 broken, 0 diff
+  ✗ NAVIGATION MENUS: 4 match, 14 missing, 0 broken, 3 diff
+  ✗ BLOGS & ARTICLES: 2 match, 3 missing, 0 broken, 0 diff
+  ✗ THEME TEMPLATES: 22 match, 1 missing, 0 broken, 0 diff
+  ✗ HOMEPAGE CONTENT: 8 match, 0 missing, 2 broken, 0 diff
+  ✗ PRODUCT-COLLECTION LINKS: 0 match, 0 missing, 1 broken, 0 diff
+  ✓ URL REDIRECTS: 1 match, 0 missing, 0 broken, 0 diff
+  ✓ STOREFRONT RENDERING (Public Scrape): 6 match, 0 missing, 0 broken, 0 diff
+  ✓ PRODUCT PAGE RENDERING: 4 match, 0 missing, 0 broken, 0 diff
+  ✗ INGREDIENT DETAIL PAGES: 0 match, 0 missing, 3 broken, 0 diff
+
+  TOTALS: 68 matching, 118 missing, 7 broken
+
+  ALL ISSUES:
+    [PAGES] Page '/philosophy' (Filosofía, template: (default))
+    [PAGES] Page '/para-faramcias' (Para Farmacias, template: para-framacias)
+    [PAGES] Page '/puntos-de-venta' (Puntos de venta, template: store-locator)
+    [PAGES] Page '/suscripcion-newsletter' (Suscripción Newsletter, template: page)
+    [COLLECTIONS] Collection '/accesorios' (Accesorios)
+    [COLLECTIONS] Collection '/ajo-negro-ceramidas' (Ajo Negro+ Ceramidas)
+    [COLLECTIONS] Collection '/cebolla-peptidos' (Cebolla+ Péptidos)
+    [COLLECTIONS] Collection '/cabello' (Cuidado Capilar)
+    [COLLECTIONS] Collection '/datil-multivitaminico' (Dátil+ Multivitamínico)
+    [COLLECTIONS] Collection '/fresa-nmf' (Fresa+ NMF)
+    [COLLECTIONS] Collection '/mas-vendidos' (Más Vendidos)
+    [COLLECTIONS] Collection '/mascarillas-capilares' (Mascarillas Capilares)
+    [COLLECTIONS] Collection '/novedades' (Novedades)
+    [COLLECTIONS] Collection '/por-producto' (Por Producto)
+    [COLLECTIONS] Collection '/premiados' (Premiados)
+    [COLLECTIONS] Collection '/productos-de-acabado' (Productos de Acabado)
+    [COLLECTIONS] Collection '/romero-peptidos' (Romero+ Péptidos)
+    [COLLECTIONS] Collection '/salvia-multivitaminico' (Salvia+ Multivitamínico)
+    [COLLECTIONS] Collection '/serums-cuero-cabelludo' (Sérums Cuero Cabelludo)
+    [COLLECTIONS] Collection '/sets-capilares' (Sets Capilares)
+    [COLLECTIONS] Collection '/aceite-de-aguacate' (Aceite de Aguacate)
+    [COLLECTIONS] Collection '/aceite-de-argan' (Aceite de argan)
+    [COLLECTIONS] Collection '/aceite-de-oliva' (Aceite de oliva)
+    [COLLECTIONS] Collection '/aceite-de-sesamo' (Aceite de sésamo)
+    [COLLECTIONS] Collection '/aceite-de-uva' (Aceite de uva)
+    [COLLECTIONS] Collection '/acetil-tetrapeptido-3' (Acetil Tetrapéptido-3)
+    [COLLECTIONS] Collection '/acido-salicilico' (Ácido Salicílico)
+    [COLLECTIONS] Collection '/acondicionadores' (Acondicionadores)
+    [COLLECTIONS] Collection '/ajo-negro' (Ajo Negro)
+    [COLLECTIONS] Collection '/alga-roja' (Alga Roja)
+    [COLLECTIONS] Collection '/arcilla-ghassoul' (Arcilla Ghassoul)
+    [COLLECTIONS] Collection '/biotinoyl-tripeptido-1' (Biotinoyl Tripéptido-1)
+    [COLLECTIONS] Collection '/carbon-activado' (Carbón Activado)
+    [COLLECTIONS] Collection '/ceramida-np' (Ceramida NP)
+    [COLLECTIONS] Collection '/ceramidas' (Ceramidas)
+    [COLLECTIONS] Collection '/champus' (Champús)
+    [COLLECTIONS] Collection '/colageno-hidrolizado' (Colágeno hidrolizado)
+    [COLLECTIONS] Collection '/colageno-vegetal' (Colágeno Vegetal)
+    [COLLECTIONS] Collection '/complejo-multivitaminico' (Complejo Multivitamínico)
+    [COLLECTIONS] Collection '/corteza-de-inga-alba' (Corteza de Inga Alba)
+    [COLLECTIONS] Collection '/extracto-de-cebolla-roja' (Extracto de Cebolla Roja)
+    [COLLECTIONS] Collection '/extracto-de-datil' (Extracto de Dátil)
+    [COLLECTIONS] Collection '/extracto-de-fresa' (Extracto de Fresa)
+    [COLLECTIONS] Collection '/extracto-de-levadura' (Extracto de Levadura)
+    [COLLECTIONS] Collection '/extracto-de-nopal-cactus' (Extracto de Nopal (Cactus))
+    [COLLECTIONS] Collection '/extracto-de-romero' (Extracto de Romero)
+    [COLLECTIONS] Collection '/extracto-de-salvia' (Extracto de Salvia)
+    [COLLECTIONS] Collection '/extracto-de-soja' (Extracto de soja)
+    [COLLECTIONS] Collection '/factor-natural-de-hidratacion-nmf' (Factor Natural de Hidratación (NMF))
+    [COLLECTIONS] Collection '/manteca-de-karite' (Manteca de Karité)
+    [COLLECTIONS] Collection '/manteca-de-mango' (Manteca de Mango)
+    [COLLECTIONS] Collection '/manteca-de-mango-1' (Manteca de Mango)
+    [COLLECTIONS] Collection '/micro-queratina' (Micro Queratina)
+    [COLLECTIONS] Collection '/niacinamida' (Niacinamida)
+    [COLLECTIONS] Collection '/palmitoil-dipeptido-52' (Palmitoil Dipéptido-52)
+    [COLLECTIONS] Collection '/raiz-de-jengibre' (Raíz de Jengibre)
+    [COLLECTIONS] Collection '/semilla-de-apio' (Semilla de Apio)
+    [COLLECTIONS] Collection '/vitamina-b-5' (Vitamina B5)
+    [PRODUCTS] Product 'Acondicionador Densificante' (/acondicionador-densificante)
+    [PRODUCTS] Product 'Acondicionador Hidratante' (/acondicionador-hidratante)
+    [PRODUCTS] Product 'Acondicionador Nutritivo' (/acondicionador-hidratante-1)
+    [PRODUCTS] Product 'Acondicionador Regenerativo' (/acondicionador-reparador)
+    [PRODUCTS] Product 'Acondicionador sin Aclarado Hidratante' (/acondicionador-sin-aclarado-hidratante)
+    [PRODUCTS] Product 'Acondicionador Suavizante' (/acondicionador-suavizante)
+    [PRODUCTS] Product 'Acondicionador Voluminizador' (/acondicionador-voluminizador)
+    [PRODUCTS] Product 'Champú Densificante Preparador del Cuero Cabelludo' (/champu-densificante)
+    [PRODUCTS] Product 'Champú Exfoliante Carbón + Salicílico' (/champu-exfoliante)
+    [PRODUCTS] Product 'Champú Hidratante' (/champu-hidratante)
+    [PRODUCTS] Product 'Champú Nutritivo' (/champu-nutritivo)
+    [PRODUCTS] Product 'Champú Regenerativo' (/champu-revitalizante)
+    [PRODUCTS] Product 'Champú Revitalizante' (/ajo-negro-champu-revitalizante)
+    [PRODUCTS] Product 'Champú Voluminizador' (/champu-voluminizador)
+    [PRODUCTS] Product 'Mascarilla Reparadora' (/ajo-negro-ceramidas-mascarilla-reparadora)
+    [PRODUCTS] Product 'Neceser de Belleza' (/neceser-de-belleza)
+    [PRODUCTS] Product 'Rutina Ajo Negro+ Ceramidas Muestra Deluxe' (/rutina-ajo-negro-ceramidas-muestra-deluxe)
+    [PRODUCTS] Product 'Rutina Anticaída y Volumen' (/tratamiento-voluminizador-anticaida)
+    [PRODUCTS] Product 'Rutina Anticaída y Volumen' (/rutina-anticaida-y-volumen)
+    [PRODUCTS] Product 'Rutina Cebolla+ Péptidos Muestra Deluxe' (/rutina-cebolla-peptidos-muestra-deluxe)
+    [PRODUCTS] Product 'Rutina Dátil+ Multivitamínico Muestra Deluxe' (/rutina-datil-multivitaminico-muestra-deluxe)
+    [PRODUCTS] Product 'Rutina Densificante' (/tratamiento-densificador)
+    [PRODUCTS] Product 'Rutina Densificante' (/rutina-densificante)
+    [PRODUCTS] Product 'Rutina Hidratante' (/sistema-hidratante)
+    [PRODUCTS] Product 'Rutina Hidratante' (/rutina-hidratante)
+    [PRODUCTS] Product 'Rutina Nutritiva y Bienestar Capilar' (/sistema-bienestar-capilar)
+    [PRODUCTS] Product 'Rutina Nutritiva y Bienestar Capilar' (/rutina-nutritiva-y-bienestar-capilar)
+    [PRODUCTS] Product 'Rutina Regenerativa “Age-Well”' (/sistema-regenerativo-age-well)
+    [PRODUCTS] Product 'Rutina Regenerativa “Age-Well”' (/rutina-regenerativa-age-well)
+    [PRODUCTS] Product 'Rutina Reparadora y Fortalecedora' (/sistema-fortalecedor-del-cabello)
+    [PRODUCTS] Product 'Rutina Reparadora y Fortalecedora' (/rutina-reparadora-y-fortalecedora)
+    [PRODUCTS] Product 'Rutina Revitalizante para Cuero Cabelludo' (/tratamiento-revitalizante-para-cuero-cabelludo)
+    [PRODUCTS] Product 'Rutina Revitalizante para Cuero Cabelludo' (/rutina-revitalizante-para-cuero-cabelludo)
+    [PRODUCTS] Product 'Rutina Romero+ Péptidos Muestra Deluxe' (/rutina-romero-peptidos-muestra-deluxe)
+    [PRODUCTS] Product 'Rutina Salvia+ Multivitamínico Muestra Deluxe' (/rutina-salvia-multivitaminico-muestra-deluxe)
+    [PRODUCTS] Product 'Sérum Age-Well para el Cuero Cabelludo' (/serum-cuero-cabelludo)
+    [PRODUCTS] Product 'Sérum Calmante para el Cuero Cabelludo' (/serum-calmante-para-el-cuero-cabelludo)
+    [PRODUCTS] Product 'Sérum de Apoyo para el Cuero Cabelludo' (/serum-de-apoyo-para-el-cuero-cabelludo)
+    [PRODUCTS] Product 'Sérum Densificante para el Cuero Cabelludo' (/serum-foliculoestimulante)
+    [PRODUCTS] Product 'Sérum Foliculoestimulante para el Cuero Cabelludo' (/serum-foliculoestimulante-para-cuero-cabelludo)
+    [PRODUCTS] Product 'Sérum Fortalecedor para el Cuero Cabelludo' (/serum-fortalecedor-para-el-cuero-cabelludo)
+    [PRODUCTS]   'Signature Tote Bag': Saudi status is 'draft' (not active)
+    [METAOBJECTS]   12 ingredients missing in Saudi: ['Capixyl™ (Acetil Tetrapéptido-3)', 'Procapil® (Biotinoyl Tripéptido-1)', 'Silverfree™ (Palmitoyl Dipeptide-52)', 'Ajo Negro (ABG10+®)', 'Queratina Hidrolizada']
+    [NAVIGATION MENUS]   Menu item 'Cuidado Capilar' (/en/collections/cabello)
+    [NAVIGATION MENUS]   Menu item 'Diagnóstico Capilar ' (/en/pages/quiz)
+    [NAVIGATION MENUS]   Menu item 'Ingredientes' (/en/pages/ingredients)
+    [NAVIGATION MENUS]   Menu item 'Filosofía ' (/en/pages/philosophy)
+    [NAVIGATION MENUS]   Menu item 'Diario' (/en/blogs/journal)
+    [NAVIGATION MENUS]   Menu item 'Comprar Cuidado Capilar' (/en/collections/cabello)
+    [NAVIGATION MENUS]   Menu item 'Diagnóstico Capilar' (/en/policies/privacy-policy)
+    [NAVIGATION MENUS]   Menu item 'Nuestra Filosofía' (/en/pages/philosophy)
+    [NAVIGATION MENUS]   Menu item 'Nuestros Ingredientes' (/en/pages/ingredients)
+    [NAVIGATION MENUS]   Menu item 'Buscar un Producto' (/en/search)
+    [NAVIGATION MENUS]   Menu item 'Orders' (https://shopify.com/70614384682/account/orders)
+    [NAVIGATION MENUS]   Menu item 'Profile' (https://shopify.com/70614384682/account/profile)
+    [NAVIGATION MENUS]   Menu item 'My Account' (https://shopify.com/70614384682/account/pages/6971b1a1-27f6-4c27-b8b0-3009fd3b921d)
+    [NAVIGATION MENUS]   Menu item 'Contacta con nosotros' (/en/pages/contact)
+    [BLOGS & ARTICLES] Article '/journal/cuidado-cuero-cabelludo-ingredientes-botanicos' (Ciencia y botánica para un cuero cabellu)
+    [BLOGS & ARTICLES] Article '/journal/metodo-de-aplicacion-de-tara-guia-para-aplicar-nuestros-productos-y-potenciar-resultados' (Método de Aplicación de Tara: Guía para )
+    [BLOGS & ARTICLES] Article '/journal/como-cepillar-el-cabello-fino-correctamente' (Cómo cepillar el cabello fino correctame)
+    [THEME TEMPLATES] Template: templates/page.para-framacias.json
+    [HOMEPAGE CONTENT]   Section 'ingredient_listing_HY7xw9' has 1 empty image slots
+    [HOMEPAGE CONTENT]   Product section 'collection_list_fGeHYT' ('') has NO collection assigned!
+    [PRODUCT-COLLECTION LINKS] 21 Saudi collections have 0 products:
+    [INGREDIENT DETAIL PAGES] Ingredient 'Extracto de Cebolla Roja' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/extracto-de-cebolla-roja
+    [INGREDIENT DETAIL PAGES] Ingredient 'Capixyl™ (Acetyl Tetrapeptide-3)' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/capixyl-acetyl-tetrapeptide-3
+    [INGREDIENT DETAIL PAGES] Ingredient 'Procapil® (Biotinoyl Tripeptide-1)' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/procapil-biotinoyl-tripeptide-1
+Traceback (most recent call last):
+  File "C:\Users\narha\shopify-migrator\compare_stores.py", line 1025, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\narha\shopify-migrator\compare_stores.py", line 1020, in main
+    json.dump(report_data, f, indent=2, ensure_ascii=False)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\narha\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 182, in dump
+    fp.write(chunk)
+    ~~~~~~~~^^^^^^^
+  File "C:\Users\narha\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 43: character maps to <undefined>
+PS C:\Users\narha\shopify-migrator>
