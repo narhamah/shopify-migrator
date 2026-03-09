@@ -75,18 +75,14 @@ def save_json(data, filepath):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def convert_price(price, exchange_rate):
-    if price is None:
-        return None
-    try:
-        # Round to whole number — no fractional SAR for retail
-        return str(round(float(price) * exchange_rate))
-    except (ValueError, TypeError):
-        return price
+def prepare_product_for_import(product, sar_prices=None):
+    """Strip source-specific fields and prepare product for creation.
 
-
-def prepare_product_for_import(product, exchange_rate):
-    """Strip source-specific fields and prepare product for creation."""
+    Args:
+        product: product dict from the translated JSON
+        sar_prices: dict of SKU → {final_price, regular_price, currency}
+                    loaded from data/sar_prices.json (fetched by fix_prices.py)
+    """
     status = product.get("status", "draft")
     p = {
         "title": product.get("title", ""),
@@ -105,11 +101,24 @@ def prepare_product_for_import(product, exchange_rate):
     if product.get("variants"):
         p["variants"] = []
         for v in product["variants"]:
+            sku = v.get("sku", "")
+            # Use SAR price from Saudi Magento store if available
+            price = v.get("price", "0")
+            compare_at_price = v.get("compare_at_price")
+            if sar_prices and sku and sku in sar_prices:
+                sp = sar_prices[sku]
+                if sp.get("final_price") is not None:
+                    price = str(sp["final_price"])
+                if sp.get("regular_price") and sp.get("final_price") and sp["regular_price"] != sp["final_price"]:
+                    compare_at_price = str(sp["regular_price"])
+                elif sp.get("final_price") is not None:
+                    compare_at_price = None
+
             variant = {
                 "title": v.get("title", ""),
-                "price": convert_price(v.get("price"), exchange_rate),
-                "compare_at_price": convert_price(v.get("compare_at_price"), exchange_rate),
-                "sku": v.get("sku", ""),
+                "price": price,
+                "compare_at_price": compare_at_price,
+                "sku": sku,
                 "barcode": v.get("barcode", ""),
                 "weight": v.get("weight"),
                 "weight_unit": v.get("weight_unit", "kg"),
@@ -155,7 +164,6 @@ def prepare_product_for_import(product, exchange_rate):
 def main():
     parser = argparse.ArgumentParser(description="Import English content into Saudi Shopify store")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be created without making API calls")
-    parser.add_argument("--exchange-rate", type=float, default=1.0, help="EUR to SAR exchange rate (default: 1.0)")
     parser.add_argument("--reset", action="store_true", help="Clear id_map and progress files for a fresh import")
     args = parser.parse_args()
 
@@ -182,8 +190,24 @@ def main():
         access_token = os.environ["SAUDI_ACCESS_TOKEN"]
         client = ShopifyClient(shop_url, access_token)
 
-    exchange_rate = args.exchange_rate
-    print(f"Exchange rate (EUR→SAR): {exchange_rate}")
+    # Fetch SAR prices from Saudi Magento store
+    sar_prices_file = "data/sar_prices.json"
+    sar_prices = {}
+    try:
+        from fix_prices import fetch_sar_prices
+        sar_prices = fetch_sar_prices("https://taraformula.com", "sa-en")
+        if sar_prices:
+            save_json(sar_prices, sar_prices_file)
+            print(f"Fetched SAR prices for {len(sar_prices)} SKUs")
+        else:
+            print("WARNING: Could not fetch SAR prices — products will use source data prices")
+    except Exception as e:
+        # Fall back to cached prices
+        if os.path.exists(sar_prices_file):
+            sar_prices = load_json(sar_prices_file)
+            print(f"Using cached SAR prices for {len(sar_prices)} SKUs ({e})")
+        else:
+            print(f"WARNING: Could not fetch SAR prices ({e}) — products will use source data prices")
 
     # =============================================
     # Phase 0: Examine destination store
@@ -349,7 +373,7 @@ def main():
             save_json(id_map, id_map_file)
             continue
 
-        product_data = prepare_product_for_import(product, exchange_rate)
+        product_data = prepare_product_for_import(product, sar_prices)
         try:
             created = client.create_product(product_data)
             dest_id = created.get("id")
@@ -616,7 +640,7 @@ def main():
     # =============================================
     # Phase 6: Remap reference fields
     # =============================================
-    if not args.dry_run and not args.exchange_rate == -1:  # Always run unless explicitly skipped
+    if not args.dry_run:
         print("\n--- Phase 6: Remapping reference fields ---")
         ref_progress = id_map.get("_ref_remapped", {})
 
