@@ -871,8 +871,16 @@ def translate_with_gaps(
     # Track which types need full replacement (not merge) because their
     # scraped data is just untranslated source text.
     _full_replace_mo_types = set()
-    if isinstance(source_metaobjects, dict):
-        for mo_type, type_data in source_metaobjects.items():
+
+    # When the Spain export has no metaobjects, the scraper's output
+    # (which is a copy of Spain data with slugified handles) IS the
+    # source — its text fields still need translation.
+    effective_mo_source = source_metaobjects
+    if not effective_mo_source or (isinstance(effective_mo_source, dict) and not effective_mo_source):
+        effective_mo_source = scraped_metaobjects
+
+    if isinstance(effective_mo_source, dict):
+        for mo_type, type_data in effective_mo_source.items():
             objs = type_data.get("objects", [])
             if not objs:
                 continue
