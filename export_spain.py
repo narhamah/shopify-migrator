@@ -104,6 +104,15 @@ def main():
     save_json(all_metaobjects, os.path.join(output_dir, "metaobjects.json"))
     print(f"  Exported {total_count} metaobjects across {len(definitions)} types")
 
+    # Product metafield definitions (needed for smart collection rule remapping)
+    print("Fetching product metafield definitions...")
+    try:
+        product_mf_defs = client.get_metafield_definitions("PRODUCT")
+        save_json(product_mf_defs, os.path.join(output_dir, "product_metafield_definitions.json"))
+        print(f"  Exported {len(product_mf_defs)} product metafield definitions")
+    except Exception as e:
+        print(f"  Skipped: {e}")
+
     # Collection membership (which products belong to which collections)
     print("Fetching collection membership...")
     all_collects = []

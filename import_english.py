@@ -371,6 +371,40 @@ def main():
     # Phase 3: Collections
     # =============================================
     collections = load_json(os.path.join(input_dir, "collections.json"))
+
+    # Build metafield definition GID remapping for smart collection rules.
+    # Smart collection rules reference MetafieldDefinition GIDs from the Spain
+    # store — we need to remap them to the destination store's GIDs.
+    spain_def_gid_to_dest = {}  # Spain MetafieldDefinition GID → dest GID
+    if not args.dry_run:
+        try:
+            # Load Spain definitions (exported by export_spain.py)
+            spain_defs_file = os.path.join("data", "spain_export", "product_metafield_definitions.json")
+            spain_defs = load_json(spain_defs_file) if os.path.exists(spain_defs_file) else []
+
+            # Fetch destination definitions
+            dest_product_defs = client.get_metafield_definitions("PRODUCT")
+            dest_mf_def_map = {}
+            for d in dest_product_defs:
+                dest_mf_def_map[(d["namespace"], d["key"])] = d["id"]
+
+            # Map Spain GID → dest GID by matching namespace.key
+            for sd in spain_defs:
+                nk = (sd["namespace"], sd["key"])
+                if nk in dest_mf_def_map:
+                    spain_def_gid_to_dest[sd["id"]] = dest_mf_def_map[nk]
+
+            if spain_def_gid_to_dest:
+                print(f"  Mapped {len(spain_def_gid_to_dest)} metafield definition GIDs for smart collection rules")
+        except Exception as e:
+            print(f"  Warning: Could not build metafield definition mapping: {e}")
+
+    # Build reverse map: metaobject source GID → dest GID (across all types)
+    all_metaobject_id_map = {}
+    for map_key, mapping in id_map.items():
+        if map_key.startswith("metaobjects_"):
+            all_metaobject_id_map.update(mapping)
+
     print(f"\nImporting {len(collections)} collections...")
     for i, collection in enumerate(collections):
         source_id = str(collection["id"])
@@ -398,11 +432,38 @@ def main():
 
         try:
             if is_smart:
+                # Remap smart collection rule GIDs from Spain → destination
+                remapped_rules = []
+                skip_collection = False
+                for rule in collection.get("rules", []):
+                    rule = dict(rule)  # shallow copy
+                    # Remap condition_object_id (MetafieldDefinition GID)
+                    coid = rule.get("condition_object_id")
+                    if coid and coid.startswith("gid://"):
+                        dest_coid = spain_def_gid_to_dest.get(coid)
+                        if dest_coid:
+                            rule["condition_object_id"] = dest_coid
+                        else:
+                            print(f"  {label} — SKIPPED: no matching metafield definition in dest store")
+                            skip_collection = True
+                            break
+                    # Remap condition (metaobject GID)
+                    cond = rule.get("condition", "")
+                    if cond.startswith("gid://shopify/Metaobject/"):
+                        dest_cond = all_metaobject_id_map.get(cond)
+                        if dest_cond:
+                            rule["condition"] = dest_cond
+                        # If not mapped, keep original — might still work
+                    remapped_rules.append(rule)
+
+                if skip_collection:
+                    continue
+
                 coll_data = {
                     "title": collection.get("title", ""),
                     "body_html": collection.get("body_html", ""),
                     "handle": handle,
-                    "rules": collection.get("rules", []),
+                    "rules": remapped_rules,
                     "disjunctive": collection.get("disjunctive", False),
                 }
                 if collection.get("image", {}).get("src"):
@@ -747,7 +808,20 @@ def main():
                     client.set_metafields(metafields_to_set)
                     print(f"  Article '{article.get('title', '')[:40]}' — set {len(metafields_to_set)} reference metafields")
                 except Exception as e:
-                    print(f"  Article '{article.get('title', '')[:40]}' — error: {e}")
+                    # OnlineStoreArticle GID may not work for metafieldsSet in
+                    # some API versions — retry with Article GID format
+                    if "invalid id" in str(e):
+                        for mf in metafields_to_set:
+                            mf["ownerId"] = mf["ownerId"].replace(
+                                "OnlineStoreArticle", "Article"
+                            )
+                        try:
+                            client.set_metafields(metafields_to_set)
+                            print(f"  Article '{article.get('title', '')[:40]}' — set {len(metafields_to_set)} reference metafields (Article GID)")
+                        except Exception as e2:
+                            print(f"  Article '{article.get('title', '')[:40]}' — error: {e2}")
+                    else:
+                        print(f"  Article '{article.get('title', '')[:40]}' — error: {e}")
 
             ref_progress[f"article_{source_id}"] = True
 

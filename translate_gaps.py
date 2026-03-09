@@ -855,12 +855,19 @@ def main():
     output_metaobjects = dict(scraped_metaobjects) if isinstance(scraped_metaobjects, dict) else {}
 
     # Add gap items (deep copies with Spain data as base)
+    # Deduplicate by source ID to prevent accumulation on re-runs
+    existing_product_ids = {str(p.get("id", "")) for p in output_products}
     for p in gap_products:
-        output_products.append(copy.deepcopy(p))
+        if str(p.get("id", "")) not in existing_product_ids:
+            output_products.append(copy.deepcopy(p))
+    existing_collection_ids = {str(c.get("id", "")) for c in output_collections}
     for c in gap_collections:
-        output_collections.append(copy.deepcopy(c))
+        if str(c.get("id", "")) not in existing_collection_ids:
+            output_collections.append(copy.deepcopy(c))
+    existing_page_ids = {str(pg.get("id", "")) for pg in output_pages}
     for pg in gap_pages:
-        output_pages.append(copy.deepcopy(pg))
+        if str(pg.get("id", "")) not in existing_page_ids:
+            output_pages.append(copy.deepcopy(pg))
 
     # Articles: replace entirely (all need translation)
     output_articles = [copy.deepcopy(a) for a in gap_articles]
