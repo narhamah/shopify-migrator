@@ -34,8 +34,8 @@ ARABIC_LOCALE = "ar"
 RESOURCE_TYPE_CONFIG = {
     "PRODUCT": ("gid://shopify/Product/", "product", "prod"),
     "COLLECTION": ("gid://shopify/Collection/", "collection", "coll"),
-    "ONLINE_STORE_PAGE": ("gid://shopify/OnlineStorePage/", "page", "page"),
-    "ONLINE_STORE_ARTICLE": ("gid://shopify/OnlineStoreArticle/", "article", "art"),
+    "ONLINE_STORE_PAGE": ("gid://shopify/Page/", "page", "page"),
+    "ONLINE_STORE_ARTICLE": ("gid://shopify/Article/", "article", "art"),
     "ONLINE_STORE_BLOG": ("gid://shopify/Blog/", "blog", "blog"),
     "METAOBJECT": ("gid://shopify/Metaobject/", "metaobject", "mo"),
 }
