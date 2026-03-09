@@ -105,6 +105,111 @@ class ShopifyClient:
     def get_metafields(self, resource, resource_id):
         return self._paginate(f"{resource}/{resource_id}/metafields.json", "metafields")
 
+    # --- REST: Delete methods ---
+
+    def delete_product(self, product_id):
+        self._request("DELETE", f"products/{product_id}.json")
+
+    def delete_custom_collection(self, collection_id):
+        self._request("DELETE", f"custom_collections/{collection_id}.json")
+
+    def delete_smart_collection(self, collection_id):
+        self._request("DELETE", f"smart_collections/{collection_id}.json")
+
+    def delete_page(self, page_id):
+        self._request("DELETE", f"pages/{page_id}.json")
+
+    def delete_blog(self, blog_id):
+        self._request("DELETE", f"blogs/{blog_id}.json")
+
+    def delete_article(self, blog_id, article_id):
+        self._request("DELETE", f"blogs/{blog_id}/articles/{article_id}.json")
+
+    def delete_price_rule(self, price_rule_id):
+        self._request("DELETE", f"price_rules/{price_rule_id}.json")
+
+    def delete_metaobject(self, metaobject_id):
+        query = """
+        mutation metaobjectDelete($id: ID!) {
+          metaobjectDelete(id: $id) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        """
+        data = self._graphql(query, {"id": metaobject_id})
+        result = data["metaobjectDelete"]
+        if result["userErrors"]:
+            raise Exception(f"metaobjectDelete errors: {result['userErrors']}")
+        return result["deletedId"]
+
+    def delete_metaobject_definition(self, definition_id):
+        query = """
+        mutation metaobjectDefinitionDelete($id: ID!) {
+          metaobjectDefinitionDelete(id: $id) {
+            deletedId
+            userErrors { field message }
+          }
+        }
+        """
+        data = self._graphql(query, {"id": definition_id})
+        result = data["metaobjectDefinitionDelete"]
+        if result["userErrors"]:
+            raise Exception(f"metaobjectDefinitionDelete errors: {result['userErrors']}")
+        return result["deletedId"]
+
+    def delete_file(self, file_id):
+        query = """
+        mutation fileDelete($input: [ID!]!) {
+          fileDelete(fileIds: $input) {
+            deletedFileIds
+            userErrors { field message }
+          }
+        }
+        """
+        data = self._graphql(query, {"input": [file_id]})
+        result = data["fileDelete"]
+        if result["userErrors"]:
+            raise Exception(f"fileDelete errors: {result['userErrors']}")
+        return result["deletedFileIds"]
+
+    def get_files(self, first=250):
+        """Get all files (paginated)."""
+        all_files = []
+        cursor = None
+        while True:
+            after_clause = f', after: "{cursor}"' if cursor else ""
+            query = f"""
+            {{
+              files(first: {first}{after_clause}) {{
+                edges {{
+                  cursor
+                  node {{
+                    ... on MediaImage {{
+                      id
+                      alt
+                      image {{ url }}
+                    }}
+                    ... on GenericFile {{
+                      id
+                      alt
+                      url
+                    }}
+                  }}
+                }}
+                pageInfo {{ hasNextPage }}
+              }}
+            }}
+            """
+            data = self._graphql(query)
+            edges = data["files"]["edges"]
+            for edge in edges:
+                all_files.append(edge["node"])
+                cursor = edge["cursor"]
+            if not data["files"]["pageInfo"]["hasNextPage"]:
+                break
+        return all_files
+
     # --- REST: Write methods ---
 
     def create_product(self, product_data):
