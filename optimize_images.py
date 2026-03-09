@@ -151,12 +151,24 @@ def optimize_image(image_bytes, filename, quality=None, max_dimension=None, pres
 
     # Convert to WebP
     output = io.BytesIO()
-    save_kwargs = {"format": "WEBP", "method": 4}
     if lossless:
-        save_kwargs["lossless"] = True
+        save_kwargs = {
+            "format": "WEBP",
+            "lossless": True,
+            "quality": 100,   # max compression effort for lossless
+            "method": 6,      # best compression (slower but worth it for small icons)
+        }
+        if img.mode == "RGBA":
+            save_kwargs["exact"] = True  # preserve transparent pixel RGB data
     else:
-        save_kwargs["quality"] = q
-        save_kwargs["lossless"] = False
+        save_kwargs = {
+            "format": "WEBP",
+            "quality": q,
+            "method": 4,
+            "lossless": False,
+        }
+        if img.mode == "RGBA":
+            save_kwargs["alpha_quality"] = 100  # keep transparency crisp
     img.save(output, **save_kwargs)
     optimized_bytes = output.getvalue()
 
