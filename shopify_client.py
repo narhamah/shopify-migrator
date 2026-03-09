@@ -883,6 +883,83 @@ class ShopifyClient:
             raise Exception(f"menuCreate errors: {errors}")
         return result["menu"]
 
+    def get_menus(self):
+        """Get all navigation menus."""
+        query = """
+        {
+          menus(first: 50) {
+            edges {
+              node {
+                id
+                title
+                handle
+                items {
+                  id
+                  title
+                  url
+                  resourceId
+                  items {
+                    id
+                    title
+                    url
+                    resourceId
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+        data = self._graphql(query)
+        return [edge["node"] for edge in data["menus"]["edges"]]
+
+    def delete_menu(self, menu_id):
+        """Delete a navigation menu by GID."""
+        query = """
+        mutation menuDelete($id: ID!) {
+          menuDelete(id: $id) {
+            deletedMenuId
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"id": menu_id})
+        result = data["menuDelete"]
+        if result["userErrors"]:
+            raise Exception(f"menuDelete errors: {result['userErrors']}")
+        return result["deletedMenuId"]
+
+    def update_menu(self, menu_id, title=None, items=None):
+        """Update a navigation menu's title and/or items."""
+        query = """
+        mutation menuUpdate($id: ID!, $title: String, $items: [MenuItemUpdateInput!]) {
+          menuUpdate(id: $id, title: $title, items: $items) {
+            menu {
+              id
+              title
+              handle
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        variables = {"id": menu_id}
+        if title:
+            variables["title"] = title
+        if items is not None:
+            variables["items"] = items
+        data = self._graphql(query, variables)
+        result = data["menuUpdate"]
+        if result["userErrors"]:
+            raise Exception(f"menuUpdate errors: {result['userErrors']}")
+        return result["menu"]
+
     # --- REST: Themes & Assets ---
 
     def get_themes(self):
