@@ -332,6 +332,11 @@ class TestMainDryRun:
         assert "DRY RUN" in captured.out
 
 
+def _make_store_resource(gid, translatable_content):
+    """Helper to create a store resource as returned by get_translatable_resources."""
+    return {"resourceId": gid, "translatableContent": translatable_content}
+
+
 class TestMainProducts:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
@@ -349,15 +354,17 @@ class TestMainProducts:
             },
         )
 
+        tc = [
+            {"key": "title", "value": "Test Product", "digest": "abc", "locale": "en"},
+            {"key": "handle", "value": "test-product", "digest": "hnd", "locale": "en"},
+            {"key": "body_html", "value": "<p>Body</p>", "digest": "def", "locale": "en"},
+        ]
+
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.return_value = {
-            "resourceId": "gid://shopify/Product/9001",
-            "translatableContent": [
-                {"key": "title", "value": "Test Product", "digest": "abc", "locale": "en"},
-                {"key": "body_html", "value": "<p>Body</p>", "digest": "def", "locale": "en"},
-            ],
-        }
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Product/9001", tc),
+        ]
         mc.register_translations.return_value = [{"key": "title", "locale": "ar", "value": "عنوان"}]
         mc._request.return_value = MagicMock(
             json=lambda: {"product": {"id": 9001, "images": []}}
@@ -382,6 +389,11 @@ class TestMainProducts:
 
         mc = MagicMock()
         MockClient.return_value = mc
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Product/9001", [
+                {"key": "title", "value": "Test", "digest": "abc", "locale": "en"},
+            ]),
+        ]
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
         os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
@@ -391,17 +403,23 @@ class TestMainProducts:
             del os.environ["SAUDI_SHOP_URL"]
             del os.environ["SAUDI_ACCESS_TOKEN"]
 
-        mc.get_translatable_resource.assert_not_called()
+        mc.register_translations.assert_not_called()
 
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
-    def test_no_dest_id_skips(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
+    def test_no_local_data_skips(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path, id_map={"products": {}})
 
         mc = MagicMock()
         MockClient.return_value = mc
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Product/9999", [
+                {"key": "title", "value": "Unknown", "digest": "abc", "locale": "en"},
+                {"key": "handle", "value": "unknown-product", "digest": "hnd", "locale": "en"},
+            ]),
+        ]
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
         os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
@@ -411,18 +429,28 @@ class TestMainProducts:
             del os.environ["SAUDI_SHOP_URL"]
             del os.environ["SAUDI_ACCESS_TOKEN"]
 
-        mc.get_translatable_resource.assert_not_called()
+        captured = capsys.readouterr()
+        assert "no local Arabic data" in captured.out
 
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_translation_error_continues(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
-        _setup_arabic_data(tmp_path)
+        _setup_arabic_data(
+            tmp_path,
+            progress_ar={"prod.test-product.title": "عنوان"},
+        )
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.side_effect = Exception("API error")
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Product/9001", [
+                {"key": "title", "value": "Test", "digest": "abc", "locale": "en"},
+                {"key": "handle", "value": "test-product", "digest": "hnd", "locale": "en"},
+            ]),
+        ]
+        mc.register_translations.side_effect = Exception("API error")
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
         os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
@@ -438,16 +466,13 @@ class TestMainProducts:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
-    def test_no_translatable_content(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
+    def test_empty_store(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path)
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.return_value = None
-        mc._request.return_value = MagicMock(
-            json=lambda: {"product": {"id": 9001, "images": []}}
-        )
+        mc.get_translatable_resources.return_value = []
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
         os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
@@ -458,7 +483,7 @@ class TestMainProducts:
             del os.environ["SAUDI_ACCESS_TOKEN"]
 
         captured = capsys.readouterr()
-        assert "could not fetch" in captured.out.lower()
+        assert "Found 0" in captured.out
 
 
 class TestMainCollections:
@@ -474,17 +499,21 @@ class TestMainCollections:
             en_products=[], ar_products=[],
             en_collections=[coll], ar_collections=[ar_coll],
             id_map={"products": {}, "collections": {str(coll["id"]): 9002}},
+            progress_ar={
+                "coll.test-collection.title": "مجموعة",
+                "coll.test-collection.body_html": "<p>وصف</p>",
+            },
         )
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.return_value = {
-            "resourceId": "gid://shopify/Collection/9002",
-            "translatableContent": [
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Collection/9002", [
                 {"key": "title", "value": "Test", "digest": "abc", "locale": "en"},
+                {"key": "handle", "value": "test-collection", "digest": "hnd", "locale": "en"},
                 {"key": "body_html", "value": "<p>Body</p>", "digest": "def", "locale": "en"},
-            ],
-        }
+            ]),
+        ]
         mc.register_translations.return_value = []
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
@@ -511,16 +540,19 @@ class TestMainPages:
             en_products=[], ar_products=[],
             en_pages=[page], ar_pages=[ar_page],
             id_map={"products": {}, "pages": {str(page["id"]): 9003}},
+            progress_ar={
+                "page.test-page.title": "صفحة",
+            },
         )
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.return_value = {
-            "resourceId": "gid://shopify/OnlineStorePage/9003",
-            "translatableContent": [
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Page/9003", [
                 {"key": "title", "value": "Test Page", "digest": "abc", "locale": "en"},
-            ],
-        }
+                {"key": "handle", "value": "test-page", "digest": "hnd", "locale": "en"},
+            ]),
+        ]
         mc.register_translations.return_value = []
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
@@ -547,18 +579,23 @@ class TestMainArticles:
             en_products=[], ar_products=[],
             en_articles=[art], ar_articles=[ar_art],
             id_map={"products": {}, "articles": {str(art["id"]): 9005}},
+            progress_ar={
+                "art.test-article.title": "مقالة",
+                "art.test-article.body_html": "<p>محتوى</p>",
+                "art.test-article.summary_html": "<p>ملخص</p>",
+            },
         )
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.return_value = {
-            "resourceId": f"gid://shopify/OnlineStoreArticle/9005",
-            "translatableContent": [
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Article/9005", [
                 {"key": "title", "value": "Test", "digest": "abc", "locale": "en"},
+                {"key": "handle", "value": "test-article", "digest": "hnd", "locale": "en"},
                 {"key": "body_html", "value": "<p>Body</p>", "digest": "def", "locale": "en"},
                 {"key": "summary_html", "value": "<p>Sum</p>", "digest": "ghi", "locale": "en"},
-            ],
-        }
+            ]),
+        ]
         mc.register_translations.return_value = []
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
@@ -601,16 +638,19 @@ class TestMainMetaobjects:
                 "products": {},
                 "metaobjects_benefit": {"gid://shopify/Metaobject/100": "gid://shopify/Metaobject/500"},
             },
+            progress_ar={
+                "mo.benefit.shine.title": "تألق",
+            },
         )
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.return_value = {
-            "resourceId": "gid://shopify/Metaobject/500",
-            "translatableContent": [
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Metaobject/500", [
                 {"key": "title", "value": "Shine", "digest": "xyz", "locale": "en"},
-            ],
-        }
+                {"key": "handle", "value": "shine", "digest": "hnd", "locale": "en"},
+            ]),
+        ]
         mc.register_translations.return_value = []
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
@@ -626,43 +666,19 @@ class TestMainMetaobjects:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
-    def test_metaobject_no_dest_id_falls_back_to_handle(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
+    def test_metaobject_no_local_data(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
+        """Metaobjects without local data should still be processed (gaps for AI)."""
         monkeypatch.chdir(tmp_path)
-
-        en_metaobjects = {
-            "benefit": {
-                "definition": {"type": "benefit"},
-                "objects": [{"id": "gid://shopify/Metaobject/100", "handle": "shine",
-                             "fields": [{"key": "title", "value": "Shine"}]}],
-            }
-        }
-        ar_metaobjects = {
-            "benefit": {
-                "definition": {"type": "benefit"},
-                # Arabic has a different source ID
-                "objects": [{"id": "gid://shopify/Metaobject/999", "handle": "shine",
-                             "fields": [{"key": "title", "value": "تألق"}]}],
-            }
-        }
-        _setup_arabic_data(
-            tmp_path,
-            en_products=[], ar_products=[],
-            en_metaobjects=en_metaobjects, ar_metaobjects=ar_metaobjects,
-            id_map={
-                "products": {},
-                "metaobjects_benefit": {"gid://shopify/Metaobject/100": "gid://shopify/Metaobject/500"},
-            },
-        )
+        _setup_arabic_data(tmp_path, en_products=[], ar_products=[])
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_translatable_resource.return_value = {
-            "resourceId": "gid://shopify/Metaobject/500",
-            "translatableContent": [
+        mc.get_translatable_resources.return_value = [
+            _make_store_resource("gid://shopify/Metaobject/500", [
                 {"key": "title", "value": "Shine", "digest": "xyz", "locale": "en"},
-            ],
-        }
-        mc.register_translations.return_value = []
+                {"key": "handle", "value": "shine", "digest": "hnd", "locale": "en"},
+            ]),
+        ]
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
         os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
@@ -672,8 +688,8 @@ class TestMainMetaobjects:
             del os.environ["SAUDI_SHOP_URL"]
             del os.environ["SAUDI_ACCESS_TOKEN"]
 
-        # Should still find dest_id via handle fallback
-        mc.register_translations.assert_called()
+        captured = capsys.readouterr()
+        assert "Found 1 translatable metaobjects" in captured.out
 
 
 class TestMetaobjectTranslations:
