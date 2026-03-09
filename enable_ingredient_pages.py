@@ -71,43 +71,12 @@ def enable_renderable(client, dry_run=False):
 
 
 def publish_metaobjects(client, dry_run=False):
-    """Publish all ingredient metaobjects to the Online Store channel."""
+    """Publish all ingredient metaobjects by setting publishable status to ACTIVE.
+
+    Uses metaobjectUpdate to set capabilities.publishable.status = ACTIVE,
+    which does NOT require 'read_publications' scope.
+    """
     print("\n--- Step 2: Publish ingredient metaobjects ---")
-
-    # Get publications (sales channels)
-    try:
-        publications = client.get_publications()
-        print(f"  Found {len(publications)} publications")
-        for p in publications:
-            print(f"    - {p['name']} ({p['id']})")
-    except Exception as e:
-        print(f"  Error fetching publications: {e}")
-        print("  Make sure the app has 'read_publications' scope")
-        return
-
-    # Find Online Store publication
-    online_store_pub = None
-    for p in publications:
-        name = p.get("name", "").lower()
-        if "online store" in name:
-            online_store_pub = p
-            break
-
-    if not online_store_pub:
-        print("  WARNING: Could not find 'Online Store' publication")
-        print("  Available publications:")
-        for p in publications:
-            print(f"    - {p['name']}")
-        # Use first publication as fallback
-        if publications:
-            online_store_pub = publications[0]
-            print(f"  Using '{online_store_pub['name']}' as fallback")
-        else:
-            print("  No publications found — cannot publish metaobjects")
-            return
-
-    pub_id = online_store_pub["id"]
-    print(f"  Target publication: {online_store_pub['name']} ({pub_id})")
 
     # Get all ingredient metaobjects
     ingredients = client.get_metaobjects("ingredient")
@@ -120,6 +89,21 @@ def publish_metaobjects(client, dry_run=False):
             print(f"    Would publish: {name} ({ing['handle']})")
         return
 
+    query = """
+    mutation metaobjectUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+      metaobjectUpdate(id: $id, metaobject: $metaobject) {
+        metaobject {
+          id
+          handle
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+    """
+
     published = 0
     errors = 0
     for ing in ingredients:
@@ -127,18 +111,29 @@ def publish_metaobjects(client, dry_run=False):
         name = name_field["value"] if name_field else ing["handle"]
 
         try:
-            client.publish_resource(ing["id"], [pub_id])
-            published += 1
-            if published % 10 == 0:
-                print(f"  Published {published}/{len(ingredients)}...")
+            data = client._graphql(query, {
+                "id": ing["id"],
+                "metaobject": {
+                    "capabilities": {
+                        "publishable": {
+                            "status": "ACTIVE"
+                        }
+                    }
+                }
+            })
+            result = data["metaobjectUpdate"]
+            if result["userErrors"]:
+                err_msgs = [e["message"] for e in result["userErrors"]]
+                print(f"  Error publishing '{name}': {err_msgs}")
+                errors += 1
+            else:
+                published += 1
+                if published % 10 == 0:
+                    print(f"  Published {published}/{len(ingredients)}...")
             time.sleep(0.2)
         except Exception as e:
-            err_msg = str(e)
-            if "already published" in err_msg.lower() or "already been" in err_msg.lower():
-                published += 1
-            else:
-                print(f"  Error publishing '{name}': {e}")
-                errors += 1
+            print(f"  Error publishing '{name}': {e}")
+            errors += 1
 
     print(f"  Published: {published}, Errors: {errors}")
 
