@@ -1,0 +1,427 @@
+{
+  "en": {
+    "products": [],
+    "collections": [],
+    "pages": [
+      {
+        "id": 133429362730,
+        "handle": "philosophy",
+        "title": "Filosofía"
+      },
+      {
+        "id": 133489655850,
+        "handle": "para-faramcias",
+        "title": "Para Farmacias"
+      },
+      {
+        "id": 134714720298,
+        "handle": "puntos-de-venta",
+        "title": "Puntos de venta"
+      },
+      {
+        "id": 133576458282,
+        "handle": "suscripcion-newsletter",
+        "title": "Suscripción Newsletter"
+      }
+    ],
+    "articles": [
+      {
+        "id": 565214871594,
+        "handle": "cuidado-cuero-cabelludo-ingredientes-botanicos",
+        "title": "Ciencia y botánica para un cuero cabelludo sano"
+      },
+      {
+        "id": 563634634794,
+        "handle": "metodo-de-aplicacion-de-tara-guia-para-aplicar-nuestros-productos-y-potenciar-resultados",
+        "title": "Método de Aplicación de Tara: Guía para Aplicar nuestros Productos y Potenciar Resultados"
+      },
+      {
+        "id": 563597115434,
+        "handle": "como-cepillar-el-cabello-fino-correctamente",
+        "title": "Cómo cepillar el cabello fino correctamente"
+      }
+    ],
+    "metaobjects": {
+      "shopify--suitable-for-hair-type": 11,
+      "shopify--hair-care-items-included": 5,
+      "faq_entry": 124,
+      "ingredient": 34,
+      "benefit": 122
+    }
+  },
+  "ar": {
+    "products": [
+      {
+        "id": 7817942728746,
+        "handle": "neceser-de-belleza",
+        "title": "Neceser de Belleza"
+      },
+      {
+        "id": 7817944039466,
+        "handle": "rutina-ajo-negro-ceramidas-muestra-deluxe",
+        "title": "Rutina Ajo Negro+ Ceramidas Muestra Deluxe"
+      },
+      {
+        "id": 7817943744554,
+        "handle": "rutina-cebolla-peptidos-muestra-deluxe",
+        "title": "Rutina Cebolla+ Péptidos Muestra Deluxe"
+      },
+      {
+        "id": 7817943908394,
+        "handle": "rutina-datil-multivitaminico-muestra-deluxe",
+        "title": "Rutina Dátil+ Multivitamínico Muestra Deluxe"
+      },
+      {
+        "id": 7817943777322,
+        "handle": "rutina-romero-peptidos-muestra-deluxe",
+        "title": "Rutina Romero+ Péptidos Muestra Deluxe"
+      },
+      {
+        "id": 7817943941162,
+        "handle": "rutina-salvia-multivitaminico-muestra-deluxe",
+        "title": "Rutina Salvia+ Multivitamínico Muestra Deluxe"
+      },
+      {
+        "id": 7817942794282,
+        "handle": "signature-tote-bag",
+        "title": "Signature Tote Bag"
+      }
+    ],
+    "collections": [
+      {
+        "id": 306324504618,
+        "handle": "accesorios",
+        "title": "Accesorios"
+      },
+      {
+        "id": 305624645674,
+        "handle": "ajo-negro-ceramidas",
+        "title": "Ajo Negro+ Ceramidas"
+      },
+      {
+        "id": 305718657066,
+        "handle": "cebolla-peptidos",
+        "title": "Cebolla+ Péptidos"
+      },
+      {
+        "id": 305746575402,
+        "handle": "datil-multivitaminico",
+        "title": "Dátil+ Multivitamínico"
+      },
+      {
+        "id": 305746673706,
+        "handle": "detox",
+        "title": "Detox"
+      },
+      {
+        "id": 305746903082,
+        "handle": "fresa-nmf",
+        "title": "Fresa+ NMF"
+      },
+      {
+        "id": 305720688682,
+        "handle": "mas-vendidos",
+        "title": "Más Vendidos"
+      },
+      {
+        "id": 305745821738,
+        "handle": "mascarillas-capilares",
+        "title": "Mascarillas Capilares"
+      },
+      {
+        "id": 305720885290,
+        "handle": "novedades",
+        "title": "Novedades"
+      },
+      {
+        "id": 305721049130,
+        "handle": "por-producto",
+        "title": "Por Producto"
+      },
+      {
+        "id": 305720786986,
+        "handle": "premiados",
+        "title": "Premiados"
+      },
+      {
+        "id": 305745887274,
+        "handle": "productos-de-acabado",
+        "title": "Productos de Acabado"
+      },
+      {
+        "id": 305746477098,
+        "handle": "romero-peptidos",
+        "title": "Romero+ Péptidos"
+      },
+      {
+        "id": 305746772010,
+        "handle": "salvia-multivitaminico",
+        "title": "Salvia+ Multivitamínico"
+      },
+      {
+        "id": 305745854506,
+        "handle": "serums-cuero-cabelludo",
+        "title": "Sérums Cuero Cabelludo"
+      },
+      {
+        "id": 305745920042,
+        "handle": "sets-capilares",
+        "title": "Sets Capilares"
+      },
+      {
+        "id": 305907138602,
+        "handle": "aceite-de-aguacate",
+        "title": "Aceite de Aguacate"
+      },
+      {
+        "id": 305910284330,
+        "handle": "aceite-de-argan",
+        "title": "Aceite de argan"
+      },
+      {
+        "id": 305910054954,
+        "handle": "aceite-de-oliva",
+        "title": "Aceite de oliva"
+      },
+      {
+        "id": 305910251562,
+        "handle": "aceite-de-sesamo",
+        "title": "Aceite de sésamo"
+      },
+      {
+        "id": 305910087722,
+        "handle": "aceite-de-uva",
+        "title": "Aceite de uva"
+      },
+      {
+        "id": 305905860650,
+        "handle": "acetil-tetrapeptido-3",
+        "title": "Acetil Tetrapéptido-3"
+      },
+      {
+        "id": 305906941994,
+        "handle": "acido-salicilico",
+        "title": "Ácido Salicílico"
+      },
+      {
+        "id": 305745788970,
+        "handle": "acondicionadores",
+        "title": "Acondicionadores"
+      },
+      {
+        "id": 305787174954,
+        "handle": "ajo-negro",
+        "title": "Ajo Negro"
+      },
+      {
+        "id": 305907171370,
+        "handle": "alga-roja",
+        "title": "Alga Roja"
+      },
+      {
+        "id": 305907073066,
+        "handle": "arcilla-ghassoul",
+        "title": "Arcilla Ghassoul"
+      },
+      {
+        "id": 305905893418,
+        "handle": "biotinoyl-tripeptido-1",
+        "title": "Biotinoyl Tripéptido-1"
+      },
+      {
+        "id": 305906876458,
+        "handle": "carbon-activado",
+        "title": "Carbón Activado"
+      },
+      {
+        "id": 305905991722,
+        "handle": "ceramida-np",
+        "title": "Ceramida NP"
+      },
+      {
+        "id": 305787338794,
+        "handle": "ceramidas",
+        "title": "Ceramidas"
+      },
+      {
+        "id": 305721147434,
+        "handle": "champus",
+        "title": "Champús"
+      },
+      {
+        "id": 305910546474,
+        "handle": "colageno-hidrolizado",
+        "title": "Colágeno hidrolizado"
+      },
+      {
+        "id": 305787371562,
+        "handle": "colageno-vegetal",
+        "title": "Colágeno Vegetal"
+      },
+      {
+        "id": 305906090026,
+        "handle": "complejo-multivitaminico",
+        "title": "Complejo Multivitamínico"
+      },
+      {
+        "id": 305907236906,
+        "handle": "corteza-de-inga-alba",
+        "title": "Corteza de Inga Alba"
+      },
+      {
+        "id": 305905795114,
+        "handle": "extracto-de-cebolla-roja",
+        "title": "Extracto de Cebolla Roja"
+      },
+      {
+        "id": 305906712618,
+        "handle": "extracto-de-datil",
+        "title": "Extracto de Dátil"
+      },
+      {
+        "id": 305906778154,
+        "handle": "extracto-de-fresa",
+        "title": "Extracto de Fresa"
+      },
+      {
+        "id": 305907269674,
+        "handle": "extracto-de-levadura",
+        "title": "Extracto de Levadura"
+      },
+      {
+        "id": 305907007530,
+        "handle": "extracto-de-nopal-cactus",
+        "title": "Extracto de Nopal (Cactus)"
+      },
+      {
+        "id": 305905958954,
+        "handle": "extracto-de-romero",
+        "title": "Extracto de Romero"
+      },
+      {
+        "id": 305906057258,
+        "handle": "extracto-de-salvia",
+        "title": "Extracto de Salvia"
+      },
+      {
+        "id": 305910349866,
+        "handle": "extracto-de-soja",
+        "title": "Extracto de soja"
+      },
+      {
+        "id": 305906810922,
+        "handle": "factor-natural-de-hidratacion-nmf",
+        "title": "Factor Natural de Hidratación (NMF)"
+      },
+      {
+        "id": 305907367978,
+        "handle": "manteca-de-karite",
+        "title": "Manteca de Karité"
+      },
+      {
+        "id": 305907466282,
+        "handle": "manteca-de-mango",
+        "title": "Manteca de Mango"
+      },
+      {
+        "id": 305907531818,
+        "handle": "manteca-de-mango-1",
+        "title": "Manteca de Mango"
+      },
+      {
+        "id": 305907302442,
+        "handle": "micro-queratina",
+        "title": "Micro Queratina"
+      },
+      {
+        "id": 305910186026,
+        "handle": "niacinamida",
+        "title": "Niacinamida"
+      },
+      {
+        "id": 305905926186,
+        "handle": "palmitoil-dipeptido-52",
+        "title": "Palmitoil Dipéptido-52"
+      },
+      {
+        "id": 305906974762,
+        "handle": "raiz-de-jengibre",
+        "title": "Raíz de Jengibre"
+      },
+      {
+        "id": 305907204138,
+        "handle": "semilla-de-apio",
+        "title": "Semilla de Apio"
+      },
+      {
+        "id": 305910153258,
+        "handle": "vitamina-b-5",
+        "title": "Vitamina B5"
+      }
+    ],
+    "pages": [
+      {
+        "id": 132945412138,
+        "handle": "contact",
+        "title": "Contact"
+      },
+      {
+        "id": 133429362730,
+        "handle": "philosophy",
+        "title": "Filosofía"
+      },
+      {
+        "id": 133140611114,
+        "handle": "ingredients",
+        "title": "Nuestros Ingredientes"
+      },
+      {
+        "id": 133489655850,
+        "handle": "para-faramcias",
+        "title": "Para Farmacias"
+      },
+      {
+        "id": 134714720298,
+        "handle": "puntos-de-venta",
+        "title": "Puntos de venta"
+      },
+      {
+        "id": 133401018410,
+        "handle": "quiz",
+        "title": "Quiz"
+      },
+      {
+        "id": 133407834154,
+        "handle": "quiz-results",
+        "title": "Quiz Results"
+      },
+      {
+        "id": 133576458282,
+        "handle": "suscripcion-newsletter",
+        "title": "Suscripción Newsletter"
+      }
+    ],
+    "articles": [
+      {
+        "id": 565214871594,
+        "handle": "cuidado-cuero-cabelludo-ingredientes-botanicos",
+        "title": "Ciencia y botánica para un cuero cabelludo sano"
+      },
+      {
+        "id": 563634634794,
+        "handle": "metodo-de-aplicacion-de-tara-guia-para-aplicar-nuestros-productos-y-potenciar-resultados",
+        "title": "Método de Aplicación de Tara: Guía para Aplicar nuestros Productos y Potenciar Resultados"
+      },
+      {
+        "id": 563597115434,
+        "handle": "como-cepillar-el-cabello-fino-correctamente",
+        "title": "Cómo cepillar el cabello fino correctamente"
+      }
+    ],
+    "metaobjects": {
+      "faq_entry": 95,
+      "ingredient": 34,
+      "benefit": 122
+    }
+  }
+}
