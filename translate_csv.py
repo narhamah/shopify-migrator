@@ -100,7 +100,7 @@ def _should_translate(row):
         return False
 
     # Skip JSON that's just references or IDs (not translatable text)
-    if default.startswith(("[") and default.endswith("]")):
+    if default.startswith("[") and default.endswith("]"):
         try:
             parsed = json.loads(default)
             # Skip arrays of GIDs/references
