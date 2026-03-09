@@ -289,6 +289,24 @@ Uses Shopify's Translations API to register Arabic as a secondary locale on all 
 
 Requires `data/id_map.json` from Phase 3.
 
+### Phase 5b: Fix SAR Prices
+
+```bash
+python fix_prices.py                    # Fetch SAR prices and update local data files
+python fix_prices.py --update-shopify   # Also update already-imported Shopify products
+python fix_prices.py --store sa-en --site https://taraformula.com  # Custom store view
+```
+
+**When to use:** Run this after Phase 3 (import English) to correct product prices. The import step auto-fetches SAR prices at import time, but if prices change on the Magento site or the initial fetch had issues, run `fix_prices.py` to:
+
+1. Fetch current SAR prices from the Magento Saudi store view (`taraformula.com` with store code `sa-en`)
+2. Update local `data/english/products.json` and `data/arabic/products.json` with correct prices
+3. Optionally update already-imported Shopify products with `--update-shopify`
+
+Saves fetched prices to `data/sar_prices.json` for reference. Matches products by SKU.
+
+**Run it again** any time Magento prices change and you need to sync them to Shopify.
+
 ### Phase 6: Migrate Images & Assets
 
 ```bash
@@ -565,25 +583,25 @@ python compare_data.py
 python translate_to_english.py
 
 # 6. Import English into Saudi store
-python import_english.py --exchange-rate 4.13
+python import_english.py
 
-# 7. Translate gaps to Arabic
+# 7. Fix SAR prices (fetches from Magento Saudi store view)
+python fix_prices.py --update-shopify
+
+# 8. Translate gaps to Arabic
 python translate_to_arabic.py
 
-# 8. Import Arabic translations
+# 9. Import Arabic translations
 python import_arabic.py
 
-# 9. Migrate all images
+# 10. Migrate all images
 python migrate_all_images.py
 
-# 10. Fix any metaobject schema diffs
+# 11. Fix any metaobject schema diffs
 python resolve_metaobject_diffs.py
 
-# 11. Post-migration setup (all 11 steps)
+# 12. Post-migration setup (all 11 steps)
 python post_migration.py
-
-# 12. Fix prices from Magento SAR store
-python fix_prices.py --update-shopify
 ```
 
 ---
