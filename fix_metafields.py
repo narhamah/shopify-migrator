@@ -47,12 +47,28 @@ def sanitize_rich_text_json(value):
         return value
     # Remove control characters that break JSON parsing
     value = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', value)
-    # Validate it's proper JSON
+    # Try parsing as-is first
     try:
         parsed = json.loads(value)
         return json.dumps(parsed, ensure_ascii=False)
     except json.JSONDecodeError:
-        return value
+        pass
+    # Fix literal newlines/carriage returns inside JSON string values
+    # Replace unescaped \n and \r with escaped versions
+    fixed = value.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
+    # Also fix backslash-newline sequences like \\\n
+    fixed = fixed.replace('\\\\n', '\\n')
+    try:
+        parsed = json.loads(fixed)
+        return json.dumps(parsed, ensure_ascii=False)
+    except json.JSONDecodeError:
+        # Last resort: strip all remaining control chars and try again
+        fixed = re.sub(r'[\x00-\x1f]', '', value)
+        try:
+            parsed = json.loads(fixed)
+            return json.dumps(parsed, ensure_ascii=False)
+        except json.JSONDecodeError:
+            return value
 
 
 # Metafield keys that are text-based (not references, not file_reference)
