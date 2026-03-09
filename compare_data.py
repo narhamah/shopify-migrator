@@ -12,17 +12,7 @@ import json
 import os
 import sys
 
-
-SPAIN_DIR = "data/spain_export"
-EN_DIR = "data/english"
-AR_DIR = "data/arabic"
-
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return []
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
+from utils import load_json, SPAIN_DIR, EN_DIR, AR_DIR
 
 
 def _image_filenames(product):

@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from import_english import load_json, save_json, convert_price, prepare_product_for_import, main
+from import_english import prepare_product_for_import, main
+from utils import load_json, save_json
 
 from tests.conftest import (
     make_product, make_collection, make_page, make_blog, make_article,
@@ -47,56 +48,37 @@ class TestSaveJson:
             assert json.load(fh) == [1, 2]
 
 
-class TestConvertPrice:
-    def test_basic_conversion(self):
-        assert convert_price("10.00", 3.75) == "37.5"
-
-    def test_with_rounding(self):
-        assert convert_price("10.33", 3.75) == "38.74"
-
-    def test_none_price(self):
-        assert convert_price(None, 3.75) is None
-
-    def test_invalid_price(self):
-        assert convert_price("not_a_number", 3.75) == "not_a_number"
-
-    def test_rate_of_1(self):
-        assert convert_price("29.99", 1.0) == "29.99"
-
-    def test_zero_price(self):
-        assert convert_price("0", 3.75) == "0.0"
-
-
 class TestPrepareProductForImport:
     def test_basic_fields(self):
         product = make_product()
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         assert result["title"] == "Test Product"
         assert result["handle"] == "test-product"
         assert result["vendor"] == "TARA"
         assert result["status"] == "active"
 
-    def test_price_conversion(self):
+    def test_price_with_sar_prices(self):
         product = make_product(price="10.00")
-        result = prepare_product_for_import(product, 3.75)
+        sar_prices = {"SKU001": {"final_price": 37.5, "regular_price": 50.0}}
+        result = prepare_product_for_import(product, sar_prices)
         assert result["variants"][0]["price"] == "37.5"
-        assert result["variants"][0]["compare_at_price"] == "149.96"
+        assert result["variants"][0]["compare_at_price"] == "50.0"
 
     def test_images_extracted(self):
         product = make_product()
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         assert len(result["images"]) == 1
         assert result["images"][0]["src"] == "https://cdn.shopify.com/img.jpg"
 
     def test_no_images(self):
         product = make_product()
         del product["images"]
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         assert "images" not in result
 
     def test_reference_metafields_skipped(self):
         product = make_product()
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         mf_keys = [mf["key"] for mf in result.get("metafields", [])]
         assert "tagline" in mf_keys
         assert "ingredients" not in mf_keys  # Reference field skipped
@@ -104,24 +86,24 @@ class TestPrepareProductForImport:
     def test_no_metafields(self):
         product = make_product()
         del product["metafields"]
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         assert "metafields" not in result
 
     def test_no_variants(self):
         product = make_product()
         del product["variants"]
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         assert "variants" not in result
 
     def test_no_options(self):
         product = make_product()
         del product["options"]
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         assert "options" not in result
 
     def test_variant_fields_preserved(self):
         product = make_product()
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         v = result["variants"][0]
         assert v["sku"] == "SKU001"
         assert v["weight"] == 0.5
@@ -132,7 +114,7 @@ class TestPrepareProductForImport:
     def test_image_without_src_skipped(self):
         product = make_product()
         product["images"] = [{"src": "https://cdn.shopify.com/img.jpg"}, {"alt": "no src"}]
-        result = prepare_product_for_import(product, 1.0)
+        result = prepare_product_for_import(product)
         assert len(result["images"]) == 1
 
 
@@ -158,7 +140,7 @@ def _setup_english_data(base_path):
 
 class TestMainDryRun:
     @patch("import_english.load_dotenv")
-    @patch("sys.argv", ["import_english.py", "--dry-run", "--exchange-rate", "3.75"])
+    @patch("sys.argv", ["import_english.py", "--dry-run"])
     def test_dry_run(self, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)
@@ -173,7 +155,7 @@ class TestMainDryRun:
 class TestMainPhases:
     @patch("import_english.load_dotenv")
     @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py", "--exchange-rate", "1.0"])
+    @patch("sys.argv", ["import_english.py"])
     def test_creates_products(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)
@@ -216,7 +198,7 @@ class TestMainExistingResources:
 
     @patch("import_english.load_dotenv")
     @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py", "--exchange-rate", "1.0"])
+    @patch("sys.argv", ["import_english.py"])
     def test_existing_product_mapped(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)
@@ -249,7 +231,7 @@ class TestMainExistingResources:
 
     @patch("import_english.load_dotenv")
     @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py", "--exchange-rate", "1.0"])
+    @patch("sys.argv", ["import_english.py"])
     def test_phase6_remaps_references(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         """Integration test of Phase 6 reference remapping."""
         monkeypatch.chdir(tmp_path)
@@ -281,7 +263,7 @@ class TestMainExistingResources:
 
     @patch("import_english.load_dotenv")
     @patch("import_english.ShopifyClient")
-    @patch("sys.argv", ["import_english.py", "--exchange-rate", "1.0"])
+    @patch("sys.argv", ["import_english.py"])
     def test_error_handling_in_creation(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_english_data(tmp_path)

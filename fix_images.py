@@ -31,27 +31,7 @@ import requests as http_requests
 from dotenv import load_dotenv
 
 
-HEADERS = {
-    "Content-Type": "application/json",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-}
-
-EN_DIR = "data/english"
-AR_DIR = "data/arabic"
-REQUEST_DELAY = 3.0
-
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return []
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+from utils import load_json, save_json, EN_DIR, AR_DIR, MAGENTO_HEADERS as HEADERS, REQUEST_DELAY
 
 
 def magento_gql(session, site_url, query, store_code, retries=3):
@@ -200,7 +180,7 @@ def _get_shopify_client_and_maps():
         return None, None, None
 
     client = ShopifyClient(shop_url, access_token)
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     product_map = id_map.get("products", {})
 
     if not product_map:

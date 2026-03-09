@@ -5,10 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from migrate_assets import (
-    load_json, save_json, extract_file_url_from_gid, upload_optimized,
-    METAOBJECT_FILE_FIELDS, ARTICLE_FILE_METAFIELDS, main,
-)
+from migrate_assets import extract_file_url_from_gid, upload_optimized, main
+from utils import load_json, save_json, METAOBJECT_FILE_FIELDS, ARTICLE_FILE_METAFIELDS
 from tests.conftest import make_metaobjects_data, make_article, make_id_map
 
 
@@ -40,7 +38,7 @@ class TestLoadJson:
         assert load_json(str(f)) == {"a": 1}
 
     def test_missing(self, tmp_path):
-        assert load_json(str(tmp_path / "nope.json")) == {}
+        assert load_json(str(tmp_path / "nope.json")) == []
 
     def test_missing_non_json(self, tmp_path):
         assert load_json(str(tmp_path / "nope.txt")) == {}

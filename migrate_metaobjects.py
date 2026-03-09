@@ -27,19 +27,7 @@ import time
 
 from dotenv import load_dotenv
 from shopify_client import ShopifyClient
-
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return {}
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+from utils import load_json, save_json
 
 
 def list_types(source):

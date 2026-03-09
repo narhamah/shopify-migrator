@@ -32,17 +32,7 @@ from dotenv import load_dotenv
 from shopify_client import ShopifyClient
 
 
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return {}
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+from utils import load_json, save_json
 
 
 # =============================================
@@ -81,10 +71,10 @@ def step_link_products_to_collections(client, dry_run=False):
     """Create product-collection associations from exported collects."""
     print("\n=== Step 2: Link Products to Collections ===")
 
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     product_map = id_map.get("products", {})
     collection_map = id_map.get("collections", {})
-    progress = load_json("data/collects_progress.json")
+    progress = load_json("data/collects_progress.json", default={})
 
     # Try exported collects first
     collects = load_json("data/spain_export/collects.json")
@@ -154,7 +144,7 @@ def step_build_navigation(client, dry_run=False):
     """Build main menu and footer menu from collections and pages."""
     print("\n=== Step 3: Build Navigation Menus ===")
 
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     collections = load_json("data/english/collections.json")
     pages = load_json("data/english/pages.json")
 
@@ -226,9 +216,9 @@ def step_set_seo_tags(client, dry_run=False):
     """Set SEO meta titles and descriptions on products, collections, and pages."""
     print("\n=== Step 4: Set SEO Meta Tags ===")
 
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     product_map = id_map.get("products", {})
-    progress = load_json("data/seo_progress.json")
+    progress = load_json("data/seo_progress.json", default={})
 
     # Products — check for global.title_tag and global.description_tag metafields
     products = load_json("data/english/products.json")
@@ -491,7 +481,7 @@ def step_create_redirects(client, dry_run=False):
     if remap:
         print(f"  Built handle remap table with {len(remap)} entries")
 
-    progress = load_json("data/redirects_progress.json")
+    progress = load_json("data/redirects_progress.json", default={})
     created = 0
     remapped = 0
 
@@ -540,9 +530,9 @@ def step_set_inventory(client, default_quantity=100, dry_run=False):
     """Set initial inventory quantities for all product variants."""
     print("\n=== Step 6: Set Inventory Quantities ===")
 
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     product_map = id_map.get("products", {})
-    progress = load_json("data/inventory_progress.json")
+    progress = load_json("data/inventory_progress.json", default={})
 
     if dry_run:
         print(f"  Would set inventory to {default_quantity} for all variants")
@@ -620,8 +610,8 @@ def step_publish_resources(client, dry_run=False):
     pub_names = [p.get("name", "Unknown") for p in publications]
     print(f"  Sales channels: {', '.join(pub_names)}")
 
-    id_map = load_json("data/id_map.json")
-    progress = load_json("data/publish_progress.json")
+    id_map = load_json("data/id_map.json", default={})
+    progress = load_json("data/publish_progress.json", default={})
 
     # Publish products
     product_map = id_map.get("products", {})
@@ -677,7 +667,7 @@ def step_migrate_discounts(client, dry_run=False):
         print("  No price rules found in export data")
         return
 
-    progress = load_json("data/discounts_progress.json")
+    progress = load_json("data/discounts_progress.json", default={})
     created_rules = 0
     created_codes = 0
 
@@ -754,9 +744,9 @@ def step_activate_products(client, dry_run=False):
         print("  Would activate all draft products")
         return
 
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     product_map = id_map.get("products", {})
-    progress = load_json("data/activate_progress.json")
+    progress = load_json("data/activate_progress.json", default={})
 
     activated = 0
     for source_id, dest_id in product_map.items():
@@ -811,8 +801,8 @@ def step_update_handles(client, dry_run=False):
     """Update product/collection/page handles from Spanish to English."""
     print("\n=== Step 11: Update Handles (Spanish → English) ===")
 
-    id_map = load_json("data/id_map.json")
-    progress = load_json("data/handle_progress.json")
+    id_map = load_json("data/id_map.json", default={})
+    progress = load_json("data/handle_progress.json", default={})
 
     # Products
     products = load_json("data/english/products.json")

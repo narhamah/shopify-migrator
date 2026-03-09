@@ -22,53 +22,11 @@ Usage:
 import argparse
 import json
 import os
-import re
 
 from dotenv import load_dotenv
 from shopify_client import ShopifyClient
 
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return []
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def sanitize_rich_text_json(value):
-    """Fix common issues in rich_text_field JSON values."""
-    if not isinstance(value, str):
-        return value
-    # Remove control characters that break JSON parsing
-    value = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', value)
-    # Try parsing as-is first
-    try:
-        parsed = json.loads(value)
-        return json.dumps(parsed, ensure_ascii=False)
-    except json.JSONDecodeError:
-        pass
-    # Fix literal newlines/carriage returns inside JSON string values
-    # Replace unescaped \n and \r with escaped versions
-    fixed = value.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
-    # Also fix backslash-newline sequences like \\\n
-    fixed = fixed.replace('\\\\n', '\\n')
-    try:
-        parsed = json.loads(fixed)
-        return json.dumps(parsed, ensure_ascii=False)
-    except json.JSONDecodeError:
-        # Last resort: strip all remaining control chars and try again
-        fixed = re.sub(r'[\x00-\x1f]', '', value)
-        try:
-            parsed = json.loads(fixed)
-            return json.dumps(parsed, ensure_ascii=False)
-        except json.JSONDecodeError:
-            return value
+from utils import load_json, save_json, sanitize_rich_text_json
 
 
 # Metafield keys that are text-based (not references, not file_reference)
@@ -116,7 +74,7 @@ def main():
         return
 
     # Load ID map
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     if isinstance(id_map, list):
         id_map = {}
     product_map = id_map.get("products", {})

@@ -16,63 +16,11 @@ Phases:
 import argparse
 import json
 import os
-import re
 
 from dotenv import load_dotenv
 
 from shopify_client import ShopifyClient
-
-
-def sanitize_rich_text_json(value):
-    """Fix rich_text_field JSON corrupted by translation.
-
-    The TOON translator can introduce literal newlines/control chars inside
-    JSON string values. This function re-serializes the JSON to fix them.
-    Returns the original value if it's not JSON or not fixable.
-    """
-    if not value or not isinstance(value, str):
-        return value
-    # Only process values that look like rich_text JSON
-    if not value.strip().startswith("{"):
-        return value
-    try:
-        # If it parses fine, it's valid — just re-serialize to be safe
-        parsed = json.loads(value)
-        return json.dumps(parsed, ensure_ascii=False)
-    except json.JSONDecodeError:
-        # Fix common corruption: literal newlines inside JSON strings
-        fixed = value
-        # First: normalize escaped-then-literal newlines like \\n followed by actual \n
-        fixed = fixed.replace('\\\r\n', '\\n').replace('\\\n', '\\n').replace('\\\r', '\\n')
-        # Then: replace remaining literal newlines with \\n
-        fixed = fixed.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
-        # Remove remaining control characters (except escaped ones in \\n, \\t, etc.)
-        fixed = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', fixed)
-        try:
-            parsed = json.loads(fixed)
-            return json.dumps(parsed, ensure_ascii=False)
-        except json.JSONDecodeError:
-            # Last resort: strip ALL control chars including \n, \r, \t
-            fixed = re.sub(r'[\x00-\x1f]', '', value)
-            try:
-                parsed = json.loads(fixed)
-                return json.dumps(parsed, ensure_ascii=False)
-            except json.JSONDecodeError:
-                print(f"    WARNING: Could not fix corrupted JSON ({len(value)} chars)")
-                return value
-
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return [] if filepath.endswith(".json") else {}
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+from utils import load_json, save_json, sanitize_rich_text_json
 
 
 def prepare_product_for_import(product, sar_prices=None):

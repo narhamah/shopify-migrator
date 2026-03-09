@@ -26,45 +26,7 @@ from dotenv import load_dotenv
 
 from optimize_images import download_and_optimize, optimize_image
 from shopify_client import ShopifyClient
-
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return {}
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-# Image setting keywords for theme sections
-IMAGE_KEYWORDS = {
-    "image", "img", "background", "banner", "hero", "icon",
-    "logo", "photo", "picture", "thumbnail", "video_poster",
-}
-
-# Map section types to optimization presets
-SECTION_PRESETS = {
-    "hero": "hero",
-    "hero-section": "hero",
-    "slideshow": "hero",
-    "image-banner": "hero",
-    "image-with-text": "hero",
-    "rich-text": "default",
-    "collection-list": "collection",
-    "featured-collection": "collection",
-    "icon": "icon",
-    "icons-with-text": "icon",
-    "icon-row": "icon",
-    "icon-row-with-heading": "icon",
-    "logo-list": "logo",
-    "multicolumn": "thumbnail",
-    "video": "hero",
-}
+from utils import load_json, save_json, IMAGE_KEYWORDS, SECTION_PRESETS
 
 
 def _is_image_setting(key):
@@ -351,7 +313,7 @@ def migrate_metaobject_files(spain_client, saudi_client, dry_run=False):
     """
     print("\n=== Migrating Metaobject File References ===")
 
-    id_map = load_json("data/id_map.json")
+    id_map = load_json("data/id_map.json", default={})
     file_cache_file = "data/file_map.json"
     file_cache = load_json(file_cache_file) if os.path.exists(file_cache_file) else {}
 

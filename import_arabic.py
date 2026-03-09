@@ -19,24 +19,11 @@ import os
 
 from dotenv import load_dotenv
 
-from import_english import sanitize_rich_text_json
 from shopify_client import ShopifyClient
+from utils import load_json, save_json, sanitize_rich_text_json
 
 
 ARABIC_LOCALE = "ar"
-
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return [] if filepath.endswith(".json") else {}
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(data, filepath):
-    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def build_translation_inputs(translatable_content, arabic_fields):
