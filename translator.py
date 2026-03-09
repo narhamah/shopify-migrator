@@ -83,6 +83,8 @@ PRODUCT_TRANSLATABLE_METAFIELDS = {
     "custom.awards_content",
     "custom.fragrance_heading",
     "custom.fragrance_content",
+    "global.title_tag",
+    "global.description_tag",
 }
 
 # Article metafields that contain translatable text
@@ -97,6 +99,26 @@ class Translator:
     def __init__(self, api_key):
         self.client = OpenAI(api_key=api_key)
         self.model = "o3"  # Latest GPT with highest reasoning
+
+    # Metafield types that contain translatable text
+    TEXT_METAFIELD_TYPES = {
+        "single_line_text_field",
+        "multi_line_text_field",
+        "rich_text_field",
+    }
+
+    def _translate_metafield_value(self, mf, source_lang, target_lang):
+        """Translate a metafield value if it's a text type. Skip references, numbers, etc."""
+        mf_type = mf.get("type", "")
+        value = mf.get("value", "")
+        if not value:
+            return value
+        # Skip non-text types (references, numbers, booleans, JSON, dates, URLs, etc.)
+        if mf_type not in self.TEXT_METAFIELD_TYPES:
+            return value
+        if mf_type == "rich_text_field":
+            return self.translate_rich_text(value, source_lang, target_lang)
+        return self.translate(value, source_lang, target_lang)
 
     def translate(self, text, source_lang, target_lang):
         if not text or not text.strip():
@@ -141,11 +163,29 @@ class Translator:
             translate_nodes(data["children"])
         return json.dumps(data, ensure_ascii=False)
 
+    def translate_handle(self, handle, source_lang, target_lang):
+        """Translate a URL handle (slug). Returns lowercase, hyphenated."""
+        if not handle:
+            return handle
+        # Convert hyphens to spaces, translate, then slugify back
+        text = handle.replace("-", " ")
+        translated_text = self.translate(text, source_lang, target_lang)
+        # Slugify: lowercase, replace spaces/special chars with hyphens
+        slug = re.sub(r"[^\w\s-]", "", translated_text.lower())
+        slug = re.sub(r"[\s_]+", "-", slug).strip("-")
+        return slug
+
     def translate_product(self, product, source_lang, target_lang):
         translated = dict(product)
         translated["title"] = self.translate(product.get("title", ""), source_lang, target_lang)
         translated["body_html"] = self.translate(product.get("body_html", ""), source_lang, target_lang)
         translated["product_type"] = self.translate(product.get("product_type", ""), source_lang, target_lang)
+        if product.get("vendor"):
+            translated["vendor"] = self.translate(product["vendor"], source_lang, target_lang)
+
+        # Handle (URL slug)
+        if product.get("handle"):
+            translated["handle"] = self.translate_handle(product["handle"], source_lang, target_lang)
 
         if product.get("tags"):
             tags = product["tags"] if isinstance(product["tags"], str) else ", ".join(product["tags"])
@@ -174,17 +214,22 @@ class Translator:
                     to["values"] = [self.translate(v, source_lang, target_lang) for v in option["values"]]
                 translated["options"].append(to)
 
-        # Translate product metafields
+        # Translate product images alt text
+        if product.get("images"):
+            translated["images"] = []
+            for img in product["images"]:
+                ti = dict(img)
+                if img.get("alt"):
+                    ti["alt"] = self.translate(img["alt"], source_lang, target_lang)
+                translated["images"].append(ti)
+
+        # Translate product metafields — all text-type fields
         if product.get("metafields"):
             translated["metafields"] = []
             for mf in product["metafields"]:
                 tmf = dict(mf)
-                ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-                if ns_key in PRODUCT_TRANSLATABLE_METAFIELDS and mf.get("value"):
-                    if mf.get("type") == "rich_text_field":
-                        tmf["value"] = self.translate_rich_text(mf["value"], source_lang, target_lang)
-                    else:
-                        tmf["value"] = self.translate(mf["value"], source_lang, target_lang)
+                if mf.get("value"):
+                    tmf["value"] = self._translate_metafield_value(mf, source_lang, target_lang)
                 translated["metafields"].append(tmf)
 
         return translated
@@ -193,12 +238,43 @@ class Translator:
         translated = dict(page)
         translated["title"] = self.translate(page.get("title", ""), source_lang, target_lang)
         translated["body_html"] = self.translate(page.get("body_html", ""), source_lang, target_lang)
+        if page.get("handle"):
+            translated["handle"] = self.translate_handle(page["handle"], source_lang, target_lang)
+        # Translate all text-type metafields
+        if page.get("metafields"):
+            translated["metafields"] = []
+            for mf in page["metafields"]:
+                tmf = dict(mf)
+                if mf.get("value"):
+                    tmf["value"] = self._translate_metafield_value(mf, source_lang, target_lang)
+                translated["metafields"].append(tmf)
         return translated
 
     def translate_collection(self, collection, source_lang, target_lang):
         translated = dict(collection)
         translated["title"] = self.translate(collection.get("title", ""), source_lang, target_lang)
         translated["body_html"] = self.translate(collection.get("body_html", ""), source_lang, target_lang)
+        if collection.get("handle"):
+            translated["handle"] = self.translate_handle(collection["handle"], source_lang, target_lang)
+        # Translate all text-type metafields
+        if collection.get("metafields"):
+            translated["metafields"] = []
+            for mf in collection["metafields"]:
+                tmf = dict(mf)
+                if mf.get("value"):
+                    tmf["value"] = self._translate_metafield_value(mf, source_lang, target_lang)
+                translated["metafields"].append(tmf)
+        # Collection image alt text
+        if collection.get("image") and collection["image"].get("alt"):
+            translated["image"] = dict(collection["image"])
+            translated["image"]["alt"] = self.translate(collection["image"]["alt"], source_lang, target_lang)
+        return translated
+
+    def translate_blog(self, blog, source_lang, target_lang):
+        translated = dict(blog)
+        translated["title"] = self.translate(blog.get("title", ""), source_lang, target_lang)
+        if blog.get("handle"):
+            translated["handle"] = self.translate_handle(blog["handle"], source_lang, target_lang)
         return translated
 
     def translate_article(self, article, source_lang, target_lang):
@@ -206,18 +282,25 @@ class Translator:
         translated["title"] = self.translate(article.get("title", ""), source_lang, target_lang)
         translated["body_html"] = self.translate(article.get("body_html", ""), source_lang, target_lang)
         translated["summary_html"] = self.translate(article.get("summary_html", ""), source_lang, target_lang)
+        if article.get("handle"):
+            translated["handle"] = self.translate_handle(article["handle"], source_lang, target_lang)
+        if article.get("author"):
+            translated["author"] = self.translate(article["author"], source_lang, target_lang)
         if article.get("tags"):
             tags = article["tags"] if isinstance(article["tags"], str) else ", ".join(article["tags"])
             translated["tags"] = self.translate(tags, source_lang, target_lang)
+        # Image alt text
+        if article.get("image") and article["image"].get("alt"):
+            translated["image"] = dict(article["image"])
+            translated["image"]["alt"] = self.translate(article["image"]["alt"], source_lang, target_lang)
 
-        # Translate article metafields
+        # Translate all text-type metafields
         if article.get("metafields"):
             translated["metafields"] = []
             for mf in article["metafields"]:
                 tmf = dict(mf)
-                ns_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
-                if ns_key in ARTICLE_TRANSLATABLE_METAFIELDS and mf.get("value"):
-                    tmf["value"] = self.translate(mf["value"], source_lang, target_lang)
+                if mf.get("value"):
+                    tmf["value"] = self._translate_metafield_value(mf, source_lang, target_lang)
                 translated["metafields"].append(tmf)
 
         return translated
@@ -228,11 +311,14 @@ class Translator:
         translatable_keys = METAOBJECT_TRANSLATABLE_FIELDS.get(mo_type, set())
 
         translated = dict(metaobject)
+        # Translate handle
+        if metaobject.get("handle"):
+            translated["handle"] = self.translate_handle(metaobject["handle"], source_lang, target_lang)
         translated["fields"] = []
         for field in metaobject.get("fields", []):
             tf = dict(field)
-            if field["key"] in translatable_keys and field.get("value"):
-                field_type = field.get("type", "")
+            field_type = field.get("type", "")
+            if field.get("value") and field_type in self.TEXT_METAFIELD_TYPES:
                 if field_type == "rich_text_field":
                     tf["value"] = self.translate_rich_text(field["value"], source_lang, target_lang)
                 else:

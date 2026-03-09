@@ -54,7 +54,9 @@ class TestConstants:
         assert "custom.tagline" in PRODUCT_TRANSLATABLE_METAFIELDS
         assert "custom.short_description" in PRODUCT_TRANSLATABLE_METAFIELDS
         assert "custom.key_benefits_heading" in PRODUCT_TRANSLATABLE_METAFIELDS
-        assert len(PRODUCT_TRANSLATABLE_METAFIELDS) == 17
+        assert "global.title_tag" in PRODUCT_TRANSLATABLE_METAFIELDS
+        assert "global.description_tag" in PRODUCT_TRANSLATABLE_METAFIELDS
+        assert len(PRODUCT_TRANSLATABLE_METAFIELDS) == 19
 
     def test_article_translatable_metafields(self):
         assert "custom.blog_summary" in ARTICLE_TRANSLATABLE_METAFIELDS
@@ -455,14 +457,25 @@ class TestTranslateMetaobject:
         parsed = json.loads(result["fields"][0]["value"])
         assert parsed["children"][0]["value"] == "Translated"
 
-    def test_unknown_type_no_translation(self):
+    def test_unknown_type_text_fields_still_translated(self):
+        """All text-type fields are translated regardless of metaobject type."""
+        t, mc = self._make_translator()
+        self._set_response(mc, "translated text")
+        mo = {
+            "type": "unknown_type",
+            "fields": [{"key": "name", "value": "some text", "type": "single_line_text_field"}],
+        }
+        result = t.translate_metaobject(mo, "Spanish", "English")
+        assert result["fields"][0]["value"] == "translated text"
+
+    def test_unknown_type_non_text_fields_not_translated(self):
         t, mc = self._make_translator()
         mo = {
             "type": "unknown_type",
-            "fields": [{"key": "name", "value": "should not translate", "type": "single_line_text_field"}],
+            "fields": [{"key": "count", "value": "42", "type": "number_integer"}],
         }
         result = t.translate_metaobject(mo, "Spanish", "English")
-        assert result["fields"][0]["value"] == "should not translate"
+        assert result["fields"][0]["value"] == "42"
 
     def test_empty_value_not_translated(self):
         t, mc = self._make_translator()

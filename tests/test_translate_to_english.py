@@ -67,6 +67,7 @@ class TestMainIntegration:
         mock_translator.translate_collection.side_effect = lambda c, s, t: {**c, "title": "EN"}
         mock_translator.translate_page.side_effect = lambda p, s, t: {**p, "title": "EN"}
         mock_translator.translate_article.side_effect = lambda a, s, t: {**a, "title": "EN"}
+        mock_translator.translate_blog.side_effect = lambda b, s, t: {**b, "title": "EN"}
         mock_translator.translate_metaobject.side_effect = lambda m, s, t: m
 
         # Set up input data

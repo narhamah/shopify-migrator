@@ -100,9 +100,22 @@ def main():
         save_json(translated_articles, articles_file)
     print(f"  Done: {len(translated_articles)} articles")
 
-    # Copy blogs metadata
+    # --- Blogs ---
+    blogs_file = os.path.join(output_dir, "blogs.json")
     blogs = load_json(os.path.join(input_dir, "blogs.json"))
-    save_json(blogs, os.path.join(output_dir, "blogs.json"))
+    translated_blogs = load_or_init(blogs_file)
+    existing_ids = {b["id"] for b in translated_blogs}
+
+    print(f"Translating blogs (EN → AR)... ({len(existing_ids)} already done)")
+    for i, blog in enumerate(blogs):
+        if blog["id"] in existing_ids:
+            print(f"  [{i+1}/{len(blogs)}] Skipping: {blog.get('title', '')[:50]}")
+            continue
+        print(f"  [{i+1}/{len(blogs)}] Translating: {blog.get('title', '')[:50]}")
+        translated = translator.translate_blog(blog, "English", "Arabic")
+        translated_blogs.append(translated)
+        save_json(translated_blogs, blogs_file)
+    print(f"  Done: {len(translated_blogs)} blogs")
 
     # --- Metaobjects ---
     metaobjects_input = os.path.join(input_dir, "metaobjects.json")

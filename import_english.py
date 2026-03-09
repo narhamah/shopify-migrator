@@ -44,7 +44,13 @@ def prepare_product_for_import(product, sar_prices=None):
     }
 
     if product.get("images"):
-        p["images"] = [{"src": img["src"]} for img in product["images"] if img.get("src")]
+        p["images"] = []
+        for img in product["images"]:
+            if img.get("src"):
+                img_data = {"src": img["src"]}
+                if img.get("alt"):
+                    img_data["alt"] = img["alt"]
+                p["images"].append(img_data)
 
     if product.get("variants"):
         p["variants"] = []
