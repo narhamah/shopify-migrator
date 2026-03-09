@@ -725,6 +725,9 @@ def step_migrate_discounts(client, dry_run=False):
             err_msg = str(e)
             if "422" in err_msg:
                 progress[source_id] = "exists"
+            elif "403" in err_msg:
+                print(f"  ERROR: Missing 'write_price_rules' scope. Add it in your Shopify app settings.")
+                break
             else:
                 print(f"  Error creating price rule '{rule_data['title']}': {e}")
 

@@ -42,12 +42,14 @@ class ShopifyClient:
         all_items = []
         url = f"{self.base_url}/{endpoint}"
         while url:
-            resp = self.session.request("GET", url, params=params)
-            if resp.status_code == 429:
-                retry_after = float(resp.headers.get("Retry-After", 2))
-                print(f"  Rate limited. Retrying after {retry_after}s...")
-                time.sleep(retry_after)
-                continue
+            while True:
+                resp = self.session.request("GET", url, params=params)
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("Retry-After", 2))
+                    print(f"  Rate limited. Retrying after {retry_after}s...")
+                    time.sleep(retry_after)
+                    continue
+                break
             resp.raise_for_status()
             data = resp.json()
             items = data.get(resource_key, [])
@@ -295,8 +297,8 @@ class ShopifyClient:
         while True:
             after_clause = f', after: "{cursor}"' if cursor else ""
             query = f"""
-            {{
-              metaobjects(type: "{metaobject_type}", first: 250{after_clause}) {{
+            query getMetaobjects($type: String!) {{
+              metaobjects(type: $type, first: 250{after_clause}) {{
                 edges {{
                   cursor
                   node {{
@@ -314,7 +316,7 @@ class ShopifyClient:
               }}
             }}
             """
-            data = self._graphql(query)
+            data = self._graphql(query, {"type": metaobject_type})
             edges = data["metaobjects"]["edges"]
             for edge in edges:
                 all_objects.append(edge["node"])

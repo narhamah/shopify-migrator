@@ -190,7 +190,11 @@ def phase2_collection_images(spain, saudi, id_map, file_map, dry_run=False):
 
 
 def _is_image_setting(key):
-    return any(kw in key.lower() for kw in IMAGE_KEYWORDS)
+    k = key.lower()
+    # Exclude position/alignment/size sub-settings that contain image keywords
+    if k.endswith(("_position", "_alignment", "_size", "_width", "_height", "_ratio")):
+        return False
+    return any(kw in k for kw in IMAGE_KEYWORDS)
 
 
 def _is_shopify_image_ref(value):
@@ -516,13 +520,13 @@ def phase4_metaobject_files(spain, saudi, id_map, file_map, dry_run=False):
             dest_field_map = {f["key"]: f for f in dest_mo.get("fields", [])}
 
             # Check which file fields need populating
-            fields_to_update = []
-            for field_key, field_info in file_fields.items():
-                dest_field = dest_field_map.get(field_key, {})
-                if dest_field.get("value"):
-                    continue  # Already has value
+            needs_source = any(
+                not dest_field_map.get(fk, {}).get("value")
+                for fk in file_fields
+            )
 
-                # Get source metaobject's file field
+            source_mo = None
+            if needs_source:
                 try:
                     source_obj = spain._graphql("""
                         query getMetaobject($id: ID!) {
@@ -541,17 +545,21 @@ def phase4_metaobject_files(spain, saudi, id_map, file_map, dry_run=False):
                         }
                     """, {"id": source_gid})
                     source_mo = source_obj.get("metaobject")
-                    if not source_mo:
-                        continue
                 except Exception:
-                    continue
+                    pass
 
-                source_field = None
-                for sf in source_mo.get("fields", []):
-                    if sf["key"] == field_key:
-                        source_field = sf
-                        break
+            if not source_mo and needs_source:
+                continue
 
+            source_field_map = {sf["key"]: sf for sf in (source_mo or {}).get("fields", [])}
+
+            fields_to_update = []
+            for field_key, field_info in file_fields.items():
+                dest_field = dest_field_map.get(field_key, {})
+                if dest_field.get("value"):
+                    continue  # Already has value
+
+                source_field = source_field_map.get(field_key)
                 if not source_field or not source_field.get("value"):
                     continue
 
