@@ -185,7 +185,15 @@ def apply_config(client, config_file, dry_run=False):
 def _create_or_replace_menu(client, title, handle, items):
     """Create a menu, replacing it if it already exists."""
     # Check if menu already exists
-    existing_menus = client.get_menus()
+    try:
+        existing_menus = client.get_menus()
+    except Exception as e:
+        if "ACCESS_DENIED" in str(e):
+            print(f"  NOTE: Cannot read existing menus (missing read_online_store_navigation scope)")
+            print(f"  Attempting to create menu directly...")
+            existing_menus = []
+        else:
+            raise
     for menu in existing_menus:
         if menu["handle"] == handle:
             print(f"  Deleting existing menu: {menu['title']} ({menu['id']})")
@@ -226,7 +234,14 @@ def main():
 
     # Show existing menus
     if args.show:
-        menus = client.get_menus()
+        try:
+            menus = client.get_menus()
+        except Exception as e:
+            if "ACCESS_DENIED" in str(e):
+                print("ERROR: Missing 'read_online_store_navigation' scope. Cannot read menus.")
+                print("  Add this scope in your Shopify app settings, or use --dry-run to preview.")
+                return
+            raise
         print(f"\nExisting menus ({len(menus)}):")
         for menu in menus:
             print(f"\n  {menu['title']} (handle: {menu['handle']}, id: {menu['id']})")

@@ -726,11 +726,42 @@ class ShopifyClient:
         return [p["id"] for p in products]
 
     def create_collect(self, product_id, collection_id):
-        """Add a product to a collection."""
-        resp = self._request("POST", "collects.json", json={
-            "collect": {"product_id": product_id, "collection_id": collection_id}
-        })
-        return resp.json().get("collect", {})
+        """Add a product to a collection. Falls back to GraphQL if REST fails."""
+        try:
+            resp = self._request("POST", "collects.json", json={
+                "collect": {"product_id": product_id, "collection_id": collection_id}
+            })
+            return resp.json().get("collect", {})
+        except Exception as e:
+            if "403" in str(e):
+                # Fallback: use GraphQL collectionAddProducts
+                return self.collection_add_products(
+                    collection_id, [product_id])
+            raise
+
+    def collection_add_products(self, collection_id, product_ids):
+        """Add products to a collection via GraphQL (works without collects scope)."""
+        query = """
+        mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        """
+        coll_gid = f"gid://shopify/Collection/{collection_id}" if not str(collection_id).startswith("gid://") else collection_id
+        prod_gids = [
+            f"gid://shopify/Product/{pid}" if not str(pid).startswith("gid://") else pid
+            for pid in product_ids
+        ]
+        data = self._graphql(query, {"id": coll_gid, "productIds": prod_gids})
+        result = data["collectionAddProducts"]
+        if result["userErrors"]:
+            errors = result["userErrors"]
+            if any("already" in e.get("message", "").lower() for e in errors):
+                return {}
+            raise Exception(f"collectionAddProducts errors: {errors}")
+        return result.get("collection", {})
 
     # --- REST: Redirects ---
 
@@ -851,6 +882,49 @@ class ShopifyClient:
 
     # --- GraphQL: Navigation menus ---
 
+    @staticmethod
+    def _infer_menu_item_type(item):
+        """Infer the MenuItemType from resourceId or url."""
+        rid = item.get("resourceId", "")
+        url = item.get("url", "")
+
+        if rid:
+            if "/Collection/" in rid:
+                return "COLLECTION"
+            elif "/Page/" in rid or "/OnlineStorePage/" in rid:
+                return "PAGE"
+            elif "/Article/" in rid:
+                return "ARTICLE"
+            elif "/Blog/" in rid:
+                return "BLOG"
+            elif "/ShopPolicy/" in rid:
+                return "SHOP_POLICY"
+            elif "/Product/" in rid:
+                return "CATALOG"
+        if url:
+            if url == "/" or url == "":
+                return "FRONTPAGE"
+            elif url.startswith("/search"):
+                return "SEARCH"
+            elif url.startswith("/collections"):
+                return "HTTP"
+            elif url.startswith("/pages"):
+                return "HTTP"
+            return "HTTP"
+        return "HTTP"
+
+    def _prepare_menu_items(self, items):
+        """Add 'type' field to menu items recursively."""
+        prepared = []
+        for item in items:
+            pi = dict(item)
+            if "type" not in pi:
+                pi["type"] = self._infer_menu_item_type(pi)
+            if pi.get("items"):
+                pi["items"] = self._prepare_menu_items(pi["items"])
+            prepared.append(pi)
+        return prepared
+
     def create_menu(self, title, handle, items):
         """Create a navigation menu with items.
 
@@ -859,6 +933,7 @@ class ShopifyClient:
             handle: Menu handle (e.g., "main-menu")
             items: List of dicts with title, url (or resourceId), and optional items (nested)
         """
+        items = self._prepare_menu_items(items)
         query = """
         mutation menuCreate($title: String!, $handle: String!, $items: [MenuItemCreateInput!]!) {
           menuCreate(title: $title, handle: $handle, items: $items) {

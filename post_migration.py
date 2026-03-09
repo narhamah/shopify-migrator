@@ -419,7 +419,14 @@ def step_set_inventory(client, default_quantity=100, dry_run=False):
         return
 
     # Get the primary location
-    locations = client.get_locations()
+    try:
+        locations = client.get_locations()
+    except Exception as e:
+        if "403" in str(e):
+            print("  ERROR: Missing 'read_locations' scope on access token.")
+            print("  Add the 'read_locations' and 'write_inventory' scopes in your Shopify app settings.")
+            return
+        raise
     if not locations:
         print("  Error: No locations found in store")
         return
