@@ -556,16 +556,25 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
     est_tokens = sum(_estimate_tokens(f["value"]) for f in fields)
     print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields (~{est_tokens:,} value tokens)...")
 
+    # Reasoning models (o3, gpt-5-mini, etc.) use reasoning_effort instead of temperature
+    REASONING_MODELS = {"o3", "o3-mini", "o4-mini", "gpt-5-mini", "gpt-5"}
+    is_reasoning = any(model.startswith(rm) for rm in REASONING_MODELS)
+
     for attempt in range(4):
         try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
+            api_kwargs = {
+                "model": model,
+                "messages": [
                     {"role": "system", "content": build_system_prompt(target_lang)},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.3,
-            )
+            }
+            if is_reasoning:
+                api_kwargs["reasoning"] = {"effort": "low"}
+            else:
+                api_kwargs["temperature"] = 0.3
+
+            response = client.chat.completions.create(**api_kwargs)
             result = response.choices[0].message.content.strip()
 
             # Strip markdown code fences if model wraps output
