@@ -16,11 +16,29 @@ Phases:
 import argparse
 import json
 import os
+import re
+import unicodedata
 
 from dotenv import load_dotenv
 
 from shopify_client import ShopifyClient
 from utils import load_json, save_json, sanitize_rich_text_json
+
+
+def _ascii_slugify(text):
+    """Convert text to an ASCII-only Shopify handle.
+
+    Shopify metaobject handles reject non-ASCII characters (accented
+    Spanish, Arabic, etc.).  This transliterates to ASCII, lowercases,
+    and replaces non-alphanumeric runs with hyphens.
+    """
+    # Decompose unicode → base char + combining marks, then strip marks
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+    # Shopify imposes a max handle length of 255
+    return text[:255]
 
 
 def prepare_product_for_import(product, sar_prices=None):
@@ -193,7 +211,18 @@ def main():
             DEFINITION_ORDER.index(d["type"]) if d["type"] in DEFINITION_ORDER else 999
         ))
 
+        # Filter out Shopify-reserved system types (shopify--*)
+        sorted_defs = [d for d in sorted_defs if not d["type"].startswith("shopify--")]
+
         print(f"\nChecking/creating {len(sorted_defs)} metaobject definitions...")
+
+        # Build a map of source definition type → newly created dest GID
+        # so we can remap validation references (e.g. ingredient.benefits → benefit def GID)
+        source_type_to_dest_id = {}
+        for mo_type, defn_data in existing_defs.items():
+            if "id" in defn_data:
+                source_type_to_dest_id[mo_type] = defn_data["id"]
+
         for defn in sorted_defs:
             mo_type = defn["type"]
             label = f"  {defn.get('name', mo_type)} ({mo_type})"
@@ -215,7 +244,37 @@ def main():
                     "type": fd["type"]["name"],
                 }
                 if fd.get("validations"):
-                    field_def["validations"] = fd["validations"]
+                    # Remap metaobject_definition_id validations to dest store GIDs
+                    remapped_validations = []
+                    skip_field = False
+                    for v in fd["validations"]:
+                        if v.get("name") == "metaobject_definition_id":
+                            # Find which type this references by checking existing defs
+                            source_gid = v.get("value", "")
+                            # Look up the type that this GID corresponds to
+                            ref_type = None
+                            for src_def in definitions:
+                                if src_def.get("id") == source_gid:
+                                    ref_type = src_def["type"]
+                                    break
+                            if ref_type and ref_type in source_type_to_dest_id:
+                                remapped_validations.append({
+                                    "name": "metaobject_definition_id",
+                                    "value": source_type_to_dest_id[ref_type],
+                                })
+                            elif ref_type and ref_type.startswith("shopify--"):
+                                # Skip fields that reference reserved Shopify types
+                                skip_field = True
+                                break
+                            else:
+                                # Can't remap — skip this validation
+                                print(f"    WARNING: cannot remap validation {v} for field {fd['key']}, skipping validation")
+                        else:
+                            remapped_validations.append(v)
+                    if skip_field:
+                        continue
+                    if remapped_validations:
+                        field_def["validations"] = remapped_validations
                 field_defs.append(field_def)
 
             def_input = {
@@ -230,20 +289,49 @@ def main():
                 if result:
                     print(f"{label} — created (id: {result['id']})")
                     existing_defs[mo_type] = result
+                    source_type_to_dest_id[mo_type] = result["id"]
                 else:
                     print(f"{label} — already exists")
             except Exception as e:
                 print(f"{label} — error: {e}")
 
-        # Create metaobject entries
+        # Create metaobject entries (skip Shopify-reserved system types)
         for mo_type, type_data in all_metaobjects.items():
+            if mo_type.startswith("shopify--"):
+                continue
             objects = type_data.get("objects", [])
             if not objects:
                 continue
 
+            # Deduplicate by handle (translated FAQs can collide)
+            seen_handles = set()
+            deduped = []
+            for obj in objects:
+                h = _ascii_slugify(obj.get("handle", ""))
+                if not h:
+                    for f in obj.get("fields", []):
+                        if f["key"] in ("name", "title", "question", "full_name") and f.get("value"):
+                            h = _ascii_slugify(f["value"][:80])
+                            break
+                if h and h in seen_handles:
+                    continue
+                seen_handles.add(h)
+                deduped.append(obj)
+            if len(deduped) < len(objects):
+                print(f"\n  {mo_type}: deduplicated {len(objects)} → {len(deduped)} entries")
+            objects = deduped
+
             print(f"\nImporting {len(objects)} '{mo_type}' metaobjects...")
             for j, obj in enumerate(objects):
-                handle = obj.get("handle", "")
+                handle = _ascii_slugify(obj.get("handle", ""))
+                if not handle:
+                    # Generate handle from a name/title field
+                    for f in obj.get("fields", []):
+                        if f["key"] in ("name", "title", "question", "full_name") and f.get("value"):
+                            handle = _ascii_slugify(f["value"][:80])
+                            break
+                if not handle:
+                    handle = f"{mo_type}-{j}"
                 source_id = obj.get("id", "")
                 label = f"  [{j+1}/{len(objects)}] {handle}"
                 map_key = f"metaobjects_{mo_type}"

@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""Purge ALL migrated content from the Saudi Shopify store.
+"""Purge migrated content from the Saudi Shopify store.
 
-WARNING: This is DESTRUCTIVE and IRREVERSIBLE. It deletes:
-  - All products
-  - All custom & smart collections
-  - All pages
-  - All blogs & articles
-  - All metaobjects & metaobject definitions
-  - All URL redirects
-  - All price rules & discount codes
-  - All navigation menus
-  - All uploaded files
-  - All local progress/mapping files
+WARNING: This is DESTRUCTIVE and IRREVERSIBLE.
+
+By default, deletes DATA only (products, collections, pages, blogs, articles,
+metaobject entries, redirects, price rules, menus, files, local tracking files)
+but KEEPS metaobject/metafield definitions so you can re-import without
+re-running setup_store.py.
+
+Use --definitions to also delete metaobject definitions (full reset).
 
 Usage:
     python purge_saudi.py --dry-run       # Show what would be deleted
-    python purge_saudi.py                 # Actually delete (requires confirmation)
+    python purge_saudi.py                 # Delete data only (keeps definitions)
+    python purge_saudi.py --definitions   # Delete everything including definitions
     python purge_saudi.py --yes           # Skip confirmation prompt
     python purge_saudi.py --only products,collections  # Purge specific resources
 """
@@ -30,12 +28,12 @@ from dotenv import load_dotenv
 from shopify_client import ShopifyClient
 
 
-RESOURCE_TYPES = [
+# Data-only resources (default purge — keeps definitions intact for re-import)
+DATA_RESOURCE_TYPES = [
     "menus",
     "redirects",
     "price_rules",
     "metaobjects",
-    "metaobject_definitions",
     "articles",
     "blogs",
     "pages",
@@ -44,6 +42,12 @@ RESOURCE_TYPES = [
     "files",
     "local_data",
 ]
+
+# All resources including definitions (full reset)
+ALL_RESOURCE_TYPES = DATA_RESOURCE_TYPES + ["metaobject_definitions"]
+
+# For --only validation
+VALID_RESOURCE_TYPES = ALL_RESOURCE_TYPES
 
 
 def purge_products(client, dry_run=False):
@@ -288,10 +292,14 @@ def purge_local_data(dry_run=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Purge all migrated content from Saudi store")
+    parser = argparse.ArgumentParser(
+        description="Purge migrated content from Saudi store",
+        epilog="By default, only data is deleted (definitions are kept for re-import).")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted")
     parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
     parser.add_argument("--only", type=str, help="Comma-separated resource types to purge")
+    parser.add_argument("--definitions", action="store_true",
+                        help="Also delete metaobject definitions (full reset)")
     args = parser.parse_args()
 
     load_dotenv()
@@ -300,13 +308,15 @@ def main():
 
     if args.only:
         selected = [s.strip() for s in args.only.split(",")]
-        invalid = [s for s in selected if s not in RESOURCE_TYPES]
+        invalid = [s for s in selected if s not in VALID_RESOURCE_TYPES]
         if invalid:
             print(f"Error: Unknown resource types: {invalid}")
-            print(f"Valid types: {', '.join(RESOURCE_TYPES)}")
+            print(f"Valid types: {', '.join(VALID_RESOURCE_TYPES)}")
             return
+    elif args.definitions:
+        selected = ALL_RESOURCE_TYPES
     else:
-        selected = RESOURCE_TYPES
+        selected = DATA_RESOURCE_TYPES
 
     if args.dry_run:
         print(f"=== DRY RUN — Scanning {shop_url} ===")

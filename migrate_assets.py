@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Migrate assets (images, files) from Spain store to Saudi store.
+"""DEPRECATED: Use migrate_all_images.py (phases 4-5) or build_site.py --phase 4 instead.
+
+Migrate assets (images, files) from Spain store to Saudi store.
 
 Handles:
   - Metaobject file_reference fields (avatar, image, icon, science_images)
