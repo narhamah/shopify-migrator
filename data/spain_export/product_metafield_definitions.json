@@ -1,0 +1,352 @@
+[
+  {
+    "id": "gid://shopify/MetafieldDefinition/150234497066",
+    "namespace": "shopify",
+    "key": "target-gender",
+    "name": "Target gender",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150234529834",
+    "namespace": "shopify",
+    "key": "suitable-for-hair-type",
+    "name": "Suitable for hair type",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150234562602",
+    "namespace": "shopify",
+    "key": "hair-care-items-included",
+    "name": "Hair care items included",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150256746538",
+    "namespace": "shopify--discovery--product_search_boost",
+    "key": "queries",
+    "name": "Search product boosts",
+    "type": {
+      "name": "list.single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150256779306",
+    "namespace": "shopify--discovery--product_recommendation",
+    "key": "related_products",
+    "name": "Related products",
+    "type": {
+      "name": "list.product_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150256812074",
+    "namespace": "shopify--discovery--product_recommendation",
+    "key": "related_products_display",
+    "name": "Related products settings",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150256844842",
+    "namespace": "shopify--discovery--product_recommendation",
+    "key": "complementary_products",
+    "name": "Complementary products",
+    "type": {
+      "name": "list.product_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150711631914",
+    "namespace": "custom",
+    "key": "key_benefits_heading",
+    "name": "Key Benefits Heading",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150711664682",
+    "namespace": "custom",
+    "key": "key_benefits_content",
+    "name": "Key Benefits Content",
+    "type": {
+      "name": "rich_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150711730218",
+    "namespace": "custom",
+    "key": "clinical_results_heading",
+    "name": "Clinical Results Heading",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150711762986",
+    "namespace": "custom",
+    "key": "clinical_results_content",
+    "name": "Clinical Results Content",
+    "type": {
+      "name": "rich_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150711828522",
+    "namespace": "custom",
+    "key": "how_to_use_heading",
+    "name": "How to Use Heading",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150711861290",
+    "namespace": "custom",
+    "key": "how_to_use_content",
+    "name": "How to Use Content",
+    "type": {
+      "name": "rich_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150711926826",
+    "namespace": "custom",
+    "key": "whats_inside_heading",
+    "name": "Whats Inside Heading",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150712090666",
+    "namespace": "custom",
+    "key": "whats_inside_content",
+    "name": "Whats Inside Content",
+    "type": {
+      "name": "rich_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150712156202",
+    "namespace": "custom",
+    "key": "free_of_heading",
+    "name": "Free Of Heading",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150712188970",
+    "namespace": "custom",
+    "key": "free_of_content",
+    "name": "Free Of Content",
+    "type": {
+      "name": "rich_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150712254506",
+    "namespace": "custom",
+    "key": "awards_heading",
+    "name": "Awards Heading",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150712287274",
+    "namespace": "custom",
+    "key": "awards_content",
+    "name": "Awards Content",
+    "type": {
+      "name": "rich_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150712352810",
+    "namespace": "custom",
+    "key": "fragrance_heading",
+    "name": "Fragrance Heading",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150713499690",
+    "namespace": "custom",
+    "key": "fragrance_content",
+    "name": "Fragrance Content",
+    "type": {
+      "name": "rich_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150715236394",
+    "namespace": "custom",
+    "key": "tagline",
+    "name": "Tagline",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150726344746",
+    "namespace": "custom",
+    "key": "faqs",
+    "name": "FAQs",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150754983978",
+    "namespace": "custom",
+    "key": "size_ml",
+    "name": "Size (ml)",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/150866952234",
+    "namespace": "mm-google-shopping",
+    "key": "custom_product",
+    "name": "Google: Custom Product",
+    "type": {
+      "name": "boolean"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/151287758890",
+    "namespace": "custom",
+    "key": "short_description",
+    "name": "Short Description",
+    "type": {
+      "name": "single_line_text_field"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/151642865706",
+    "namespace": "shopify",
+    "key": "age-group",
+    "name": "Age group",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/151642898474",
+    "namespace": "shopify",
+    "key": "product-certifications-standards",
+    "name": "Product certifications & standards",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/151642931242",
+    "namespace": "shopify",
+    "key": "constitutive-ingredients",
+    "name": "Constitutive ingredients",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/151642964010",
+    "namespace": "shopify",
+    "key": "conditioner-effect",
+    "name": "Conditioner effect",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/151933222954",
+    "namespace": "custom",
+    "key": "ingredients",
+    "name": "Ingredientes",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/152019599402",
+    "namespace": "shopify",
+    "key": "product-form",
+    "name": "Product form",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/152788140074",
+    "namespace": "reviews",
+    "key": "rating_count",
+    "name": "Product rating count",
+    "type": {
+      "name": "number_integer"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/152788467754",
+    "namespace": "reviews",
+    "key": "rating",
+    "name": "Product rating",
+    "type": {
+      "name": "rating"
+    },
+    "ownerType": "PRODUCT"
+  },
+  {
+    "id": "gid://shopify/MetafieldDefinition/156388950058",
+    "namespace": "shopify",
+    "key": "scalp-concern",
+    "name": "Scalp concern",
+    "type": {
+      "name": "list.metaobject_reference"
+    },
+    "ownerType": "PRODUCT"
+  }
+]
