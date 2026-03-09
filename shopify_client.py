@@ -883,6 +883,38 @@ class ShopifyClient:
             raise Exception(f"menuCreate errors: {errors}")
         return result["menu"]
 
+    # --- REST: Themes & Assets ---
+
+    def get_themes(self):
+        """Get all themes."""
+        data, _ = self._get_json("themes.json")
+        return data.get("themes", [])
+
+    def get_main_theme_id(self):
+        """Get the ID of the currently active/main theme."""
+        themes = self.get_themes()
+        for t in themes:
+            if t.get("role") == "main":
+                return t["id"]
+        return None
+
+    def get_asset(self, theme_id, key):
+        """Get a single theme asset by key (e.g. 'templates/index.json')."""
+        data, _ = self._get_json(f"themes/{theme_id}/assets.json", params={"asset[key]": key})
+        return data.get("asset", {})
+
+    def put_asset(self, theme_id, key, value):
+        """Create or update a theme asset."""
+        resp = self._request("PUT", f"themes/{theme_id}/assets.json", json={
+            "asset": {"key": key, "value": value}
+        })
+        return resp.json().get("asset", {})
+
+    def list_assets(self, theme_id):
+        """List all asset keys for a theme."""
+        data, _ = self._get_json(f"themes/{theme_id}/assets.json")
+        return data.get("assets", [])
+
     # --- REST: Smart Collections ---
 
     def create_smart_collection(self, collection_data):
