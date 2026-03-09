@@ -342,7 +342,16 @@ def main():
     totals = {}
     for resource in selected:
         if resource in dispatch:
-            totals[resource] = dispatch[resource]()
+            try:
+                totals[resource] = dispatch[resource]()
+            except Exception as e:
+                err = str(e)
+                if "ACCESS_DENIED" in err or "access denied" in err.lower() or "403" in err:
+                    print(f"  SKIPPED — missing API scope for {resource}")
+                    totals[resource] = "skipped (no scope)"
+                else:
+                    print(f"  ERROR purging {resource}: {e}")
+                    totals[resource] = f"error: {e}"
 
     print(f"\n{'='*40}")
     if args.dry_run:
