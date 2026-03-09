@@ -306,16 +306,23 @@ _METAOBJECT_NAME_FIELDS = {
 }
 
 
-def _regenerate_metaobject_handles(metaobjects):
+def _regenerate_metaobject_handles(metaobjects, skip_ids=None):
     """Regenerate metaobject handles from their translated name/title field.
 
     Also deduplicates entries: when multiple source entries translate to the
     same handle (e.g., identical FAQ questions on different products), only
     the first is kept.
+
+    Args:
+        skip_ids: set of id(obj) for objects that already have an explicit
+            handle translation and should not be overwritten.
     """
+    skip_ids = skip_ids or set()
     for mo_type, type_data in metaobjects.items():
         name_field_key = _METAOBJECT_NAME_FIELDS.get(mo_type, "name")
         for obj in type_data.get("objects", []):
+            if id(obj) in skip_ids:
+                continue
             name_val = ""
             for field in obj.get("fields", []):
                 if field["key"] == name_field_key:
@@ -476,6 +483,9 @@ def apply_translations(translations, products, collections, pages, articles, met
                     mf["value"] = t[fid]
 
     if isinstance(metaobjects, dict):
+        # Track which objects have explicit handle translations so
+        # _regenerate_metaobject_handles won't overwrite them.
+        explicitly_handled = set()
         for mo_type, type_data in metaobjects.items():
             for obj in type_data.get("objects", []):
                 handle = obj.get("handle", obj.get("id", ""))
@@ -486,13 +496,15 @@ def apply_translations(translations, products, collections, pages, articles, met
                         new_handle = _slugify(t[handle_key])
                         if new_handle:
                             obj["handle"] = new_handle
+                            explicitly_handled.add(id(obj))
                     for field in obj.get("fields", []):
                         fid = f"{prefix}.{mo_type}.{handle}.{field['key']}"
                         if fid in t:
                             field["value"] = t[fid]
 
-        # Regenerate metaobject handles from translated name fields
-        _regenerate_metaobject_handles(metaobjects)
+        # Regenerate handles from translated name fields, but skip
+        # objects that already have an explicit handle translation.
+        _regenerate_metaobject_handles(metaobjects, skip_ids=explicitly_handled)
 
 
 # =====================================================================
@@ -871,8 +883,16 @@ def translate_with_gaps(
     # Track which types need full replacement (not merge) because their
     # scraped data is just untranslated source text.
     _full_replace_mo_types = set()
-    if isinstance(source_metaobjects, dict):
-        for mo_type, type_data in source_metaobjects.items():
+
+    # When the Spain export has no metaobjects, the scraper's output
+    # (which is a copy of Spain data with slugified handles) IS the
+    # source — its text fields still need translation.
+    effective_mo_source = source_metaobjects
+    if not effective_mo_source or (isinstance(effective_mo_source, dict) and not effective_mo_source):
+        effective_mo_source = scraped_metaobjects
+
+    if isinstance(effective_mo_source, dict):
+        for mo_type, type_data in effective_mo_source.items():
             objs = type_data.get("objects", [])
             if not objs:
                 continue
