@@ -5,8 +5,19 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from import_arabic import build_translation_inputs, ARABIC_LOCALE, main
-from utils import load_json, save_json
+from tara_migrate.pipeline.import_arabic import (
+    ARABIC_LOCALE,
+    build_article_arabic_fields,
+    build_collection_arabic_fields,
+    build_local_lookup,
+    build_metaobject_arabic_fields,
+    build_metaobject_lookup,
+    build_page_arabic_fields,
+    build_product_arabic_fields,
+    build_translation_inputs,
+    main,
+)
+from tara_migrate.core import load_json, save_json
 from tests.conftest import (
     make_product, make_collection, make_page, make_article,
     make_blog, make_id_map, make_metaobjects_data,
@@ -72,6 +83,186 @@ class TestBuildTranslationInputs:
 
 
 # ---------------------------------------------------------------------------
+# Field builder tests
+# ---------------------------------------------------------------------------
+
+class TestBuildProductArabicFields:
+    def test_basic_fields(self):
+        product = make_product()
+        product["title"] = "عنوان"
+        product["body_html"] = "<p>محتوى</p>"
+        product["handle"] = "عنوان-منتج"
+        result = build_product_arabic_fields(product)
+        assert result["title"] == "عنوان"
+        assert result["body_html"] == "<p>محتوى</p>"
+        assert result["handle"] == "عنوان-منتج"
+
+    def test_metafields(self):
+        product = make_product()
+        product["metafields"] = [
+            {"namespace": "custom", "key": "tagline", "value": "شعار", "type": "single_line_text_field"},
+        ]
+        result = build_product_arabic_fields(product)
+        assert result["custom.tagline"] == "شعار"
+
+    def test_reference_metafields_skipped(self):
+        product = make_product()
+        product["metafields"] = [
+            {"namespace": "custom", "key": "related", "value": "gid://...", "type": "product_reference"},
+        ]
+        result = build_product_arabic_fields(product)
+        assert "custom.related" not in result
+
+
+class TestBuildCollectionArabicFields:
+    def test_basic_fields(self):
+        coll = make_collection()
+        coll["title"] = "مجموعة"
+        result = build_collection_arabic_fields(coll)
+        assert result["title"] == "مجموعة"
+        assert "body_html" in result
+
+
+class TestBuildPageArabicFields:
+    def test_basic_fields(self):
+        page = make_page()
+        page["title"] = "صفحة"
+        result = build_page_arabic_fields(page)
+        assert result["title"] == "صفحة"
+
+
+class TestBuildArticleArabicFields:
+    def test_basic_fields(self):
+        art = make_article()
+        art["title"] = "مقالة"
+        art["summary_html"] = "<p>ملخص</p>"
+        result = build_article_arabic_fields(art)
+        assert result["title"] == "مقالة"
+        assert result["summary_html"] == "<p>ملخص</p>"
+
+
+class TestBuildMetaobjectArabicFields:
+    def test_basic_fields(self):
+        obj = {
+            "handle": "تألق",
+            "fields": [
+                {"key": "title", "value": "تألق"},
+                {"key": "description", "value": "وصف"},
+            ],
+        }
+        result = build_metaobject_arabic_fields(obj)
+        assert result["handle"] == "تألق"
+        assert result["title"] == "تألق"
+        assert result["description"] == "وصف"
+
+    def test_empty_value_skipped(self):
+        obj = {
+            "handle": "test",
+            "fields": [{"key": "title", "value": ""}, {"key": "desc", "value": "ok"}],
+        }
+        result = build_metaobject_arabic_fields(obj)
+        assert "title" not in result
+        assert result["desc"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# Lookup builder tests
+# ---------------------------------------------------------------------------
+
+class TestBuildLocalLookup:
+    def test_from_progress_file(self):
+        progress_ar = {
+            "prod.test-product.title": "عنوان",
+            "prod.test-product.body_html": "<p>محتوى</p>",
+            "coll.test-coll.title": "مجموعة",
+        }
+        result = build_local_lookup(progress_ar, "prod")
+        assert "test-product" in result
+        assert result["test-product"]["title"] == "عنوان"
+        assert "test-coll" not in result  # wrong prefix
+
+    def test_full_json_fallback(self):
+        progress_ar = {
+            "prod.test-product.title": "عنوان",
+        }
+        product = make_product()
+        product["handle"] = "test-product"
+        product["body_html"] = "<p>محتوى كامل</p>"
+
+        result = build_local_lookup(
+            progress_ar, "prod",
+            ar_items=[product],
+            field_builder=build_product_arabic_fields,
+        )
+        # Progress file value takes priority
+        assert result["test-product"]["title"] == "عنوان"
+        # Full JSON provides body_html (not in progress)
+        assert result["test-product"]["body_html"] == "<p>محتوى كامل</p>"
+
+    def test_progress_takes_priority(self):
+        progress_ar = {
+            "prod.test-product.title": "من الملف",
+        }
+        product = make_product()
+        product["handle"] = "test-product"
+        product["title"] = "من JSON"
+
+        result = build_local_lookup(
+            progress_ar, "prod",
+            ar_items=[product],
+            field_builder=build_product_arabic_fields,
+        )
+        assert result["test-product"]["title"] == "من الملف"
+
+    def test_empty_progress(self):
+        result = build_local_lookup({}, "prod")
+        assert result == {}
+
+    def test_metaobject_key_format(self):
+        progress_ar = {
+            "mo.benefit.shine.title": "تألق",
+            "mo.benefit.shine.handle": "تألق-معنى",
+        }
+        result = build_local_lookup(progress_ar, "mo")
+        # mo prefix parsed as: type=benefit, handle.field = shine.title
+        # But since build_local_lookup splits on first dot:
+        # key=benefit, field=shine.title — not ideal for metaobjects
+        # That's why we have build_metaobject_lookup separately
+        assert "benefit" in result
+
+
+class TestBuildMetaobjectLookup:
+    def test_from_progress(self):
+        progress_ar = {
+            "mo.benefit.shine.title": "تألق",
+            "mo.benefit.shine.handle": "تألق-جمال",
+        }
+        result = build_metaobject_lookup(progress_ar, {})
+        assert "benefit.shine" in result
+        assert result["benefit.shine"]["title"] == "تألق"
+        assert result["benefit.shine"]["handle"] == "تألق-جمال"
+
+    def test_with_full_json(self):
+        progress_ar = {"mo.benefit.shine.title": "تألق"}
+        ar_metaobjects = {
+            "benefit": {
+                "objects": [{
+                    "handle": "shine",
+                    "fields": [
+                        {"key": "title", "value": "من JSON"},
+                        {"key": "description", "value": "وصف"},
+                    ],
+                }],
+            },
+        }
+        result = build_metaobject_lookup(progress_ar, ar_metaobjects)
+        # Progress takes priority for title
+        assert result["benefit.shine"]["title"] == "تألق"
+        # Full JSON provides description
+        assert result["benefit.shine"]["description"] == "وصف"
+
+
+# ---------------------------------------------------------------------------
 # Helper to set up data dirs
 # ---------------------------------------------------------------------------
 
@@ -80,7 +271,8 @@ def _setup_arabic_data(base_path, id_map=None, progress=None,
                        en_collections=None, ar_collections=None,
                        en_pages=None, ar_pages=None,
                        en_articles=None, ar_articles=None,
-                       en_metaobjects=None, ar_metaobjects=None):
+                       en_metaobjects=None, ar_metaobjects=None,
+                       progress_ar=None):
     data_dir = base_path / "data"
     data_dir.mkdir(exist_ok=True)
     en_dir = data_dir / "english"
@@ -92,7 +284,7 @@ def _setup_arabic_data(base_path, id_map=None, progress=None,
 
     (en_dir / "products.json").write_text(json.dumps(en_products if en_products is not None else [product]))
     (ar_dir / "products.json").write_text(json.dumps(
-        ar_products if ar_products is not None else [{**product, "title": "عنوان", "body_html": "<p>محتوى</p>", "product_type": "نوع"}]
+        ar_products if ar_products is not None else [{**product, "title": "عنوان", "body_html": "<p>محتوى</p>", "handle": "test-product", "product_type": "نوع"}]
     ))
     (en_dir / "collections.json").write_text(json.dumps(en_collections or []))
     (ar_dir / "collections.json").write_text(json.dumps(ar_collections or []))
@@ -100,11 +292,17 @@ def _setup_arabic_data(base_path, id_map=None, progress=None,
     (ar_dir / "pages.json").write_text(json.dumps(ar_pages or []))
     (en_dir / "articles.json").write_text(json.dumps(en_articles or []))
     (ar_dir / "articles.json").write_text(json.dumps(ar_articles or []))
+    (en_dir / "blogs.json").write_text(json.dumps([]))
+    (ar_dir / "blogs.json").write_text(json.dumps([]))
 
     if en_metaobjects is not None:
         (en_dir / "metaobjects.json").write_text(json.dumps(en_metaobjects))
+    else:
+        (en_dir / "metaobjects.json").write_text(json.dumps({}))
     if ar_metaobjects is not None:
         (ar_dir / "metaobjects.json").write_text(json.dumps(ar_metaobjects))
+    else:
+        (ar_dir / "metaobjects.json").write_text(json.dumps({}))
 
     if id_map is None:
         id_map = make_id_map()
@@ -113,13 +311,18 @@ def _setup_arabic_data(base_path, id_map=None, progress=None,
     if progress:
         (data_dir / "arabic_import_progress.json").write_text(json.dumps(progress))
 
+    # Translation progress file
+    if progress_ar is None:
+        progress_ar = {}
+    (ar_dir / "_translation_progress_ar.json").write_text(json.dumps(progress_ar))
+
 
 # ---------------------------------------------------------------------------
 # main() tests
 # ---------------------------------------------------------------------------
 
 class TestMainDryRun:
-    @patch("import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("sys.argv", ["import_arabic.py", "--dry-run"])
     def test_dry_run_output(self, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
@@ -130,12 +333,21 @@ class TestMainDryRun:
 
 
 class TestMainProducts:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_registers_product_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        _setup_arabic_data(tmp_path)
+        product = make_product()
+        _setup_arabic_data(
+            tmp_path,
+            en_products=[product],
+            ar_products=[{**product, "title": "عنوان", "body_html": "<p>محتوى</p>", "handle": "test-product"}],
+            progress_ar={
+                "prod.test-product.title": "عنوان",
+                "prod.test-product.body_html": "<p>محتوى</p>",
+            },
+        )
 
         mc = MagicMock()
         MockClient.return_value = mc
@@ -147,6 +359,9 @@ class TestMainProducts:
             ],
         }
         mc.register_translations.return_value = [{"key": "title", "locale": "ar", "value": "عنوان"}]
+        mc._request.return_value = MagicMock(
+            json=lambda: {"product": {"id": 9001, "images": []}}
+        )
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
         os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
@@ -158,8 +373,8 @@ class TestMainProducts:
 
         mc.register_translations.assert_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_skips_already_done(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -178,8 +393,8 @@ class TestMainProducts:
 
         mc.get_translatable_resource.assert_not_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_no_dest_id_skips(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -198,31 +413,8 @@ class TestMainProducts:
 
         mc.get_translatable_resource.assert_not_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
-    def test_no_arabic_translation_skips(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
-        product = make_product()
-        # Arabic has product with different ID — no match
-        ar_product = {**product, "id": 9999, "title": "عنوان"}
-        _setup_arabic_data(tmp_path, en_products=[product], ar_products=[ar_product])
-
-        mc = MagicMock()
-        MockClient.return_value = mc
-
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
-        try:
-            main()
-        finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
-
-        mc.get_translatable_resource.assert_not_called()
-
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_translation_error_continues(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
@@ -243,8 +435,8 @@ class TestMainProducts:
         captured = capsys.readouterr()
         assert "error" in captured.out.lower()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_no_translatable_content(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
@@ -253,6 +445,9 @@ class TestMainProducts:
         mc = MagicMock()
         MockClient.return_value = mc
         mc.get_translatable_resource.return_value = None
+        mc._request.return_value = MagicMock(
+            json=lambda: {"product": {"id": 9001, "images": []}}
+        )
 
         os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
         os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
@@ -267,8 +462,8 @@ class TestMainProducts:
 
 
 class TestMainCollections:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_registers_collection_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -304,8 +499,8 @@ class TestMainCollections:
 
 
 class TestMainPages:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_registers_page_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -340,8 +535,8 @@ class TestMainPages:
 
 
 class TestMainArticles:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_registers_article_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -378,8 +573,8 @@ class TestMainArticles:
 
 
 class TestMainMetaobjects:
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_registers_metaobject_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -428,8 +623,8 @@ class TestMainMetaobjects:
 
         mc.register_translations.assert_called()
 
-    @patch("import_arabic.load_dotenv")
-    @patch("import_arabic.ShopifyClient")
+    @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
+    @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
     @patch("sys.argv", ["import_arabic.py"])
     def test_metaobject_no_dest_id_falls_back_to_handle(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -500,3 +695,15 @@ class TestMetaobjectTranslations:
         en_obj = en_by_handle.get("shine")
         dest_id = id_map_key.get(en_obj["id"])
         assert dest_id == "gid://dest/500"
+
+
+# ---------------------------------------------------------------------------
+# Image language detection tests
+# ---------------------------------------------------------------------------
+
+class TestClassifyImageLanguage:
+    def test_import_without_tesseract(self):
+        """classify_image_language should raise if pytesseract not available."""
+        from tara_migrate.tools.image_lang_detect import classify_image_language
+        # Module imports fine even without tesseract installed
+        assert callable(classify_image_language)

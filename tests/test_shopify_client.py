@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch, PropertyMock
 import pytest
 import requests
 
-from shopify_client import ShopifyClient, API_VERSION
+from tara_migrate.client import ShopifyClient, API_VERSION
 
 
 # ---------------------------------------------------------------------------

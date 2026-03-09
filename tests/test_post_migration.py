@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from post_migration import (
+from tara_migrate.pipeline.post_migration import (
     step_enable_arabic,
     step_link_products_to_collections,
     step_build_navigation,
@@ -480,8 +480,8 @@ class TestStepCreatePolicies:
 # ---------------------------------------------------------------------------
 
 class TestMain:
-    @patch("post_migration.load_dotenv")
-    @patch("post_migration.ShopifyClient")
+    @patch("tara_migrate.pipeline.post_migration.load_dotenv")
+    @patch("tara_migrate.pipeline.post_migration.ShopifyClient")
     def test_runs_all_steps(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "data" / "english").mkdir(parents=True)
@@ -503,7 +503,7 @@ class TestMain:
         os.environ.update({"SAUDI_SHOP_URL": "saudi.myshopify.com", "SAUDI_ACCESS_TOKEN": "tok"})
         try:
             import sys
-            monkeypatch.setattr(sys, "argv", ["post_migration.py"])
+            monkeypatch.setattr(sys, "argv", ["tara_migrate.pipeline.post_migration.py"])
             main()
         finally:
             del os.environ["SAUDI_SHOP_URL"]
@@ -511,8 +511,8 @@ class TestMain:
 
         client.enable_locale.assert_called_once_with("ar")
 
-    @patch("post_migration.load_dotenv")
-    @patch("post_migration.ShopifyClient")
+    @patch("tara_migrate.pipeline.post_migration.load_dotenv")
+    @patch("tara_migrate.pipeline.post_migration.ShopifyClient")
     def test_runs_single_step(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "data").mkdir()
@@ -525,7 +525,7 @@ class TestMain:
         os.environ.update({"SAUDI_SHOP_URL": "saudi.myshopify.com", "SAUDI_ACCESS_TOKEN": "tok"})
         try:
             import sys
-            monkeypatch.setattr(sys, "argv", ["post_migration.py", "--step", "1"])
+            monkeypatch.setattr(sys, "argv", ["tara_migrate.pipeline.post_migration.py", "--step", "1"])
             main()
         finally:
             del os.environ["SAUDI_SHOP_URL"]
