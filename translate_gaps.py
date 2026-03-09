@@ -844,10 +844,14 @@ def translate_with_gaps(
     # Articles are never in Magento — always need full translation
     gap_articles = source_articles
 
-    # Metaobjects: text-type fields always need translation (scraper copies
-    # source data as-is, still in source language). Non-text types only
-    # include genuinely missing items.
+    # Metaobjects: text-type fields always need full translation (scraper
+    # copies source data as-is with just slugified handles — the text is
+    # still in the source language). Non-text types only include genuinely
+    # missing items.
     gap_metaobjects = {}
+    # Track which types need full replacement (not merge) because their
+    # scraped data is just untranslated source text.
+    _full_replace_mo_types = set()
     if isinstance(source_metaobjects, dict):
         for mo_type, type_data in source_metaobjects.items():
             objs = type_data.get("objects", [])
@@ -863,6 +867,7 @@ def translate_with_gaps(
                     "definition": type_data.get("definition", {}),
                     "objects": objs,
                 }
+                _full_replace_mo_types.add(mo_type)
             else:
                 scraped_objs = []
                 if isinstance(scraped_metaobjects, dict) and mo_type in scraped_metaobjects:
@@ -1041,9 +1046,14 @@ def translate_with_gaps(
     # Articles: always from source, fully translated
     output_articles = [copy.deepcopy(a) for a in gap_articles]
 
-    # Metaobjects: merge gap types into scraped base
+    # Metaobjects: for text-field types, REPLACE scraped data entirely
+    # (scraped data is just untranslated source text with slugified handles).
+    # For non-text types, merge missing items into scraped base.
     for mo_type, type_data in gap_metaobjects.items():
-        if mo_type not in output_metaobjects:
+        if mo_type in _full_replace_mo_types:
+            # Replace: use source objects (will be translated below)
+            output_metaobjects[mo_type] = copy.deepcopy(type_data)
+        elif mo_type not in output_metaobjects:
             output_metaobjects[mo_type] = copy.deepcopy(type_data)
         else:
             existing_handles = {o.get("handle") for o in output_metaobjects[mo_type].get("objects", [])}
