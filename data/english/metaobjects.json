@@ -562,7 +562,7 @@
     "objects": [
       {
         "id": "gid://shopify/Metaobject/160408305706",
-        "handle": "will-the-onion-peptides-treatment-make-my-hair-smell-like-onion",
+        "handle": "question-1",
         "type": "faq_entry",
         "fields": [
           {
@@ -579,7 +579,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/160408404010",
-        "handle": "is-it-safe-to-use-this-treatment-on-chemically-treatedcolored-hair",
+        "handle": "question-2",
         "type": "faq_entry",
         "fields": [
           {
@@ -596,7 +596,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/160968376362",
-        "handle": "how-long-will-the-full-routine-last-me",
+        "handle": "question-3",
         "type": "faq_entry",
         "fields": [
           {
@@ -613,7 +613,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/160975323178",
-        "handle": "can-i-combine-the-onion-peptides-treatment-with-other-products",
+        "handle": "question-4",
         "type": "faq_entry",
         "fields": [
           {
@@ -630,7 +630,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161279541290",
-        "handle": "why-add-water-before-applying-shampoo",
+        "handle": "por-que-anadir-agua-antes-de-aplicar-el-champu",
         "type": "faq_entry",
         "fields": [
           {
@@ -647,7 +647,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161286488106",
-        "handle": "how-often-can-i-use-the-onion-peptides-shampoo",
+        "handle": "como-de-a-menudo-puedo-usar-el-champu-de-cebolla-peptidos",
         "type": "faq_entry",
         "fields": [
           {
@@ -664,7 +664,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161290944554",
-        "handle": "can-i-combine-the-onion-peptides-shampoo-with-other-products",
+        "handle": "puedo-combinar-el-champu-de-cebolla-peptidos-con-otros-productos",
         "type": "faq_entry",
         "fields": [
           {
@@ -681,7 +681,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161293795370",
-        "handle": "why-double-shampoo",
+        "handle": "por-que-hacer-una-doble-champuneada",
         "type": "faq_entry",
         "fields": [
           {
@@ -698,7 +698,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161517699114",
-        "handle": "can-i-use-it-daily",
+        "handle": "puedo-usarlo-a-diario",
         "type": "faq_entry",
         "fields": [
           {
@@ -715,7 +715,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161519075370",
-        "handle": "can-i-combine-the-onion-peptides-conditioner-with-other-products",
+        "handle": "puedo-combinar-el-acondicionador-de-cebolla-peptidos-con-otros-productos",
         "type": "faq_entry",
         "fields": [
           {
@@ -732,7 +732,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161520189482",
-        "handle": "does-it-contain-silicones-or-parabens",
+        "handle": "contiene-silicona-o-parabenos",
         "type": "faq_entry",
         "fields": [
           {
@@ -749,7 +749,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161522614314",
-        "handle": "how-much-serum-should-i-apply-each-time",
+        "handle": "que-cantidad-de-serum-he-de-aplicar-cada-vez",
         "type": "faq_entry",
         "fields": [
           {
@@ -766,7 +766,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/161522647082",
-        "handle": "do-i-need-to-rinse-the-serum-after-application",
+        "handle": "tengo-que-aclarar-el-serum-tras-su-aplicacion",
         "type": "faq_entry",
         "fields": [
           {
@@ -834,7 +834,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162129641514",
-        "handle": "is-it-suitable-for-all-hair-types",
+        "handle": "suitable-for-all-hair-types",
         "type": "faq_entry",
         "fields": [
           {
@@ -902,7 +902,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162129805354",
-        "handle": "does-it-also-help-with-dandruff",
+        "handle": "does-it-help-with-dandruff",
         "type": "faq_entry",
         "fields": [
           {
@@ -919,7 +919,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162132295722",
-        "handle": "what-makes-the-densifying-scalpprepping-shampoo-unique",
+        "handle": "what-makes-the-densifying-prepping-scalp-shampoo-unique",
         "type": "faq_entry",
         "fields": [
           {
@@ -1003,8 +1003,59 @@
         ]
       },
       {
+        "id": "gid://shopify/Metaobject/162141339690",
+        "handle": "what-makes-our-rosemary-peptides-treatment-unique-1",
+        "type": "faq_entry",
+        "fields": [
+          {
+            "key": "question",
+            "value": "What makes our Rosemary + Peptides treatment unique?",
+            "type": "single_line_text_field"
+          },
+          {
+            "key": "answer",
+            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This 3‑step system combines the densifying power of rosemary and peptides with hydrolyzed keratin and Larix Europaea wood extract to revitalize follicles, calm scalp irritation, and maintain healthy, denser hair. \"}]}]}",
+            "type": "rich_text_field"
+          }
+        ]
+      },
+      {
+        "id": "gid://shopify/Metaobject/162141372458",
+        "handle": "how-often-can-i-use-the-rosemary-peptides-treatment-1",
+        "type": "faq_entry",
+        "fields": [
+          {
+            "key": "question",
+            "value": "How often can I use the Rosemary + Peptides treatment?",
+            "type": "single_line_text_field"
+          },
+          {
+            "key": "answer",
+            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For best results, incorporate the shampoo and conditioner into your regular hair care routine and apply the serum daily. \"}]}]}",
+            "type": "rich_text_field"
+          }
+        ]
+      },
+      {
+        "id": "gid://shopify/Metaobject/162141405226",
+        "handle": "suitable-for-all-hair-types-1",
+        "type": "faq_entry",
+        "fields": [
+          {
+            "key": "question",
+            "value": "Is it suitable for all hair types?",
+            "type": "single_line_text_field"
+          },
+          {
+            "key": "answer",
+            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. This treatment benefits any hair type by calming irritation, stimulating follicles and increasing hair density.\"}]}]}",
+            "type": "rich_text_field"
+          }
+        ]
+      },
+      {
         "id": "gid://shopify/Metaobject/162141470762",
-        "handle": "what-makes-the-folliclestimulating-serum-unique",
+        "handle": "what-makes-the-follicle-stimulating-serum-unique",
         "type": "faq_entry",
         "fields": [
           {
@@ -1032,6 +1083,23 @@
           {
             "key": "answer",
             "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For optimal results, apply the serum daily. After towel‑drying or on dry hair, massage the contents of one pipette along the hairline, parting, sides and back of the scalp. This product does not require rinsing, so you can style as usual.\"}]}]}",
+            "type": "rich_text_field"
+          }
+        ]
+      },
+      {
+        "id": "gid://shopify/Metaobject/162141601834",
+        "handle": "suitable-for-all-hair-types-general",
+        "type": "faq_entry",
+        "fields": [
+          {
+            "key": "question",
+            "value": "Is it suitable for all hair types?",
+            "type": "single_line_text_field"
+          },
+          {
+            "key": "answer",
+            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, our serum benefits all hair types by stimulating follicles and increasing hair density.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1089,7 +1157,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162141732906",
-        "handle": "how-long-can-i-expect-to-see-results",
+        "handle": "how-long-until-i-see-results",
         "type": "faq_entry",
         "fields": [
           {
@@ -1157,7 +1225,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162223849514",
-        "handle": "what-makes-this-shampoo-different-from-others",
+        "handle": "what-makes-this-shampoo-different",
         "type": "faq_entry",
         "fields": [
           {
@@ -1174,7 +1242,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162223915050",
-        "handle": "can-this-shampoo-help-prevent-thinning-and-greying-of-hair",
+        "handle": "can-this-shampoo-help-prevent-thinning-and-greying",
         "type": "faq_entry",
         "fields": [
           {
@@ -1259,7 +1327,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162224930858",
-        "handle": "does-it-help-delay-the-appearance-of-greys",
+        "handle": "does-it-delay-greying",
         "type": "faq_entry",
         "fields": [
           {
@@ -1276,7 +1344,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162224963626",
-        "handle": "from-what-age-is-it-recommended-to-use",
+        "handle": "what-age-is-it-recommended-from",
         "type": "faq_entry",
         "fields": [
           {
@@ -1293,7 +1361,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162224996394",
-        "handle": "how-long-until-it-shows-results",
+        "handle": "how-long-until-results-show",
         "type": "faq_entry",
         "fields": [
           {
@@ -1310,7 +1378,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162225979434",
-        "handle": "how-often-should-i-use-the-sage-multivitamin-regenerating-repair-conditioner",
+        "handle": "how-often-should-i-use-the-sage-regenerating-repairing-conditioner",
         "type": "faq_entry",
         "fields": [
           {
@@ -1463,7 +1531,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162237317162",
-        "handle": "can-i-use-the-system-products-individually",
+        "handle": "can-i-use-system-products-individually",
         "type": "faq_entry",
         "fields": [
           {
@@ -1548,7 +1616,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162239905834",
-        "handle": "can-this-conditioner-help-with-frizzy-hair",
+        "handle": "can-this-conditioner-help-with-frizz",
         "type": "faq_entry",
         "fields": [
           {
@@ -1565,7 +1633,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162241249322",
-        "handle": "what-makes-the-strawberry-nmf-leavein-nourishing-conditioner-unique",
+        "handle": "what-makes-the-strawberry-nmf-leave-in-nourishing-conditioner-unique",
         "type": "faq_entry",
         "fields": [
           {
@@ -1582,7 +1650,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162241380394",
-        "handle": "how-often-should-i-use-the-strawberry-nmf-leavein-hydrating-conditioner",
+        "handle": "how-often-should-i-use-the-strawberry-nmf-leave-in-hydrating-conditioner",
         "type": "faq_entry",
         "fields": [
           {
@@ -1599,7 +1667,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162241413162",
-        "handle": "will-this-leavein-conditioner-make-my-hair-look-greasy",
+        "handle": "will-this-leave-in-conditioner-make-my-hair-look-greasy",
         "type": "faq_entry",
         "fields": [
           {
@@ -1616,7 +1684,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162241478698",
-        "handle": "can-i-use-this-product-on-colortreated-hair",
+        "handle": "can-i-use-this-product-on-color-treated-hair",
         "type": "faq_entry",
         "fields": [
           {
@@ -1633,7 +1701,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162241544234",
-        "handle": "does-this-leavein-conditioner-help-with-frizz",
+        "handle": "does-the-leave-in-conditioner-help-with-frizz",
         "type": "faq_entry",
         "fields": [
           {
@@ -1667,7 +1735,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162248753194",
-        "handle": "what-hair-type-is-the-date-multivitamin-collection-recommended-for",
+        "handle": "what-hair-types-is-the-date-multivitamin-collection-recommended-for",
         "type": "faq_entry",
         "fields": [
           {
@@ -1701,7 +1769,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162248818730",
-        "handle": "does-it-provide-nourishment-without-weighing-hair-down",
+        "handle": "does-it-provide-nourishment-without-weighing-down",
         "type": "faq_entry",
         "fields": [
           {
@@ -1922,7 +1990,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162548285482",
-        "handle": "is-it-suitable-for-a-sensitive-scalp",
+        "handle": "suitable-for-sensitive-scalp",
         "type": "faq_entry",
         "fields": [
           {
@@ -1973,7 +2041,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162548908074",
-        "handle": "can-it-be-used-together-with-other-treatments-or-masks",
+        "handle": "can-it-be-used-with-other-treatments-or-masks",
         "type": "faq_entry",
         "fields": [
           {
@@ -1990,7 +2058,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162549202986",
-        "handle": "does-it-have-a-strong-garlic-smell",
+        "handle": "does-it-have-a-strong-garlic-odor",
         "type": "faq_entry",
         "fields": [
           {
@@ -2007,7 +2075,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162549235754",
-        "handle": "what-makes-the-revitalizing-black-garlic-ceramides-shampoo-different-from-others",
+        "handle": "what-makes-the-revitalizing-black-garlic-ceramides-shampoo-different",
         "type": "faq_entry",
         "fields": [
           {
@@ -2024,7 +2092,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162555985962",
-        "handle": "what-hair-type-is-the-black-garlic-ceramides-mask-suitable-for",
+        "handle": "what-hair-types-is-the-black-garlic-ceramides-mask-suitable-for",
         "type": "faq_entry",
         "fields": [
           {
@@ -2143,7 +2211,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162557001770",
-        "handle": "can-this-serum-be-used-on-an-oily-scalp",
+        "handle": "can-this-serum-be-used-on-oily-scalp",
         "type": "faq_entry",
         "fields": [
           {
@@ -2194,7 +2262,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162574532650",
-        "handle": "how-do-i-know-if-i-need-a-detox-for-my-scalp-and-hair",
+        "handle": "how-to-know-if-i-need-a-scalp-and-hair-detox",
         "type": "faq_entry",
         "fields": [
           {
@@ -2228,7 +2296,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162574630954",
-        "handle": "does-this-system-help-with-dandruff",
+        "handle": "does-this-system-help-dandruff",
         "type": "faq_entry",
         "fields": [
           {
@@ -2347,7 +2415,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162580135978",
-        "handle": "what-role-does-salicylic-acid-play-in-this-shampoo",
+        "handle": "what-does-salicylic-acid-do-in-this-shampoo",
         "type": "faq_entry",
         "fields": [
           {
@@ -2381,7 +2449,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162580430890",
-        "handle": "is-the-shampoo-suitable-for-a-sensitive-scalp",
+        "handle": "is-the-shampoo-suitable-for-sensitive-scalp",
         "type": "faq_entry",
         "fields": [
           {
@@ -2398,7 +2466,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162580561962",
-        "handle": "does-this-detox-shampoo-help-with-dandruff",
+        "handle": "does-this-detox-shampoo-help-dandruff",
         "type": "faq_entry",
         "fields": [
           {
@@ -2449,7 +2517,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162583707690",
-        "handle": "will-this-conditioner-weigh-my-hair-down",
+        "handle": "will-this-conditioner-weigh-down-my-hair",
         "type": "faq_entry",
         "fields": [
           {
@@ -2500,7 +2568,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/162585411626",
-        "handle": "does-the-detox-collection-serum-help-with-dandruff",
+        "handle": "does-the-detox-collection-serum-help-dandruff",
         "type": "faq_entry",
         "fields": [
           {
@@ -3478,7 +3546,7 @@
     "objects": [
       {
         "id": "gid://shopify/Metaobject/163015917610",
-        "handle": "extracto-de-cebolla-roja",
+        "handle": "red-onion-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -3560,7 +3628,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016015914",
-        "handle": "capixyl-acetyl-tetrapeptide-3",
+        "handle": "acetyl-tetrapeptide-3",
         "type": "ingredient",
         "fields": [
           {
@@ -3642,7 +3710,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016114218",
-        "handle": "procapil-biotinoyl-tripeptide-1",
+        "handle": "biotinoyl-tripeptide-1",
         "type": "ingredient",
         "fields": [
           {
@@ -3724,7 +3792,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016146986",
-        "handle": "silverfree-palmitoyl-dipeptide-52",
+        "handle": "palmitoyl-dipeptide-52",
         "type": "ingredient",
         "fields": [
           {
@@ -3806,7 +3874,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016179754",
-        "handle": "extracto-de-romero",
+        "handle": "rosemary-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -3888,7 +3956,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016245290",
-        "handle": "ajo-negro-abg10",
+        "handle": "black-garlic",
         "type": "ingredient",
         "fields": [
           {
@@ -3970,7 +4038,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016278058",
-        "handle": "ceramida-np",
+        "handle": "ceramide-np",
         "type": "ingredient",
         "fields": [
           {
@@ -4052,7 +4120,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016310826",
-        "handle": "extracto-de-salvia",
+        "handle": "sage-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -4134,7 +4202,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163016376362",
-        "handle": "complejo-multivitamínico",
+        "handle": "multivitamin-complex",
         "type": "ingredient",
         "fields": [
           {
@@ -4216,7 +4284,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163017588778",
-        "handle": "extracto-de-dátil",
+        "handle": "date-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -4298,7 +4366,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163017621546",
-        "handle": "extracto-de-fresa",
+        "handle": "strawberry-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -4380,7 +4448,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163017654314",
-        "handle": "factor-natural-de-hidratación-nmf",
+        "handle": "natural-moisturizing-factor-nmf",
         "type": "ingredient",
         "fields": [
           {
@@ -4462,7 +4530,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163017785386",
-        "handle": "carbón-activado",
+        "handle": "activated-charcoal",
         "type": "ingredient",
         "fields": [
           {
@@ -4544,7 +4612,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163017850922",
-        "handle": "ácido-salicílico",
+        "handle": "salicylic-acid",
         "type": "ingredient",
         "fields": [
           {
@@ -4626,7 +4694,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163017981994",
-        "handle": "raíz-de-jengibre",
+        "handle": "ginger-root",
         "type": "ingredient",
         "fields": [
           {
@@ -4708,7 +4776,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018014762",
-        "handle": "extracto-de-nopal-cactus",
+        "handle": "prickly-pear-cactus-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -4790,7 +4858,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018047530",
-        "handle": "arcilla-ghassoul",
+        "handle": "ghassoul-clay",
         "type": "ingredient",
         "fields": [
           {
@@ -4872,7 +4940,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018113066",
-        "handle": "aceite-de-aguacate",
+        "handle": "avocado-oil",
         "type": "ingredient",
         "fields": [
           {
@@ -4954,7 +5022,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018178602",
-        "handle": "alga-roja",
+        "handle": "red-algae",
         "type": "ingredient",
         "fields": [
           {
@@ -5036,7 +5104,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018211370",
-        "handle": "semilla-de-apio",
+        "handle": "celery-seed",
         "type": "ingredient",
         "fields": [
           {
@@ -5118,7 +5186,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018342442",
-        "handle": "corteza-de-inga-alba",
+        "handle": "inga-alba-bark",
         "type": "ingredient",
         "fields": [
           {
@@ -5200,7 +5268,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018375210",
-        "handle": "extracto-de-levadura",
+        "handle": "yeast-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -5282,7 +5350,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018440746",
-        "handle": "queratina-hidrolizada",
+        "handle": "hydrolyzed-keratin",
         "type": "ingredient",
         "fields": [
           {
@@ -5364,7 +5432,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018539050",
-        "handle": "manteca-de-karité",
+        "handle": "shea-butter",
         "type": "ingredient",
         "fields": [
           {
@@ -5446,7 +5514,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163018604586",
-        "handle": "manteca-de-mango",
+        "handle": "mango-butter",
         "type": "ingredient",
         "fields": [
           {
@@ -5528,7 +5596,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163030532138",
-        "handle": "aceite-de-oliva",
+        "handle": "olive-oil",
         "type": "ingredient",
         "fields": [
           {
@@ -5610,7 +5678,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163030630442",
-        "handle": "aceite-de-semilla-de-uva",
+        "handle": "grape-seed-oil",
         "type": "ingredient",
         "fields": [
           {
@@ -5692,7 +5760,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163030761514",
-        "handle": "pantenol-pro-vitamina-b5",
+        "handle": "vitamin-b5",
         "type": "ingredient",
         "fields": [
           {
@@ -5774,7 +5842,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163030827050",
-        "handle": "niacinamida-vitamina-b3",
+        "handle": "niacinamide",
         "type": "ingredient",
         "fields": [
           {
@@ -5856,7 +5924,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163031023658",
-        "handle": "aceite-de-sésamo",
+        "handle": "sesame-oil",
         "type": "ingredient",
         "fields": [
           {
@@ -5938,7 +6006,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163031056426",
-        "handle": "aceite-de-argán-puro",
+        "handle": "argan-oil",
         "type": "ingredient",
         "fields": [
           {
@@ -6020,7 +6088,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163031121962",
-        "handle": "extracto-de-semilla-de-soja",
+        "handle": "soybean-seed-extract",
         "type": "ingredient",
         "fields": [
           {
@@ -6102,7 +6170,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163033055274",
-        "handle": "colágeno-hidrolizado",
+        "handle": "hydrolyzed-collagen",
         "type": "ingredient",
         "fields": [
           {
@@ -6184,7 +6252,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163033514026",
-        "handle": "colágeno-vegetal-fito-colágeno",
+        "handle": "plant-collagen",
         "type": "ingredient",
         "fields": [
           {
@@ -6368,7 +6436,7 @@
     "objects": [
       {
         "id": "gid://shopify/Metaobject/163247652906",
-        "handle": "frena-la-caída-mecánica",
+        "handle": "onion-extract-stops-mechanical-hair-loss",
         "type": "benefit",
         "fields": [
           {
@@ -6395,7 +6463,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247685674",
-        "handle": "estimulación-sin-olor",
+        "handle": "onion-extract-odorless-stimulation",
         "type": "benefit",
         "fields": [
           {
@@ -6422,7 +6490,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247718442",
-        "handle": "grosor-inmediato",
+        "handle": "onion-extract-immediate-thickness",
         "type": "benefit",
         "fields": [
           {
@@ -6449,7 +6517,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247751210",
-        "handle": "raíz-fortalecida",
+        "handle": "onion-extract-root-strengthened",
         "type": "benefit",
         "fields": [
           {
@@ -6476,7 +6544,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247783978",
-        "handle": "efecto-ancla",
+        "handle": "acetyl-tetrapeptide-3-anchor-effect",
         "type": "benefit",
         "fields": [
           {
@@ -6503,7 +6571,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247816746",
-        "handle": "bloqueo-de-la-miniaturización",
+        "handle": "acetyl-tetrapeptide-3-miniaturization-block",
         "type": "benefit",
         "fields": [
           {
@@ -6530,7 +6598,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247849514",
-        "handle": "reactivación-del-ciclo",
+        "handle": "acetyl-tetrapeptide-3-cycle-reactivation",
         "type": "benefit",
         "fields": [
           {
@@ -6557,7 +6625,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247882282",
-        "handle": "calma-folicular",
+        "handle": "acetyl-tetrapeptide-3-follicle-calming",
         "type": "benefit",
         "fields": [
           {
@@ -6584,7 +6652,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247915050",
-        "handle": "densidad-visible",
+        "handle": "acetyl-tetrapeptide-3-visible-density",
         "type": "benefit",
         "fields": [
           {
@@ -6611,7 +6679,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247947818",
-        "handle": "accelerated-metabolism",
+        "handle": "biotinoyl-tripeptide-1-accelerated-metabolism",
         "type": "benefit",
         "fields": [
           {
@@ -6638,7 +6706,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163247980586",
-        "handle": "microcirculation-activated",
+        "handle": "biotinoyl-tripeptide-1-microcirculation-activated",
         "type": "benefit",
         "fields": [
           {
@@ -6665,7 +6733,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248013354",
-        "handle": "tensile-resistance",
+        "handle": "biotinoyl-tripeptide-1-tensile-resistance",
         "type": "benefit",
         "fields": [
           {
@@ -6692,7 +6760,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248046122",
-        "handle": "prolonged-anagen",
+        "handle": "biotinoyl-tripeptide-1-prolonged-anagen",
         "type": "benefit",
         "fields": [
           {
@@ -6719,7 +6787,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248078890",
-        "handle": "gray-reversal",
+        "handle": "palmitoyl-dipeptide-52-gray-reversal",
         "type": "benefit",
         "fields": [
           {
@@ -6746,7 +6814,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248111658",
-        "handle": "reservoir-protection",
+        "handle": "palmitoyl-dipeptide-52-reservoir-protection",
         "type": "benefit",
         "fields": [
           {
@@ -6773,7 +6841,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248144426",
-        "handle": "lasting-effect",
+        "handle": "palmitoyl-dipeptide-52-lasting-effect",
         "type": "benefit",
         "fields": [
           {
@@ -6800,7 +6868,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248177194",
-        "handle": "melanogenesis-reactivated",
+        "handle": "palmitoyl-dipeptide-52-melanogenesis-reactivated",
         "type": "benefit",
         "fields": [
           {
@@ -6827,7 +6895,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248209962",
-        "handle": "minoxidil-rival",
+        "handle": "rosemary-minoxidil-rival",
         "type": "benefit",
         "fields": [
           {
@@ -6854,7 +6922,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248242730",
-        "handle": "nutritive-vasodilation",
+        "handle": "rosemary-nutritive-vasodilation",
         "type": "benefit",
         "fields": [
           {
@@ -6881,7 +6949,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248275498",
-        "handle": "androgen-blocking",
+        "handle": "rosemary-androgen-blocking",
         "type": "benefit",
         "fields": [
           {
@@ -6908,7 +6976,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248308266",
-        "handle": "mediterranean-antioxidant",
+        "handle": "rosemary-mediterranean-antioxidant",
         "type": "benefit",
         "fields": [
           {
@@ -6935,7 +7003,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248341034",
-        "handle": "color-shield",
+        "handle": "sage-color-shield",
         "type": "benefit",
         "fields": [
           {
@@ -6962,7 +7030,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248373802",
-        "handle": "sebum-control",
+        "handle": "sage-sebum-control",
         "type": "benefit",
         "fields": [
           {
@@ -6989,7 +7057,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248406570",
-        "handle": "follicular-antiinflammatory",
+        "handle": "sage-follicular-antiinflammatory",
         "type": "benefit",
         "fields": [
           {
@@ -7016,7 +7084,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248439338",
-        "handle": "natural-astringent",
+        "handle": "sage-natural-astringent",
         "type": "benefit",
         "fields": [
           {
@@ -7043,7 +7111,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248472106",
-        "handle": "deep-penetration-dds",
+        "handle": "multivitamins-deep-penetration-dds",
         "type": "benefit",
         "fields": [
           {
@@ -7070,7 +7138,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248504874",
-        "handle": "collagen-synthesis",
+        "handle": "multivitamins-collagen-synthesis",
         "type": "benefit",
         "fields": [
           {
@@ -7097,7 +7165,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248537642",
-        "handle": "cell-renewal",
+        "handle": "multivitamins-cell-renewal",
         "type": "benefit",
         "fields": [
           {
@@ -7124,7 +7192,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248570410",
-        "handle": "antioxidant-defense",
+        "handle": "multivitamins-antioxidant-defense",
         "type": "benefit",
         "fields": [
           {
@@ -7151,7 +7219,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248603178",
-        "handle": "triple-synergy",
+        "handle": "multivitamins-triple-synergy",
         "type": "benefit",
         "fields": [
           {
@@ -7178,7 +7246,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248635946",
-        "handle": "moisture-lock-technology",
+        "handle": "date-extract-moisture-lock-technology",
         "type": "benefit",
         "fields": [
           {
@@ -7205,7 +7273,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248668714",
-        "handle": "structural-remineralization",
+        "handle": "date-extract-structural-remineralization",
         "type": "benefit",
         "fields": [
           {
@@ -7232,7 +7300,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248701482",
-        "handle": "supreme-elasticity",
+        "handle": "date-extract-supreme-elasticity",
         "type": "benefit",
         "fields": [
           {
@@ -7259,7 +7327,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248734250",
-        "handle": "hair-superfood",
+        "handle": "date-extract-hair-superfood",
         "type": "benefit",
         "fields": [
           {
@@ -7286,7 +7354,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248767018",
-        "handle": "antioxidant-power-10",
+        "handle": "black-garlic-antioxidant-power-x10",
         "type": "benefit",
         "fields": [
           {
@@ -7313,7 +7381,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248799786",
-        "handle": "mitochondrial-energy",
+        "handle": "black-garlic-mitochondrial-energy",
         "type": "benefit",
         "fields": [
           {
@@ -7340,7 +7408,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248832554",
-        "handle": "circulatory-activation",
+        "handle": "black-garlic-circulatory-activation",
         "type": "benefit",
         "fields": [
           {
@@ -7367,7 +7435,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248865322",
-        "handle": "collagen-preservation",
+        "handle": "black-garlic-collagen-preservation",
         "type": "benefit",
         "fields": [
           {
@@ -7394,7 +7462,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248898090",
-        "handle": "cuticle-sealing",
+        "handle": "ceramide-np-cuticle-sealing",
         "type": "benefit",
         "fields": [
           {
@@ -7421,7 +7489,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248930858",
-        "handle": "mirror-effect",
+        "handle": "ceramide-np-mirror-effect",
         "type": "benefit",
         "fields": [
           {
@@ -7448,7 +7516,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248963626",
-        "handle": "barrier-restoration",
+        "handle": "ceramide-np-barrier-restoration",
         "type": "benefit",
         "fields": [
           {
@@ -7475,7 +7543,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163248996394",
-        "handle": "hydrophobicity-restored",
+        "handle": "ceramide-np-hydrophobicity-restored",
         "type": "benefit",
         "fields": [
           {
@@ -7502,7 +7570,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163249029162",
-        "handle": "enzymatic-exfoliation",
+        "handle": "strawberry-enzymatic-exfoliation",
         "type": "benefit",
         "fields": [
           {
@@ -7529,7 +7597,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163249061930",
-        "handle": "ph-balance",
+        "handle": "strawberry-ph-balance",
         "type": "benefit",
         "fields": [
           {
@@ -7556,7 +7624,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163249094698",
-        "handle": "osmotic-hydration",
+        "handle": "strawberry-osmotic-hydration",
         "type": "benefit",
         "fields": [
           {
@@ -7583,7 +7651,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163249127466",
-        "handle": "hair-biomimicry",
+        "handle": "nmf-hair-biomimicry",
         "type": "benefit",
         "fields": [
           {
@@ -7610,7 +7678,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163249160234",
-        "handle": "goodbye-static",
+        "handle": "nmf-goodbye-static",
         "type": "benefit",
         "fields": [
           {
@@ -7637,7 +7705,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163249193002",
-        "handle": "weightless-smoothness",
+        "handle": "nmf-weightless-smoothness",
         "type": "benefit",
         "fields": [
           {
@@ -7664,7 +7732,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251683370",
-        "handle": "toxin-magnet",
+        "handle": "charcoal-toxin-magnet",
         "type": "benefit",
         "fields": [
           {
@@ -7691,7 +7759,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251716138",
-        "handle": "volume-from-the-root",
+        "handle": "charcoal-root-volume",
         "type": "benefit",
         "fields": [
           {
@@ -7718,7 +7786,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251748906",
-        "handle": "deep-detox",
+        "handle": "charcoal-deep-detox",
         "type": "benefit",
         "fields": [
           {
@@ -7745,7 +7813,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251781674",
-        "handle": "intrapore-cleanse",
+        "handle": "salicylic-acid-intra-pore-cleanse",
         "type": "benefit",
         "fields": [
           {
@@ -7772,7 +7840,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251814442",
-        "handle": "dandruff-elimination",
+        "handle": "salicylic-acid-dandruff-elimination",
         "type": "benefit",
         "fields": [
           {
@@ -7799,7 +7867,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251847210",
-        "handle": "flora-purification",
+        "handle": "salicylic-acid-flora-purification",
         "type": "benefit",
         "fields": [
           {
@@ -7826,7 +7894,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251879978",
-        "handle": "unblocked-pore",
+        "handle": "salicylic-acid-unblocked-pore",
         "type": "benefit",
         "fields": [
           {
@@ -7853,7 +7921,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251912746",
-        "handle": "thermogenesis-activator",
+        "handle": "ginger-root-thermogenesis-activator",
         "type": "benefit",
         "fields": [
           {
@@ -7880,7 +7948,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251945514",
-        "handle": "antiseptic-defense",
+        "handle": "ginger-root-antiseptic-defense",
         "type": "benefit",
         "fields": [
           {
@@ -7907,7 +7975,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163251978282",
-        "handle": "collagen-protection",
+        "handle": "ginger-root-collagen-protection",
         "type": "benefit",
         "fields": [
           {
@@ -7934,7 +8002,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252011050",
-        "handle": "stress-blocking",
+        "handle": "cactus-stress-blocking",
         "type": "benefit",
         "fields": [
           {
@@ -7961,7 +8029,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252043818",
-        "handle": "72h-water-reserve",
+        "handle": "cactus-72h-water-reserve",
         "type": "benefit",
         "fields": [
           {
@@ -7988,7 +8056,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252109354",
-        "handle": "neurosensory-soothing",
+        "handle": "cactus-neurosensorial-soothing",
         "type": "benefit",
         "fields": [
           {
@@ -8015,7 +8083,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252142122",
-        "handle": "absorption-cleansing",
+        "handle": "ghassoul-absorption-cleanse",
         "type": "benefit",
         "fields": [
           {
@@ -8042,7 +8110,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252174890",
-        "handle": "volcanic-remineralization",
+        "handle": "ghassoul-volcanic-remineralization",
         "type": "benefit",
         "fields": [
           {
@@ -8069,7 +8137,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252207658",
-        "handle": "eraser-effect",
+        "handle": "ghassoul-eraser-effect",
         "type": "benefit",
         "fields": [
           {
@@ -8096,7 +8164,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252240426",
-        "handle": "cortical-penetration",
+        "handle": "avocado-oil-cortical-penetration",
         "type": "benefit",
         "fields": [
           {
@@ -8123,7 +8191,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252273194",
-        "handle": "lasting-smoothness",
+        "handle": "avocado-oil-lasting-smoothness",
         "type": "benefit",
         "fields": [
           {
@@ -8150,7 +8218,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252305962",
-        "handle": "vitaminic-nutrition",
+        "handle": "avocado-oil-vitaminic-nutrition",
         "type": "benefit",
         "fields": [
           {
@@ -8177,7 +8245,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252338730",
-        "handle": "antipollution-shield",
+        "handle": "red-seaweed-anti-pollution-shield",
         "type": "benefit",
         "fields": [
           {
@@ -8204,7 +8272,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252371498",
-        "handle": "plant-silicone",
+        "handle": "red-seaweed-plant-silicone",
         "type": "benefit",
         "fields": [
           {
@@ -8231,7 +8299,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252404266",
-        "handle": "water-retention",
+        "handle": "red-seaweed-water-retention",
         "type": "benefit",
         "fields": [
           {
@@ -8258,7 +8326,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252437034",
-        "handle": "neurosensory-relief",
+        "handle": "celery-seed-neurosensory-relief",
         "type": "benefit",
         "fields": [
           {
@@ -8285,7 +8353,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252469802",
-        "handle": "microflora-balance",
+        "handle": "celery-seed-microflora-balance",
         "type": "benefit",
         "fields": [
           {
@@ -8312,7 +8380,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252502570",
-        "handle": "lipid-barrier-restoration",
+        "handle": "celery-seed-lipid-barrier-restoration",
         "type": "benefit",
         "fields": [
           {
@@ -8339,7 +8407,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252535338",
-        "handle": "skin-barrier-boost",
+        "handle": "inga-alba-skin-barrier-boost",
         "type": "benefit",
         "fields": [
           {
@@ -8366,7 +8434,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252568106",
-        "handle": "inflammation-silencer",
+        "handle": "inga-alba-inflammation-silencer",
         "type": "benefit",
         "fields": [
           {
@@ -8393,7 +8461,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252600874",
-        "handle": "immediate-comfort",
+        "handle": "inga-alba-immediate-comfort",
         "type": "benefit",
         "fields": [
           {
@@ -8420,7 +8488,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252633642",
-        "handle": "follicular-bioenergy",
+        "handle": "yeast-extract-follicular-bioenergy",
         "type": "benefit",
         "fields": [
           {
@@ -8447,7 +8515,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252666410",
-        "handle": "vitamin-b-source",
+        "handle": "yeast-extract-vitamin-b-source",
         "type": "benefit",
         "fields": [
           {
@@ -8474,7 +8542,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252699178",
-        "handle": "new-hair-vitality",
+        "handle": "yeast-extract-new-hair-vitality",
         "type": "benefit",
         "fields": [
           {
@@ -8501,7 +8569,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252731946",
-        "handle": "crack-filler",
+        "handle": "micro-keratin-crack-filler",
         "type": "benefit",
         "fields": [
           {
@@ -8528,7 +8596,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252764714",
-        "handle": "structural-repair",
+        "handle": "micro-keratin-structural-repair",
         "type": "benefit",
         "fields": [
           {
@@ -8555,7 +8623,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252797482",
-        "handle": "immediate-strength",
+        "handle": "micro-keratin-immediate-strength",
         "type": "benefit",
         "fields": [
           {
@@ -8582,7 +8650,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252830250",
-        "handle": "intense-lipid-nutrition",
+        "handle": "shea-butter-intense-lipid-nutrition",
         "type": "benefit",
         "fields": [
           {
@@ -8609,7 +8677,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252863018",
-        "handle": "natural-thermal-protection",
+        "handle": "shea-butter-natural-thermal-protection",
         "type": "benefit",
         "fields": [
           {
@@ -8636,7 +8704,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252895786",
-        "handle": "end-sealing",
+        "handle": "shea-butter-end-sealing",
         "type": "benefit",
         "fields": [
           {
@@ -8663,7 +8731,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252928554",
-        "handle": "light-hydration",
+        "handle": "mango-butter-light-hydration",
         "type": "benefit",
         "fields": [
           {
@@ -8690,7 +8758,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252961322",
-        "handle": "botanical-uv-protection",
+        "handle": "mango-butter-botanical-uv-protection",
         "type": "benefit",
         "fields": [
           {
@@ -8717,7 +8785,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163252994090",
-        "handle": "residuefree-elasticity",
+        "handle": "mango-butter-residue-free-elasticity",
         "type": "benefit",
         "fields": [
           {
@@ -8744,7 +8812,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253026858",
-        "handle": "vegan-elasticity",
+        "handle": "vegetable-collagen-vegan-elasticity",
         "type": "benefit",
         "fields": [
           {
@@ -8771,7 +8839,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253059626",
-        "handle": "substantive-hydration",
+        "handle": "vegetable-collagen-substantive-hydration",
         "type": "benefit",
         "fields": [
           {
@@ -8798,7 +8866,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253092394",
-        "handle": "weightless-shine",
+        "handle": "vegetable-collagen-weightless-shine",
         "type": "benefit",
         "fields": [
           {
@@ -8825,7 +8893,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253125162",
-        "handle": "hair-filler",
+        "handle": "hydrolyzed-collagen-hair-filler",
         "type": "benefit",
         "fields": [
           {
@@ -8852,7 +8920,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253157930",
-        "handle": "volume-from-within",
+        "handle": "hydrolyzed-collagen-internal-volume",
         "type": "benefit",
         "fields": [
           {
@@ -8879,7 +8947,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253190698",
-        "handle": "antibreakage-flexibility",
+        "handle": "hydrolyzed-collagen-anti-breakage-flexibility",
         "type": "benefit",
         "fields": [
           {
@@ -8906,7 +8974,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253223466",
-        "handle": "smart-reconstruction",
+        "handle": "hydrolyzed-keratin-smart-reconstruction",
         "type": "benefit",
         "fields": [
           {
@@ -8933,7 +9001,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253256234",
-        "handle": "protein-thermal-shield",
+        "handle": "hydrolyzed-keratin-protein-thermal-shield",
         "type": "benefit",
         "fields": [
           {
@@ -8960,7 +9028,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253289002",
-        "handle": "postchemical-smoothness",
+        "handle": "hydrolyzed-keratin-post-chemical-smoothness",
         "type": "benefit",
         "fields": [
           {
@@ -8987,7 +9055,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253321770",
-        "handle": "disulfide-bridges",
+        "handle": "hydrolyzed-keratin-disulfide-bridges",
         "type": "benefit",
         "fields": [
           {
@@ -9014,7 +9082,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253354538",
-        "handle": "follicular-energy",
+        "handle": "soybean-extract-follicular-energy",
         "type": "benefit",
         "fields": [
           {
@@ -9041,7 +9109,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253387306",
-        "handle": "hormonal-protection",
+        "handle": "soybean-extract-hormonal-protection",
         "type": "benefit",
         "fields": [
           {
@@ -9068,7 +9136,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253420074",
-        "handle": "thickness-and-texture",
+        "handle": "soybean-extract-thickness-and-texture",
         "type": "benefit",
         "fields": [
           {
@@ -9095,7 +9163,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253452842",
-        "handle": "instant-nutrition",
+        "handle": "argan-oil-instant-nutrition",
         "type": "benefit",
         "fields": [
           {
@@ -9122,7 +9190,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253485610",
-        "handle": "lipid-end-sealing",
+        "handle": "argan-oil-lipid-end-sealing",
         "type": "benefit",
         "fields": [
           {
@@ -9149,7 +9217,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253518378",
-        "handle": "mirror-shine",
+        "handle": "argan-oil-mirror-shine",
         "type": "benefit",
         "fields": [
           {
@@ -9176,7 +9244,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253551146",
-        "handle": "antioxidant-barrier",
+        "handle": "argan-oil-antioxidant-barrier",
         "type": "benefit",
         "fields": [
           {
@@ -9203,7 +9271,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253583914",
-        "handle": "natural-uv-protection",
+        "handle": "sesame-oil-natural-uv-protection",
         "type": "benefit",
         "fields": [
           {
@@ -9230,7 +9298,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253616682",
-        "handle": "deep-penetration",
+        "handle": "sesame-oil-deep-penetration",
         "type": "benefit",
         "fields": [
           {
@@ -9257,7 +9325,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253649450",
-        "handle": "scalp-detox",
+        "handle": "sesame-oil-scalp-detox",
         "type": "benefit",
         "fields": [
           {
@@ -9284,7 +9352,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253682218",
-        "handle": "density-and-body",
+        "handle": "niacinamide-density-and-body",
         "type": "benefit",
         "fields": [
           {
@@ -9311,7 +9379,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253714986",
-        "handle": "calm-and-balance",
+        "handle": "niacinamide-calm-and-balance",
         "type": "benefit",
         "fields": [
           {
@@ -9338,7 +9406,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253747754",
-        "handle": "keratin-synthesis",
+        "handle": "niacinamide-keratin-synthesis",
         "type": "benefit",
         "fields": [
           {
@@ -9365,7 +9433,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253780522",
-        "handle": "ceramide-production",
+        "handle": "niacinamide-ceramide-production",
         "type": "benefit",
         "fields": [
           {
@@ -9392,7 +9460,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253813290",
-        "handle": "deep-hydration",
+        "handle": "panthenol-deep-hydration",
         "type": "benefit",
         "fields": [
           {
@@ -9419,7 +9487,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253846058",
-        "handle": "elasticity-and-bounce",
+        "handle": "panthenol-elasticity-and-bounce",
         "type": "benefit",
         "fields": [
           {
@@ -9446,7 +9514,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253878826",
-        "handle": "cuticle-smoothing",
+        "handle": "panthenol-cuticle-smoothing",
         "type": "benefit",
         "fields": [
           {
@@ -9473,7 +9541,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253911594",
-        "handle": "light-antioxidant",
+        "handle": "grapeseed-oil-light-antioxidant",
         "type": "benefit",
         "fields": [
           {
@@ -9500,7 +9568,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253944362",
-        "handle": "nongreasy-hydration",
+        "handle": "grapeseed-oil-non-greasy-hydration",
         "type": "benefit",
         "fields": [
           {
@@ -9527,7 +9595,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163253977130",
-        "handle": "frizz-control",
+        "handle": "grapeseed-oil-frizz-control",
         "type": "benefit",
         "fields": [
           {
@@ -9554,7 +9622,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163254009898",
-        "handle": "sebum-regulation",
+        "handle": "grapeseed-oil-sebum-regulation",
         "type": "benefit",
         "fields": [
           {
@@ -9581,7 +9649,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163254042666",
-        "handle": "extreme-smoothness",
+        "handle": "olive-oil-extreme-smoothness",
         "type": "benefit",
         "fields": [
           {
@@ -9608,7 +9676,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163254075434",
-        "handle": "mediterranean-shine",
+        "handle": "olive-oil-mediterranean-shine",
         "type": "benefit",
         "fields": [
           {
@@ -9635,7 +9703,7 @@
       },
       {
         "id": "gid://shopify/Metaobject/163254108202",
-        "handle": "keratin-protection",
+        "handle": "olive-oil-keratin-protection",
         "type": "benefit",
         "fields": [
           {
