@@ -257,8 +257,13 @@ class ShopifyClient:
         return data.get("pages", [])
 
     def get_collections_by_handle(self, handle):
+        """Search both custom and smart collections by handle."""
         data, _ = self._get_json("custom_collections.json", params={"handle": handle})
-        return data.get("custom_collections", [])
+        results = data.get("custom_collections", [])
+        if not results:
+            data, _ = self._get_json("smart_collections.json", params={"handle": handle})
+            results = data.get("smart_collections", [])
+        return results
 
     def get_blogs_by_handle(self, handle):
         data, _ = self._get_json("blogs.json", params={"handle": handle})

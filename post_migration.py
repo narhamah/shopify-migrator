@@ -318,32 +318,86 @@ def step_build_navigation(client, dry_run=False):
 
 
 def _step_build_navigation_from_idmap(client, dry_run=False):
-    """Fallback: Build menus from id_map (original approach)."""
-    id_map = load_json("data/id_map.json", default={})
+    """Fallback: Build menus by looking up Saudi collections/pages by handle.
+
+    Reads the English export data for collection/page handles, then queries
+    the Saudi store directly to find matching resources — no id_map needed.
+    """
     collections = load_json("data/english/collections.json")
     pages = load_json("data/english/pages.json")
 
-    collection_map = id_map.get("collections", {})
-    page_map = id_map.get("pages", {})
+    # Define which collections go in the main menu (top-level shop categories)
+    # These are the key non-ingredient collections that form the main nav
+    MAIN_MENU_HANDLES = [
+        "shop-hair",
+        "shop-skin",
+        "best-sellers",
+        "new-arrivals",
+        "award-winners",
+    ]
 
-    # Build main menu from collections
+    # Sub-menu items under "Shop Hair"
+    SHOP_HAIR_SUBS = [
+        "shampoos",
+        "conditioners",
+        "hair-masks",
+        "scalp-serums",
+        "finishing-products",
+        "accessories",
+    ]
+
+    # Build main menu by looking up collections on Saudi by handle
+    print("  Building main menu from Saudi collections...")
     main_items = []
-    for coll in collections:
-        source_id = str(coll["id"])
-        dest_id = collection_map.get(source_id)
-        if dest_id:
+
+    # Add Shop Hair with sub-items
+    shop_hair_colls = client.get_collections_by_handle("shop-hair")
+    if shop_hair_colls:
+        shop_hair_item = {
+            "title": "Shop Hair",
+            "resourceId": f"gid://shopify/Collection/{shop_hair_colls[0]['id']}",
+            "items": [],
+        }
+        for sub_handle in SHOP_HAIR_SUBS:
+            sub_colls = client.get_collections_by_handle(sub_handle)
+            if sub_colls:
+                coll_title = sub_colls[0].get("title", sub_handle.replace("-", " ").title())
+                shop_hair_item["items"].append({
+                    "title": coll_title,
+                    "resourceId": f"gid://shopify/Collection/{sub_colls[0]['id']}",
+                })
+        main_items.append(shop_hair_item)
+        print(f"    Shop Hair ({len(shop_hair_item['items'])} sub-items)")
+
+    # Add other top-level collections
+    for handle in MAIN_MENU_HANDLES:
+        if handle == "shop-hair":
+            continue  # Already added with sub-items
+        colls = client.get_collections_by_handle(handle)
+        if colls:
+            title = colls[0].get("title", handle.replace("-", " ").title())
             main_items.append({
-                "title": coll.get("title", ""),
-                "resourceId": f"gid://shopify/Collection/{dest_id}",
+                "title": title,
+                "resourceId": f"gid://shopify/Collection/{colls[0]['id']}",
             })
+            print(f"    {title}")
+
+    # Add Ingredients page link
+    ingredients_pages = client.get_pages_by_handle("ingredients")
+    if ingredients_pages:
+        main_items.append({
+            "title": "Ingredients",
+            "resourceId": f"gid://shopify/OnlineStorePage/{ingredients_pages[0]['id']}",
+        })
+        print(f"    Ingredients (page)")
 
     if not main_items:
-        print("  No collections found for main menu (no collection mappings in id_map)")
+        print("  No collections/pages found on Saudi store for main menu")
+        print("  Run import_collections.py first, then re-run this step")
     else:
         print(f"  Main menu: {len(main_items)} items")
         if dry_run:
-            for item in main_items:
-                print(f"    - {item['title']}")
+            print("  Would create main menu")
         else:
             try:
                 result = client.create_menu("Main Menu", "main-menu", main_items)
@@ -354,24 +408,33 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
             except Exception as e:
                 print(f"  Error creating main menu: {e}")
 
-    # Build footer menu from pages
+    # Build footer menu from pages on Saudi
+    print("\n  Building footer menu from Saudi pages...")
     footer_items = []
-    for page in pages:
-        source_id = str(page["id"])
-        dest_id = page_map.get(source_id)
-        if dest_id:
+
+    FOOTER_PAGE_HANDLES = [
+        ("philosophy", "Philosophy"),
+        ("contact", "Contact"),
+        ("faq", "FAQ"),
+        ("for-pharmacies", "For Pharmacies"),
+    ]
+
+    for handle, fallback_title in FOOTER_PAGE_HANDLES:
+        saudi_pages = client.get_pages_by_handle(handle)
+        if saudi_pages:
+            title = saudi_pages[0].get("title", fallback_title)
             footer_items.append({
-                "title": page.get("title", ""),
-                "resourceId": f"gid://shopify/OnlineStorePage/{dest_id}",
+                "title": title,
+                "resourceId": f"gid://shopify/OnlineStorePage/{saudi_pages[0]['id']}",
             })
+            print(f"    {title}")
 
     if not footer_items:
-        print("  No pages found for footer menu (no page mappings in id_map)")
+        print("  No pages found on Saudi store for footer menu")
     else:
         print(f"  Footer menu: {len(footer_items)} items")
         if dry_run:
-            for item in footer_items:
-                print(f"    - {item['title']}")
+            print("  Would create footer menu")
         else:
             try:
                 result = client.create_menu("Footer Menu", "footer", footer_items)
