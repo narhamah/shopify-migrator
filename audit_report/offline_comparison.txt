@@ -1,0 +1,249 @@
+======================================================================
+  STORE COMPARISON: Spain → English → Saudi
+  (Offline analysis from local data files)
+======================================================================
+
+======================================================================
+  1. PRODUCTS
+======================================================================
+  Spain:   42 products
+  English: 39 products
+  Saudi (migrated): 21 products
+
+  CRITICAL: 18 products NOT migrated to Saudi:
+    - age-well-system: Age-Well System (29 metafields)
+    - hair-density-system: Hair Density System (29 metafields)
+    - scalp-hair-revival-system: Scalp + Hair Revival System (29 metafields)
+    - botanical-water-cream: Botanical Water Cream (0 metafields)
+    - argan-oil: Argan Oil (0 metafields)
+    - nourishing-dry-oil: Nourishing Dry Oil (0 metafields)
+    - deep-cleansing-clay-mask: Deep Cleansing Clay Mask (0 metafields)
+    - follicle-stimulating-scalp-serum: Follicle-Stimulating Scalp Serum (25 metafields)
+    - thickening-conditioner: Thickening Conditioner (26 metafields)
+    - volumizing-shampoo: Volumizing Shampoo (26 metafields)
+    - hair-stimulation-system: Hair Stimulation System (30 metafields)
+    - beauty-case: Beauty Case (2 metafields)
+    - black-garlic-ceramides-deluxe-sample: Black Garlic + Ceramides Deluxe Sample Routine (2 metafields)
+    - onion-peptides-deluxe-sample: Onion + Peptides Deluxe Sample Routine (2 metafields)
+    - date-multivitamin-deluxe-sample: Date + Multivitamin Deluxe Sample Routine (2 metafields)
+    - rosemary-peptides-deluxe-sample: Rosemary + Peptides Deluxe Sample Routine (2 metafields)
+    - sage-multivitamin-deluxe-sample: Sage + Multivitamin Deluxe Sample Routine (2 metafields)
+    - signature-tote-bag: Signature Tote Bag (2 metafields)
+
+  CRITICAL: 4 products have ZERO metafields (no accordion sections, no ingredients):
+    - botanical-water-cream: Botanical Water Cream
+    - argan-oil: Argan Oil
+    - nourishing-dry-oil: Nourishing Dry Oil
+    - deep-cleansing-clay-mask: Deep Cleansing Clay Mask
+
+  Metafield gaps across 28 main products:
+    custom.clinical_results_heading: MISSING FROM ALL (100%)
+    custom.clinical_results_content: MISSING FROM ALL (100%)
+    custom.awards_heading: missing from 25 (89%)
+    custom.awards_content: missing from 25 (89%)
+
+======================================================================
+  2. COLLECTIONS
+======================================================================
+  Spain:   55 collections
+  English: 61 collections
+
+  WARNING: Duplicate collection handles in English data: {'shop-hair': 2, 'black-friday-sets': 3, 'shop-skin': 2}
+
+  Range collections (product lines):
+    + black-garlic-ceramides: OK
+    + onion-peptides: OK
+    + date-multivitamin: OK
+    + detox: OK
+    + strawberry-nmf: OK
+    + rosemary-peptides: OK
+    + sage-multivitamin: OK
+
+  Type collections (product categories):
+    + shampoos: OK
+    + conditioners: OK
+    + hair-masks: OK
+    + scalp-serums: OK
+    + finishing-products: OK
+    + accessories: OK
+
+  Curation collections:
+    + best-sellers: OK
+    + new-arrivals: OK
+    + award-winners: OK
+
+  Ingredient collections: 36
+
+======================================================================
+  3. PAGES
+======================================================================
+  Spain:   8 pages
+  English: 12 pages
+  + /ingredients: Ingredient library with hero grid + filterable cards (template: ingredients, body: 0 chars)
+  + /quiz: Hair diagnosis quiz (template: quiz, body: 0 chars)
+  + /quiz-results: AI-powered quiz results page (template: quiz-results, body: 0 chars)
+  + /contact: Contact form with map (template: contact, body: 0 chars)
+  + /store-locator: Store locator page (template: store-locator, body: 0 chars)
+  + /for-pharmacies: B2B pharmacy partners page (template: para-framacias, body: 204 chars)
+
+======================================================================
+  4. BLOGS & ARTICLES
+======================================================================
+  Spain:   2 blogs, 3 articles
+  English: 2 blogs, 3 articles
+  + Blog 'journal' (Dossier)
+  + Blog 'hero' (Hero)
+    - scalp-care-botanical-ingredients: Science and Botany for a Healthy Scalp (5 metafields)
+    - tara-application-method-guide-to-apply-our-products-and-boost-results: Tara Application Method: Guide to Apply Our Produc (6 metafields)
+    - how-to-brush-fine-hair-correctly: How to brush fine hair correctly (5 metafields)
+
+======================================================================
+  5. METAOBJECTS
+======================================================================
+  + ingredient: Spain=34, English=34, Saudi=34 [OK]
+  + benefit: Spain=122, English=122, Saudi=122 [OK]
+  ~ faq_entry: Spain=124, English=122, Saudi=118 [PARTIAL]
+  X blog_author: Spain=0, English=0, Saudi=0 [NO DATA]
+  X store_location: Spain=0, English=0, Saudi=0 [NO DATA]
+
+  Ingredient data quality:
+    ~ Silverfree™ (Palmitoyl Dipeptide-52): missing image+icon
+    ~ Pantenol (Pro-Vitamina B5): missing image+icon
+
+======================================================================
+  6. NAVIGATION (Expected from Build Guide)
+======================================================================
+  Main Menu (expected):
+    + Shop → /collections
+      - All Products
+      - Best Sellers
+      - Scalp Serums
+      - Black Garlic+ Ceramides
+      - Onion+ Peptides
+      - Date+ Multivitamin
+      - Detox
+      - Strawberry+ NMF
+      - Rosemary+ Peptides
+      - Sage+ Multivitamin
+    + Ingredients → /pages/ingredients
+    + Quiz → /pages/quiz
+    + Blog → /blogs/journal
+
+  Footer Menu (expected):
+    + About Us
+    + Contact
+    + Shipping & Returns
+    + Privacy Policy
+    + Terms of Service
+
+  NOTE: Menu structure must be verified on live store (run compare_stores.py locally)
+
+======================================================================
+  7. THEME TEMPLATES (Expected from Build Guide)
+======================================================================
+  Required templates:
+    ? templates/index.json: Homepage
+    ? templates/product.json: Product detail page
+    ? templates/collection.json: Collection page
+    ? templates/page.ingredients.json: Ingredients library
+    ? templates/page.quiz.json: Hair diagnosis quiz
+    ? templates/page.quiz-results.json: Quiz results
+    ? templates/metaobject/ingredient.json: Individual ingredient detail page
+    ? templates/article.tara.json: Custom article template
+    ? templates/blog.tara.json: Custom blog template
+
+  NOTE: Template verification requires live store access (run audit_store.py locally)
+
+======================================================================
+  8. PRODUCT PAGE FEATURES
+======================================================================
+  + Tagline (subtitle under title): 28/28 products (100%)
+  + Ingredients carousel: 28/28 products (100%)
+  + FAQ accordion: 28/28 products (100%)
+  + Key Benefits accordion: 28/28 products (100%)
+  X Clinical Results accordion: 0/28 products (0%)
+  + How to Use accordion: 28/28 products (100%)
+  + What's Inside accordion: 28/28 products (100%)
+  + Free Of accordion: 28/28 products (100%)
+  ~ Awards accordion: 3/28 products (11%)
+  + Fragrance accordion: 28/28 products (100%)
+  + Size display: 28/28 products (100%)
+
+======================================================================
+  9. INGREDIENT PAGES (Renderable)
+======================================================================
+  Spain: renderable=False, publishable=False
+    NOTE: Spain ALSO doesn't have renderable enabled!
+    The ingredient cards are NOT clickable on Spain either
+    Saudi needs enable_ingredient_pages.py to enable this
+  Ingredients: 34 total
+  Expected URLs: /pages/ingredient/{handle}
+  Sample URLs:
+    /pages/ingredient/red-onion-extract → Extracto de Cebolla Roja
+    /pages/ingredient/acetyl-tetrapeptide-3 → Capixyl™ (Acetyl Tetrapeptide-3)
+    /pages/ingredient/biotinoyl-tripeptide-1 → Procapil® (Biotinoyl Tripeptide-1)
+
+======================================================================
+  10. APP INTEGRATIONS (Manual)
+======================================================================
+  ? Klaviyo Reviews: Product ratings + review list on product pages
+  ? Shopify Subscriptions: Subscribe & save widget on product pages
+  ? Tolstoy: Video carousel on homepage
+  ? Klaviyo Email: Newsletter signup, email campaigns, flows
+
+======================================================================
+  11. STORE CONFIGURATION (Manual)
+======================================================================
+  ? Payment gateways (Tap, Mada, Apple Pay)
+  ? Saudi VAT 15%
+  ? Shipping zones/rates for Saudi Arabia
+  ? Domain & DNS configuration
+  ? Email notification templates
+  ? Shopify Flows (export from Spain, import to Saudi)
+  ? End-to-end checkout test
+
+======================================================================
+  COMPARISON SUMMARY
+======================================================================
+
+  CRITICAL ISSUES (4):
+    1. 18 products NOT migrated to Saudi
+    2. 4 products have ZERO metafields (no accordion sections, no ingredients)
+    3. Product feature 'Clinical Results accordion' has 0% coverage
+    4. Ingredient cards not clickable — theme section needs <a> tags linking to metaobject URLs
+
+  WARNINGS (15):
+    1. 'custom.clinical_results_heading' missing from ALL products
+    2. 'custom.clinical_results_content' missing from ALL products
+    3. Duplicate collection handles in English data: {'shop-hair': 2, 'black-friday-sets': 3, 'shop-skin': 2}
+    4. Page '/ingredients' has empty body HTML
+    5. Page '/quiz' has empty body HTML
+    6. Page '/quiz-results' has empty body HTML
+    7. Page '/contact' has empty body HTML
+    8. Page '/store-locator' has empty body HTML
+    9. Metaobject type 'blog_author' has 0 entries in source data
+    10. Metaobject type 'store_location' has 0 entries in source data
+    11. Product feature 'Awards accordion' only 11% coverage
+    12. App integration needed: Klaviyo Reviews
+    13. App integration needed: Shopify Subscriptions
+    14. App integration needed: Tolstoy
+    15. App integration needed: Klaviyo Email
+
+  DATA COVERAGE:
+    Products: 21/39 migrated to Saudi (54%)
+    Collections: 61 in data (3 duplicates)
+    Pages: 12 in data
+    Ingredients: 34 entries
+    Benefits: 122 entries
+    FAQ entries: 122 entries
+    Articles: 3 articles
+
+  NEXT STEPS:
+    1. Run 'python compare_stores.py' locally to check live store rendering
+    2. Run 'python audit_store.py' locally to verify Saudi store state
+    3. Migrate the 18 missing products
+    4. Fix ingredient card links (theme section edit)
+    5. Configure homepage product section with collection
+    6. Install app integrations (Klaviyo, Subscriptions)
+
+  Report saved to data/offline_comparison_report.json

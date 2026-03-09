@@ -1,0 +1,173 @@
+======================================================================
+  TARA SAUDI STORE — GAP ANALYSIS REPORT
+  Generated from local data + live audit output
+  Date: 2026-03-09
+======================================================================
+
+----------------------------------------------------------------------
+  A. SCRIPT BUGS FOUND & FIXED
+----------------------------------------------------------------------
+
+BUG-1  compare_stores.py crashes on Windows (cp1252 encoding)
+       Line 1020: json.dump() writes arrow chars to file opened without
+       encoding='utf-8'. Same bug in audit_store.py line 946.
+       STATUS: FIXED — added encoding='utf-8' to both files.
+
+BUG-2  compare_stores.py reports 118 false-positive "missing" items
+       Root cause: script compared Spanish handles (e.g. /champu-hidratante)
+       against the Saudi store which uses English handles (/nurture-shampoo).
+       Affected: products (41 false missing), collections (54 false missing),
+       pages (4 false missing), articles (3 false missing), ingredients (12
+       false missing), navigation menus (14 false missing).
+       STATUS: FIXED — added Spain→English handle mapping using local data
+       files (data/spain_export/ and data/english/ share IDs for 35 products,
+       55 collections, 8 pages, 3 articles, 34 ingredients).
+
+BUG-3  Navigation menu comparison fails on /en/ prefix URLs
+       Spain menu URLs use /en/ prefix (e.g. /en/pages/quiz), Saudi doesn't.
+       Path comparison was exact-match, never finding Saudi equivalents.
+       STATUS: FIXED — normalize paths by stripping /en/ prefix before compare.
+
+----------------------------------------------------------------------
+  B. REAL DATA GAPS (from offline_comparison_report.json)
+----------------------------------------------------------------------
+
+B1. PRODUCTS — 18 of 39 NOT migrated (46% missing)
+    id_map.json only has 21 product mappings. Missing:
+
+    FULL PRODUCT LINES (with metafields — need full import):
+      - age-well-system              (29 metafields)
+      - hair-density-system          (29 metafields)
+      - scalp-hair-revival-system    (29 metafields)
+      - follicle-stimulating-scalp-serum  (25 metafields)
+      - thickening-conditioner       (26 metafields)
+      - volumizing-shampoo           (26 metafields)
+      - hair-stimulation-system      (30 metafields)
+
+    ACCESSORIES (minimal metafields):
+      - beauty-case                  (2 metafields)
+      - signature-tote-bag           (2 metafields)
+
+    DELUXE SAMPLES (minimal metafields):
+      - black-garlic-ceramides-deluxe-sample  (2 metafields)
+      - onion-peptides-deluxe-sample          (2 metafields)
+      - date-multivitamin-deluxe-sample       (2 metafields)
+      - rosemary-peptides-deluxe-sample       (2 metafields)
+      - sage-multivitamin-deluxe-sample       (2 metafields)
+
+    SKIN/FINISHING PRODUCTS (zero metafields — need scraping):
+      - botanical-water-cream        (0 metafields)
+      - argan-oil                    (0 metafields)
+      - nourishing-dry-oil           (0 metafields)
+      - deep-cleansing-clay-mask     (0 metafields)
+
+B2. PRODUCT METAFIELD GAPS — across the 28 main products:
+    - clinical_results_heading:  0/28 (0%)  — MISSING FROM ALL
+    - clinical_results_content:  0/28 (0%)  — MISSING FROM ALL
+    - awards_heading:            3/28 (11%) — only 3 products have this
+    - awards_content:            3/28 (11%) — only 3 products have this
+    All other accordion sections are 100% populated.
+
+B3. COLLECTIONS — 21 exist on Saudi but ALL have 0 products linked
+    The collections were created but no products are assigned to them.
+    Need to run product→collection linking after migrating products.
+
+B4. HOMEPAGE — 2 broken sections:
+    - ingredient_listing section has 1 empty image slot
+    - collection_list section has NO collection assigned
+
+B5. INGREDIENT DETAIL PAGES — 404 errors
+    Metaobject renderable was enabled but pages return 404.
+    Tested 3 URLs, all 404:
+      /pages/ingredient/extracto-de-cebolla-roja
+      /pages/ingredient/capixyl-acetyl-tetrapeptide-3
+      /pages/ingredient/procapil-biotinoyl-tripeptide-1
+    NOTE: The Spanish handles above are wrong for the Saudi store.
+    The correct English handles should be:
+      /pages/ingredient/red-onion-extract
+      /pages/ingredient/acetyl-tetrapeptide-3
+      /pages/ingredient/biotinoyl-tripeptide-1
+    This is ALSO a script bug — scrape_ingredient_detail() fetches
+    the first 3 Saudi metaobjects by handle but those handles ARE
+    already the English ones on Saudi. Need to verify if ingredient
+    pages actually work with English handles on the live store.
+
+B6. NAVIGATION MENUS — Saudi has skeleton menus only
+    main-menu: 2 items (Home, Catalog) — should have 5+ items
+    footer: 1 item (Search) — should have 5+ items
+    footer-servicio-al-cliente: items still in Spanish text
+
+B7. BLOG ARTICLES — handle matching was broken (now fixed)
+    Saudi has 3 articles with English handles. The comparison was
+    looking for Spanish handles. With the fix, these should now match:
+      cuidado-cuero-cabelludo... → scalp-care-botanical-ingredients
+      metodo-de-aplicacion...    → tara-application-method...
+      como-cepillar...           → how-to-brush-fine-hair-correctly
+
+B8. METAOBJECT INGREDIENT DATA QUALITY
+    - 2 ingredients missing image+icon:
+      Silverfree™ (Palmitoyl Dipeptide-52)
+      Pantenol (Pro-Vitamina B5)
+
+B9. DUPLICATE COLLECTION HANDLES in English data:
+    shop-hair: 2 duplicates
+    black-friday-sets: 3 duplicates
+    shop-skin: 2 duplicates
+
+----------------------------------------------------------------------
+  C. IMPLEMENTATION GAPS IN SCRIPTS
+----------------------------------------------------------------------
+
+C1. import_english.py — only migrated 21 of 39 products
+    The id_map has 21 entries. The remaining 18 products were never
+    imported. Need to investigate why — possibly the import script
+    only processes products that have a Spain→Saudi mapping, and the
+    7 new products + 4 skin products + 5 samples + tote bag + beauty
+    case were never in the Spain store (or had different IDs).
+
+    Actually: 35 English products share IDs with Spain products.
+    Only 21 were migrated. So 14 Spain-origin products were skipped.
+    Plus 4 English-only products (skin line) have no Spain source.
+
+C2. import_collections.py — collections created but products not linked
+    All 21 Saudi collections show 0 products. The collection import
+    likely created shells without running product→collection assigns.
+
+C3. post_migration.py — may not have been run or completed
+    This script handles navigation menus, homepage configuration,
+    and other post-import setup. The skeleton menus suggest it either
+    wasn't run or failed partway through.
+
+C4. compare_stores.py scrape_ingredient_detail() — still uses first 3
+    Saudi ingredient handles directly from API. These ARE English handles
+    on Saudi, so the URLs should work IF renderable is properly enabled.
+    The 404s suggest renderable isn't working despite enable_ingredient_pages.py.
+
+----------------------------------------------------------------------
+  D. PRIORITY FIX ORDER
+----------------------------------------------------------------------
+
+  P0 (Blocking):
+    1. Migrate the 18 missing products (run import_english.py with fixes)
+    2. Link products to collections (fix import_collections.py)
+    3. Fix navigation menus (run post_migration.py or fix manually)
+
+  P1 (Content):
+    4. Populate clinical_results metafields for all 28 products
+    5. Populate awards metafields for remaining 25 products
+    6. Fix homepage: assign collection to collection_list section,
+       fill ingredient_listing empty image slot
+
+  P2 (Feature):
+    7. Fix ingredient detail page rendering (verify renderable status)
+    8. Fix footer menu items (translate from Spanish to English)
+    9. Install apps: Klaviyo Reviews, Shopify Subscriptions, Tolstoy
+
+  P3 (Data quality):
+    10. Fix 2 ingredients missing image+icon
+    11. Deduplicate collection handles in English data
+    12. Populate metafields for 4 skin products (zero metafields)
+
+======================================================================
+  END OF GAP ANALYSIS
+======================================================================
