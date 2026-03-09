@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Post-migration setup for Saudi Shopify store.
 
-Run AFTER import_english.py, import_arabic.py, and migrate_assets.py.
+Run AFTER import_english.py, import_arabic.py, and migrate_all_images.py.
 
 Handles:
   Step 1:  Enable Arabic locale

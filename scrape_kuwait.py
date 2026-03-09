@@ -4,7 +4,7 @@
 Uses Magento GraphQL API (taraformula.com.kw/graphql) to fetch product,
 category, and page data in both English and Arabic.
 
-Outputs data in the same format as translate_to_english.py / translate_to_arabic.py
+Outputs data in the same format as translate_gaps.py
 so it can be fed directly into import_english.py and import_arabic.py.
 
 Usage:
@@ -1240,7 +1240,7 @@ class KuwaitScraper:
                             field["value"] = match["description"]
                             break
 
-                # Store scraped image URL so migrate_assets can upload it
+                # Store scraped image URL so migrate_all_images can upload it
                 if match.get("image_url"):
                     spain_ing["_scraped_image_url"] = match["image_url"]
 

@@ -6,134 +6,122 @@ Complete pipeline for migrating the TARA luxury scalp-care brand from the Spanis
 
 ---
 
-## Architecture Overview
+## Quick Start: Clean Full Build
+
+```bash
+# 1. Wipe Saudi store (data only, keeps definitions)
+python purge_saudi.py --yes
+
+# 2. Build the full site from scratch
+python build_site.py
+```
+
+`build_site.py` runs all 8 phases in order — translate, import, images, configure — and produces a fully functioning Saudi website.
+
+**Prerequisites** (run once before the first build):
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env              # Edit with your credentials
+python setup_store.py             # Create metaobject/metafield definitions
+python export_spain.py            # Export from Spain Shopify
+python scrape_kuwait.py --scrape  # Scrape EN/AR from Magento
+```
+
+---
+
+## Architecture
 
 ```
-Spain Shopify Store (ES)     Magento Live Sites (EN/AR)
-         │                            │
-    export_spain.py              scrape_kuwait.py
-         │                            │
-         ▼                            ▼
-  data/spain_export/          data/english/ (scraped)
-         │                    data/arabic/  (scraped)
-         │                            │
-         └────────┬───────────────────┘
+Spain Shopify (ES)          Magento Live Sites (EN/AR)
+       │                              │
+  export_spain.py              scrape_kuwait.py
+       │                              │
+       ▼                              ▼
+data/spain_export/          data/english/ (scraped)
+       │                    data/arabic/ (scraped)
+       │                              │
+       └──────────┬───────────────────┘
                   │
-         translate_to_english.py   ← scrape-first: only translates GAPS
+            build_site.py   ← orchestrates ALL remaining steps
+                  │
+         ┌────────┴────────────────────────────────┐
+         │  Phase 1: translate_gaps ES → EN         │
+         │  Phase 2: fix_prices (SAR from Magento)  │
+         │  Phase 3: import_english                 │
+         │  Phase 4: translate_gaps EN → AR         │
+         │  Phase 5: import_arabic                  │
+         │  Phase 6: migrate_all_images             │
+         │  Phase 7: resolve_metaobject_diffs       │
+         │  Phase 8: post_migration (11 sub-steps)  │
+         └─────────────────────────────────────────┘
                   │
                   ▼
-           data/english/ (complete)
-                  │
-         ┌────────┴────────┐
-         │                 │
-  import_english.py   translate_to_arabic.py  ← scrape-first: only translates GAPS
-         │                 │
-         ▼                 ▼
-  Saudi Shopify (EN)  data/arabic/ (complete)
-         │                 │
-         │          import_arabic.py
-         │                 │
-         ▼                 ▼
-  Saudi Shopify (EN + AR translations)
-         │
-  migrate_all_images.py → resolve_metaobject_diffs.py → post_migration.py
-         │
-         ▼
-  Saudi Shopify (COMPLETE)
+         Saudi Shopify (COMPLETE)
 ```
 
-### Scrape-First Translation Strategy
+### build_site.py Phases
 
-The translation pipeline uses a **scrape-first** approach to minimize LLM API costs:
+| Phase | Name | Script Called | What |
+|-------|------|-------------|------|
+| 1 | Translate ES → EN | `translate_gaps.py` | Scrape-first TOON translation of Spain export → English |
+| 2 | Fix SAR Prices | `fix_prices.py` | Fetch Magento SAR prices → update local data + Shopify |
+| 3 | Import English | `import_english.py` | Create products, collections, pages, metaobjects in Saudi store |
+| 4 | Translate EN → AR | `translate_gaps.py` | Scrape-first TOON translation of English → Arabic |
+| 5 | Import Arabic | `import_arabic.py` | Register Arabic translations via Shopify Translations API |
+| 6 | Migrate All Images | `migrate_all_images.py` | Product, collection, homepage, metaobject, article images |
+| 7 | Resolve MO Diffs | `resolve_metaobject_diffs.py` | Fix schema mismatches and broken cross-references |
+| 8 | Post-Migration Setup | `post_migration.py` | Locale, menus, SEO, redirects, inventory, publish, activate |
 
-1. **Scrape** English and Arabic content from the live Magento sites (taraformula.com / taraformula.ae)
-2. **Match** Spain products to scraped products by **SKU** (handles differ across languages)
-3. **Identify gaps** — content that exists in the Spain export but not in the scraped data (e.g., Shopify-specific metafields like accordion sections, taglines)
-4. **Translate only the gaps** using OpenAI's API with TOON batching (~40x fewer API calls)
-5. **Merge** scraped data + translated gaps into complete output files
-
-### TOON Batching Format
-
-Translations use **TOON (Token-Oriented Object Notation)** to batch multiple fields into a single API call:
-
-```
-field_id_1|field value one
-field_id_2|field value two with HTML <b>tags</b>
-field_id_3|another value
-```
-
-Escaping: `\\` for backslash, `\p` for pipe, `\n` for newline within values. This reduces ~4,800 individual translation calls down to ~120 batched calls.
-
----
-
-## Prerequisites
-
-1. **Python 3.9+** with dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **`.env` file** in the project root:
-   ```env
-   # Spain (source) store
-   SPAIN_SHOP_URL=your-spain-store.myshopify.com
-   SPAIN_ACCESS_TOKEN=shpat_xxxxx
-
-   # Saudi (destination) store
-   SAUDI_SHOP_URL=your-saudi-store.myshopify.com
-   SAUDI_ACCESS_TOKEN=shpat_xxxxx
-
-   # OpenAI API key (for gap translation)
-   OPENAI_API_KEY=sk-xxxxx
-
-   # Magento sites (for scraping)
-   MAGENTO_SITE_URL=https://taraformula.com
-   ```
-
-3. **Shopify access tokens** need these scopes:
-   - `read_products`, `write_products`
-   - `read_content`, `write_content`
-   - `read_themes`, `write_themes`
-   - `read_locales`, `write_locales`
-   - `read_translations`, `write_translations`
-   - `read_files`, `write_files`
-   - `read_inventory`, `write_inventory`
-   - `read_locations`
-   - `read_online_store_navigation`, `write_online_store_navigation`
-   - `read_publications`, `write_publications`
-   - `read_price_rules`, `write_price_rules`
-   - `read_discounts`, `write_discounts`
-
-   Use `get_token.py` to obtain tokens via OAuth if needed:
-   ```bash
-   python get_token.py --shop your-store.myshopify.com --client-id XXX --client-secret YYY
-   ```
-
----
-
-## Fresh Start
-
-To wipe all data and start from scratch:
+**Important:** Translation always runs BEFORE import. Phase 1 (translate) must complete before Phase 3 (import English). Phase 4 (translate Arabic) must complete before Phase 5 (import Arabic).
 
 ```bash
-rm -rf data/
-```
-
-All scripts are idempotent — they track progress in `data/*_progress.json` files and skip already-processed items. Deleting `data/` resets everything.
-
-To wipe the Saudi store itself:
-
-```bash
-python purge_saudi.py --dry-run   # Preview what would be deleted
-python purge_saudi.py --yes       # Delete everything (DESTRUCTIVE)
-python purge_saudi.py --only products,collections  # Delete specific types only
+# Build options
+python build_site.py                       # Full build (EN + AR)
+python build_site.py --lang en             # English only (phases 1-3, 6-8)
+python build_site.py --lang ar             # Arabic only (phases 4-5)
+python build_site.py --dry-run             # Preview everything
+python build_site.py --from 6              # Resume from phase 6
+python build_site.py --phase 2,6           # Run specific phases only
+python build_site.py --skip 2,7            # Skip specific phases
 ```
 
 ---
 
-## Complete Pipeline
+## Full Process: Step by Step
 
-### Phase 0: Set Up Destination Store Schema
+### Step 0: Install & Configure (one-time)
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your credentials
+```
+
+Required `.env` variables:
+```env
+SPAIN_SHOP_URL=your-spain-store.myshopify.com
+SPAIN_ACCESS_TOKEN=shpat_xxxxx
+SAUDI_SHOP_URL=your-saudi-store.myshopify.com
+SAUDI_ACCESS_TOKEN=shpat_xxxxx
+OPENAI_API_KEY=sk-xxxxx
+```
+
+Use `get_token.py` to obtain Shopify access tokens via OAuth if needed:
+```bash
+python get_token.py --shop your-store.myshopify.com --client-id XXX --client-secret YYY
+```
+
+Shopify access tokens need these scopes:
+- `read_products`, `write_products`, `read_content`, `write_content`
+- `read_themes`, `write_themes`, `read_locales`, `write_locales`
+- `read_translations`, `write_translations`, `read_files`, `write_files`
+- `read_inventory`, `write_inventory`, `read_locations`
+- `read_online_store_navigation`, `write_online_store_navigation`
+- `read_publications`, `write_publications`
+- `read_price_rules`, `write_price_rules`, `read_discounts`, `write_discounts`
+
+### Step 1: Set Up Destination Store Schema (one-time)
 
 ```bash
 python setup_store.py --dry-run   # Preview
@@ -141,23 +129,19 @@ python setup_store.py             # Create schema
 ```
 
 Creates on the Saudi store:
-- **4 metaobject definitions** in dependency order:
-  1. `benefit` — title, description, category, icon_label
-  2. `faq_entry` — question, answer (rich_text)
-  3. `blog_author` — name, bio, avatar (file_reference)
-  4. `ingredient` — 12 fields including benefits (list→benefit reference)
+- **4 metaobject definitions** in dependency order: benefit → faq_entry → blog_author → ingredient
 - **19 product metafield definitions** — tagline, short_description, size_ml, 7 accordion heading/content pairs, ingredient/FAQ references
 - **12 article metafield definitions** — featured, blog_summary, hero_caption, author reference, related articles/products
 
-Safe to re-run; skips definitions that already exist. Resolves cross-references automatically (e.g., ingredient's `benefits` field points to the benefit definition GID).
+Safe to re-run — skips definitions that already exist.
 
-### Phase 1: Export from Spain Store
+### Step 2: Export from Spain Store
 
 ```bash
 python export_spain.py
 ```
 
-Exports all content from the Spain Shopify store to `data/spain_export/`:
+Exports everything from the Spain Shopify store → `data/spain_export/`:
 
 | File | Content |
 |------|---------|
@@ -173,7 +157,7 @@ Exports all content from the Spain Shopify store to `data/spain_export/`:
 | `price_rules.json` | Discount/price rules |
 | `policies.json` | Store policies (refund, privacy, terms, shipping) |
 
-### Phase 1b: Scrape Live Magento Sites
+### Step 3: Scrape Live Magento Sites
 
 ```bash
 python scrape_kuwait.py --explore   # Discover available content
@@ -186,44 +170,87 @@ Scrapes English and Arabic content from the live Magento PWA sites:
 - **English**: `taraformula.com` (default store view)
 - **Arabic**: `taraformula.ae` (Arabic store view)
 
-Outputs pre-populated translation files to `data/english/` and `data/arabic/`:
-- Products with titles, descriptions, variants, images
-- Collections with titles and descriptions
-- Articles and blog content (if available)
-- Metaobject entries (ingredients, benefits, etc.)
+Outputs to `data/english/` and `data/arabic/`. This data serves as the **primary source** for translation — the next step only translates content NOT available from the scraped data.
 
-This data serves as the **primary source** for translation. The subsequent translate steps only translate content that is NOT available from the scraped data.
-
-### Phase 1c: Compare Gaps (Optional)
+### Step 4: Build the Saudi Website
 
 ```bash
-python compare_data.py
+python build_site.py
 ```
 
-Analyzes the gap between Spain export and scraped data:
-- Products matched by SKU
-- Fields available vs. missing per product
-- Summary of what still needs LLM translation
+This single command runs all 8 phases in order:
 
-### Phase 2: Translate Spanish → English
+1. **Translate ES → EN** — merges scraped English data with TOON-translated gaps
+2. **Fix SAR Prices** — fetches correct prices from Magento Saudi store view
+3. **Import English** — creates all resources in the Saudi Shopify store
+4. **Translate EN → AR** — merges scraped Arabic data with TOON-translated gaps
+5. **Import Arabic** — registers Arabic as secondary locale on all resources
+6. **Migrate All Images** — uploads product, collection, homepage, metaobject, article images
+7. **Resolve MO Diffs** — fixes any metaobject schema mismatches or broken references
+8. **Post-Migration Setup** — locale, menus, SEO, redirects, inventory, publish, activate
+
+If interrupted, resume with:
 
 ```bash
-python translate_to_english.py              # Full translation
-python translate_to_english.py --dry        # Show what would be translated (no API calls)
-python translate_to_english.py --model o3   # Use a different OpenAI model
+python build_site.py --from <phase_number>
 ```
 
-**Scrape-first workflow:**
+---
 
-1. Loads Spain export (`data/spain_export/`) and scraped English data (`data/english/`)
-2. Matches products by **SKU** (not handle — Spanish "champu-densificante" ≠ English "densifying-shampoo")
-3. For matched products: uses scraped data as-is, identifies metafield gaps (Shopify-specific fields not in Magento)
-4. For unmatched products: translates everything
-5. For non-product resources (collections, pages, articles, metaobjects): translates all text fields
-6. Sends gap fields to OpenAI in **TOON batches** (120 fields per batch)
-7. Merges scraped data + translated gaps → complete `data/english/` output
+## Starting Over / Re-importing
 
-**CLI options:**
+### Purge Saudi store data (keeps definitions)
+
+```bash
+python purge_saudi.py --dry-run   # Preview what would be deleted
+python purge_saudi.py --yes       # Delete all data (keeps definitions)
+```
+
+Deletes: menus, redirects, price_rules, metaobjects, articles, blogs, pages, collections, products, files, local tracking files.
+
+Then re-run `python build_site.py` — no need to re-run `setup_store.py`.
+
+### Full reset (wipe everything including definitions)
+
+```bash
+python purge_saudi.py --definitions --yes   # Delete data + metaobject definitions
+python setup_store.py                       # Re-create definitions
+python build_site.py                        # Re-import everything
+```
+
+### Wipe local tracking data
+
+```bash
+python purge_saudi.py --only local_data   # Delete progress/tracking files only
+```
+
+### Purge specific resources only
+
+```bash
+python purge_saudi.py --only products,collections    # Just products and collections
+python purge_saudi.py --only metaobjects             # Just metaobject entries
+python purge_saudi.py --only files                   # Just uploaded files
+python purge_saudi.py --only menus,redirects          # Just menus and redirects
+```
+
+Valid `--only` values: `menus`, `redirects`, `price_rules`, `metaobjects`, `articles`, `blogs`, `pages`, `collections`, `products`, `files`, `local_data`, `metaobject_definitions`
+
+---
+
+## Running Individual Steps
+
+Each phase of `build_site.py` can also be run independently. This is useful for debugging or re-running a specific step.
+
+### Translation
+
+```bash
+python translate_gaps.py --lang en              # Spanish → English
+python translate_gaps.py --lang en --dry        # Preview (no API calls)
+python translate_gaps.py --lang ar              # English → Arabic
+python translate_gaps.py --lang ar --dry        # Preview
+```
+
+Translation flags:
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--dry` | false | Show what would be translated without API calls |
@@ -231,113 +258,43 @@ python translate_to_english.py --model o3   # Use a different OpenAI model
 | `--batch-size` | 120 | Fields per TOON batch |
 | `--tpm` | 30000 | Tokens-per-minute rate limit budget |
 
-Resumable: saves progress to `data/en_translation_progress.json` after each batch.
+Progress is saved to `data/en_translation_progress.json` / `data/ar_translation_progress.json` after each batch (resumable).
 
-### Phase 3: Import English Content into Saudi Store
+### Import
 
 ```bash
+# English import
 python import_english.py --dry-run              # Preview
-python import_english.py                         # Import (default: no price conversion)
-python import_english.py --exchange-rate 4.13    # Convert EUR → SAR
-```
+python import_english.py                        # Import (default: no price conversion)
+python import_english.py --exchange-rate 4.13   # Convert EUR → SAR
 
-Creates all resources in the Saudi Shopify store:
-
-1. **Examines** existing metaobject definitions in destination
-2. **Creates metaobject entries** in dependency order (benefit → faq_entry → blog_author → ingredient)
-3. **Creates products** with text metafields, variants, options, price conversion
-4. **Creates collections** with metafields
-5. **Creates pages** with metafields
-6. **Creates blogs + articles** with metafields
-7. **Remaps reference fields** — resolves cross-references using new destination GIDs:
-   - ingredient → benefit (list reference)
-   - product → ingredients, FAQ entries (list references)
-   - article → author, related articles/products
-
-Saves ID mapping to `data/id_map.json`. Skips items already created (matched by handle).
-
-### Phase 4: Translate English → Arabic
-
-```bash
-python translate_to_arabic.py              # Full translation
-python translate_to_arabic.py --dry        # Dry run
-```
-
-Same scrape-first workflow as Phase 2, but:
-- Source: `data/english/` (complete English content)
-- Scraped reference: `data/arabic/` (from Magento Arabic site)
-- Output: `data/arabic/` (complete Arabic content)
-- Uses TARA Arabic Tone of Voice (Modern Standard Arabic for Gulf/Saudi audience)
-
-Resumable: saves progress to `data/ar_translation_progress.json`.
-
-### Phase 5: Import Arabic Translations
-
-```bash
+# Arabic import
 python import_arabic.py --dry-run   # Preview
 python import_arabic.py             # Import
 ```
 
-Uses Shopify's Translations API to register Arabic as a secondary locale on all resources created in Phase 3:
-- Product titles, descriptions, metafields
-- Collection titles, descriptions
-- Page titles, content
-- Article titles, content, metafields
-- Metaobject text fields
+English import creates resources in dependency order: metaobject entries → products → collections → pages → blogs/articles → remaps cross-references. Saves ID mapping to `data/id_map.json`. Skips items already created (matched by handle).
 
-**Prerequisite:** Arabic (ar) must be enabled in the Saudi store (Settings → Languages). Phase 8 Step 1 can do this automatically.
+Arabic import uses Shopify's Translations API to register Arabic on all resources. **Prerequisite:** Arabic (ar) must be enabled in the Saudi store (Settings → Languages). Post-migration Step 1 does this automatically.
 
-Requires `data/id_map.json` from Phase 3.
-
-### Phase 5b: Fix SAR Prices
+### Price Fix
 
 ```bash
-python fix_prices.py                    # Fetch SAR prices and update local data files
+python fix_prices.py                    # Fetch SAR prices, update local data files
 python fix_prices.py --update-shopify   # Also update already-imported Shopify products
 python fix_prices.py --store sa-en --site https://taraformula.com  # Custom store view
 ```
 
-**When to use:** Run this after Phase 3 (import English) to correct product prices. The import step auto-fetches SAR prices at import time, but if prices change on the Magento site or the initial fetch had issues, run `fix_prices.py` to:
-
-1. Fetch current SAR prices from the Magento Saudi store view (`taraformula.com` with store code `sa-en`)
-2. Update local `data/english/products.json` and `data/arabic/products.json` with correct prices
-3. Optionally update already-imported Shopify products with `--update-shopify`
-
-Saves fetched prices to `data/sar_prices.json` for reference. Matches products by SKU.
-
-**Run it again** any time Magento prices change and you need to sync them to Shopify.
-
-### Phase 6: Migrate Images & Assets
+### Image Migration
 
 ```bash
 python migrate_all_images.py --inspect    # See what needs migration
-python migrate_all_images.py --dry-run    # Preview all phases
+python migrate_all_images.py --dry-run    # Preview all sub-phases
 python migrate_all_images.py              # Run all 6 sub-phases
 python migrate_all_images.py --phase 4,5  # Run specific sub-phases only
 ```
 
-Six sub-phases:
-
-| Phase | What | Details |
-|-------|------|---------|
-| 1 | Product images | Checks for missing images, re-uploads from Magento or Spain Shopify |
-| 2 | Collection images | Downloads source images, optimizes to WebP, uploads to Saudi |
-| 3 | Homepage/theme images | Resolves `shopify://shop_images/` refs, uploads to Saudi files API |
-| 4 | Metaobject file refs | Avatar, icon, image, science_images fields on metaobject entries |
-| 5 | Article file refs | listing_image, hero_image metafields on articles |
-| 6 | Verification | Generates `data/image_migration_report.json` with pass/fail summary |
-
-**Image optimization presets:**
-| Preset | Max Size | Quality | Use Case |
-|--------|----------|---------|----------|
-| hero | 2400x1200 | 82 | Banners, slideshows |
-| product | 2048x2048 | 85 | Product zoom images |
-| collection | 1920x1080 | 82 | Collection headers |
-| icon | 400x400 | lossless | Icons, badges |
-| thumbnail | 800x800 | 85 | Thumbnails, cards |
-| logo | 800x400 | lossless | Logos |
-
-### Phase 7: Resolve Metaobject Differences
+### Metaobject Diffs
 
 ```bash
 python resolve_metaobject_diffs.py --inspect           # Show diffs
@@ -346,12 +303,7 @@ python resolve_metaobject_diffs.py                      # Fix everything
 python resolve_metaobject_diffs.py --type ingredient    # Fix one type only
 ```
 
-Compares Spain and Saudi store metaobjects, fixes:
-- Missing definitions and fields in schema
-- Missing entries (not yet created)
-- Broken cross-references (ingredient→benefit, product→ingredient, article→author)
-
-### Phase 8: Post-Migration Setup
+### Post-Migration
 
 ```bash
 python post_migration.py --dry-run       # Preview all 11 steps
@@ -360,60 +312,135 @@ python post_migration.py --step 2        # Run one step
 python post_migration.py --step 2 --step 3  # Run specific steps
 ```
 
-| Step | What | Details |
-|------|------|---------|
-| 1 | Enable Arabic locale | Registers `ar` as secondary language |
-| 2 | Link products to collections | Creates product↔collection membership from collects data |
-| 3 | Build navigation menus | Main menu + footer from Magento category tree |
-| 4 | Set SEO meta tags | title_tag + description_tag from product metafields |
-| 5 | Create URL redirects | Spanish paths → English paths with handle remapping |
-| 6 | Set inventory quantities | Copies inventory levels from Spain export |
-| 7 | Publish to sales channels | Makes products visible on Online Store + POS |
-| 8 | Migrate discount codes | Recreates price rules and discount codes |
-| 9 | Activate products | Switches products from `draft` → `active` |
-| 10 | Create store policies | Refund, privacy, terms of service, shipping |
-| 11 | Update handles | Renames Spanish handles to English equivalents |
-
 ---
 
-## Fix Scripts (Incremental Corrections)
+## Scrape-First Translation Strategy
 
-Run these after the main pipeline to fix specific issues:
+The translation pipeline minimizes LLM API costs:
 
-| Script | CLI Flags | Purpose |
-|--------|-----------|---------|
-| `fix_prices.py` | `--update-shopify`, `--store sa-en`, `--site URL` | Fetch SAR prices from Magento, update Shopify products |
-| `fix_images.py` | `--discover`, `--dry-run`, `--local-only` | Replace Spanish product images with EN/AR images from Magento |
-| `fix_metafields.py` | `--dry-run`, `--only-empty` | Backfill missing product metafields on already-imported products |
-| `fix_metaobject_files.py` | `--dry-run`, `--source-dir DIR`, `--type TYPE` | Upload missing file_reference fields on metaobject entries |
-| `fix_status.py` | `--dry-run`, `--skip-duplicates` | Publish unlisted products, detect and remove duplicates |
-| `fix_redirects.py` | `--dry-run` | Remap Spanish handles → English handles in existing redirects |
+1. **Scrape** English/Arabic content from Magento (taraformula.com / taraformula.ae)
+2. **Match** Spain products to scraped products by **SKU** (handles differ across languages)
+3. **Identify gaps** — content that exists in Spain but not in Magento (e.g., Shopify accordion metafields)
+4. **Translate only the gaps** using OpenAI with TOON batching (~40x fewer API calls)
+5. **Merge** scraped data + translated gaps → complete output files
+6. **Deduplicate** metaobject entries by handle after translation
 
----
+### TOON Batching
 
-## Utility Scripts
+Translations use **TOON (Token-Oriented Object Notation)** to batch ~120 fields per API call:
 
-| Script | CLI Flags | Purpose |
-|--------|-----------|---------|
-| `compare_data.py` | (none) | Analyze gaps between Spain export and scraped EN/AR data |
-| `setup_collections.py` | `--dry-run`, `--link-only` | Create collections from Magento category tree, link products by SKU |
-| `setup_menus.py` | `--dry-run`, `--config FILE` | Build main/footer navigation from Magento categories |
-| `setup_homepage.py` | `--inspect`, `--config FILE`, `--set`, `--image-url URL` | Configure homepage section images from Magento |
-| `remap_redirects.py` | (none) | Build remapped redirects file (`data/remapped_redirects.json`) |
-| `generate_data_dictionary.py` | (none) | Generate field-level data dictionary from Spain export |
-| `get_flow_ids.py` | (none) | Print store GIDs needed for Shopify Flow configuration |
-| `migrate_metaobjects.py` | `--list`, `--type TYPE`, `--all`, `--dry-run` | Direct store-to-store metaobject migration (bypasses export/import) |
-| `migrate_homepage_images.py` | `--inspect`, `--dry-run`, `--metaobjects-only` | Standalone homepage image migration |
-| `migrate_assets.py` | (none) | Standalone file_reference field migration |
+```
+field_id_1|field value one
+field_id_2|field value two with HTML <b>tags</b>
+field_id_3|another value
+```
+
+Escaping: `\\` for backslash, `\p` for pipe, `\n` for newline within values. Reduces ~4,800 individual translation calls → ~120 batched calls.
+
+### SKU-Based Product Matching
+
+Products are matched between the Spain export and scraped Magento data using **SKU**, not handle:
+
+| Spain Export (ES) | Magento Scraped (EN) | Match By |
+|-------------------|---------------------|----------|
+| `champu-densificante` | `densifying-shampoo` | SKU: `TARA-001` |
+| `aceite-cuero-cabelludo` | `scalp-oil` | SKU: `TARA-002` |
+
+Fallback: if no SKU match, tries handle match.
+
+### What Gets Translated
+
+| Resource | Translated Fields |
+|----------|-------------------|
+| Products | title, body_html, product_type, vendor, handle, tags, variant titles/options, image alt text, all text metafields |
+| Collections | title, body_html, handle, image alt text, text metafields |
+| Pages | title, body_html, handle, text metafields |
+| Articles | title, body_html, summary_html, handle, author, tags, image alt text, text metafields |
+| Blogs | title, handle, tags |
+| Metaobjects | handle + all text/rich_text fields per type |
+
+### What Is NOT Translated
+
+- Brand name "TARA"
+- Product-specific names (e.g., "Kansa Wand", "Gua Sha")
+- INCI ingredient names
+- HTML tags and attributes
+- Shopify Liquid tags (`{{ }}`, `{% %}`)
+- URLs
+- Non-text metafield types (references, numbers, booleans, dates, JSON)
+
+### Tone of Voice
+
+All translations follow the TARA brand voice guidelines loaded from:
+- `tara_tov_en.txt` — English tone of voice
+- `tara_tov_ar.txt` — Arabic tone of voice (Modern Standard Arabic for Gulf audience)
 
 ---
 
 ## Data Architecture
 
+### Directory Structure
+
+```
+data/
+├── spain_export/                  # Step 2: Raw export from Spain store
+│   ├── products.json
+│   ├── collections.json
+│   ├── pages.json
+│   ├── blogs.json
+│   ├── articles.json
+│   ├── metaobject_definitions.json
+│   ├── metaobjects.json
+│   ├── collects.json
+│   ├── redirects.json
+│   ├── price_rules.json
+│   ├── policies.json
+│   └── shop.json
+├── english/                       # Step 3 + Phase 1: Complete English content
+│   ├── products.json              # Scraped from Magento + translated gaps
+│   ├── collections.json
+│   ├── pages.json
+│   ├── blogs.json
+│   ├── articles.json
+│   └── metaobjects.json
+├── arabic/                        # Step 3 + Phase 4: Complete Arabic content
+│   └── (same structure as english/)
+├── id_map.json                    # Phase 3: Source ID → Destination ID mappings
+├── file_map.json                  # Phase 6: Source file GID → Dest file GID
+├── sar_prices.json                # Phase 2: SAR prices from Magento
+├── remapped_redirects.json        # remap_redirects.py output
+├── data_dictionary.json           # generate_data_dictionary.py output
+├── en_translation_progress.json   # Phase 1 progress (resumable)
+├── ar_translation_progress.json   # Phase 4 progress (resumable)
+├── *_import_progress.json         # Import progress tracking
+└── image_migration_report.json    # Phase 6 verification report
+```
+
+### Key Mapping Files
+
+**`id_map.json`** — Maps Spain Shopify GIDs to Saudi Shopify GIDs:
+```json
+{
+  "products": {"gid://shopify/Product/123": "gid://shopify/Product/456"},
+  "collections": {"gid://...": "gid://..."},
+  "metaobjects": {"gid://...": "gid://..."},
+  "articles": {"gid://...": "gid://..."},
+  "pages": {"gid://...": "gid://..."},
+  "blogs": {"gid://...": "gid://..."}
+}
+```
+
+**`file_map.json`** — Maps source file GIDs to destination file GIDs (for image/file migration):
+```json
+{
+  "gid://shopify/MediaImage/123": "gid://shopify/MediaImage/456"
+}
+```
+
 ### Metaobject Types
 
-| Type | Fields | Dependencies | Purpose |
-|------|--------|-------------|---------|
+| Type | Key Fields | Dependencies | Purpose |
+|------|-----------|-------------|---------|
 | `benefit` | title, description, category, icon_label | none | Product benefits (referenced by ingredients) |
 | `faq_entry` | question, answer (rich_text) | none | Per-product FAQ accordion entries |
 | `blog_author` | name, bio, avatar (file_ref) | none | Rich author profiles for blog articles |
@@ -441,217 +468,130 @@ Run these after the main pipeline to fix specific issues:
 - `custom.related_articles`, `custom.related_products` — List references
 - `custom.ingredients` — List reference → ingredient metaobjects
 
-### Data Directory Structure
+---
 
-```
-data/
-├── spain_export/                  # Phase 1: Raw export from Spain store
-│   ├── products.json
-│   ├── collections.json
-│   ├── pages.json
-│   ├── blogs.json
-│   ├── articles.json
-│   ├── metaobject_definitions.json
-│   ├── metaobjects.json
-│   ├── collects.json
-│   ├── redirects.json
-│   ├── price_rules.json
-│   ├── policies.json
-│   └── shop.json
-├── english/                       # Phase 1b+2: Complete English content
-│   ├── products.json              # Scraped from Magento + translated gaps
-│   ├── collections.json
-│   ├── pages.json
-│   ├── blogs.json
-│   ├── articles.json
-│   └── metaobjects.json
-├── arabic/                        # Phase 1b+4: Complete Arabic content
-│   ├── products.json
-│   ├── collections.json
-│   ├── pages.json
-│   ├── blogs.json
-│   ├── articles.json
-│   └── metaobjects.json
-├── id_map.json                    # Phase 3: Source ID → Destination ID mappings
-├── file_map.json                  # Phase 6: Source file GID → Dest file GID
-├── sar_prices.json                # fix_prices.py output
-├── remapped_redirects.json        # remap_redirects.py output
-├── data_dictionary.json           # generate_data_dictionary.py output
-├── en_translation_progress.json   # Phase 2 progress (resumable)
-├── ar_translation_progress.json   # Phase 4 progress (resumable)
-├── *_import_progress.json         # Import progress tracking
-└── image_migration_report.json    # Phase 6 verification report
-```
+## Image Migration Details
 
-### Key Mapping Files
+`migrate_all_images.py` runs 6 sub-phases (also run as build_site.py Phase 6):
 
-**`id_map.json`** — Maps Spain Shopify GIDs to Saudi Shopify GIDs:
-```json
-{
-  "products": {"gid://shopify/Product/123": "gid://shopify/Product/456"},
-  "collections": {"gid://...": "gid://..."},
-  "metaobjects": {"gid://...": "gid://..."},
-  "articles": {"gid://...": "gid://..."},
-  "pages": {"gid://...": "gid://..."},
-  "blogs": {"gid://...": "gid://..."}
-}
-```
+| Sub-phase | What |
+|-----------|------|
+| 1 | Product images — check for missing, re-upload from Magento or Spain Shopify |
+| 2 | Collection images — download, optimize to WebP, upload |
+| 3 | Homepage/theme images — resolve `shopify://shop_images/` refs, upload to files API |
+| 4 | Metaobject file refs — avatar, icon, image, science_images fields |
+| 5 | Article file refs — listing_image, hero_image metafields |
+| 6 | Verification — generates `data/image_migration_report.json` with pass/fail |
 
-**`file_map.json`** — Maps source file GIDs to destination file GIDs (for image/file migration):
-```json
-{
-  "gid://shopify/MediaImage/123": "gid://shopify/MediaImage/456"
-}
-```
+Image optimization presets (all converted to WebP):
+
+| Preset | Max Size | Quality | Use Case |
+|--------|----------|---------|----------|
+| hero | 2400×1200 | 82 | Banners, slideshows |
+| product | 2048×2048 | 85 | Product zoom images |
+| collection | 1920×1080 | 82 | Collection headers |
+| icon | 400×400 | lossless | Icons, badges |
+| thumbnail | 800×800 | 85 | Thumbnails, cards |
+| logo | 800×400 | lossless | Logos |
 
 ---
 
-## Translation Details
+## Post-Migration Setup Details
 
-### What Gets Translated
+`post_migration.py` runs 11 sub-steps (also run as build_site.py Phase 8):
 
-| Resource | Translated Fields |
-|----------|-------------------|
-| Products | title, body_html, product_type, vendor, handle, tags, variant titles/options, image alt text, all text metafields |
-| Collections | title, body_html, handle, image alt text, text metafields |
-| Pages | title, body_html, handle, text metafields |
-| Articles | title, body_html, summary_html, handle, author, tags, image alt text, text metafields |
-| Blogs | title, handle, tags |
-| Metaobjects | handle + all text/rich_text fields per type |
-
-### What Is NOT Translated
-
-- Brand name "TARA"
-- Product-specific names (e.g., "Kansa Wand", "Gua Sha")
-- INCI ingredient names
-- HTML tags and attributes
-- Shopify Liquid tags (`{{ }}`, `{% %}`)
-- URLs
-- Non-text metafield types (references, numbers, booleans, dates, JSON)
-
-### SKU-Based Product Matching
-
-Products are matched between the Spain export and scraped Magento data using **SKU**, not handle. This is critical because handles differ across languages:
-
-| Spain Export (ES) | Magento Scraped (EN) | Match By |
-|-------------------|---------------------|----------|
-| `champu-densificante` | `densifying-shampoo` | SKU: `TARA-001` |
-| `aceite-cuero-cabelludo` | `scalp-oil` | SKU: `TARA-002` |
-
-Fallback: if no SKU match, tries handle match (works for products with the same handle across stores).
-
-### Tone of Voice
-
-All translations follow the TARA brand voice guidelines loaded from:
-- `tara_tov_en.txt` — English tone of voice
-- `tara_tov_ar.txt` — Arabic tone of voice (Modern Standard Arabic for Gulf audience)
+| Step | What | Details |
+|------|------|---------|
+| 1 | Enable Arabic locale | Registers `ar` as secondary language |
+| 2 | Link products to collections | Creates product↔collection membership from collects data |
+| 3 | Build navigation menus | Main menu + footer from Magento category tree |
+| 4 | Set SEO meta tags | title_tag + description_tag from product metafields |
+| 5 | Create URL redirects | Spanish paths → English paths with handle remapping |
+| 6 | Set inventory quantities | Copies inventory levels from Spain export |
+| 7 | Publish to sales channels | Makes products visible on Online Store + POS |
+| 8 | Migrate discount codes | Recreates price rules and discount codes |
+| 9 | Activate products | Switches products from `draft` → `active` |
+| 10 | Create store policies | Refund, privacy, terms of service, shipping |
+| 11 | Update handles | Renames Spanish handles to English equivalents |
 
 ---
 
-## Running Tests
+## Complete Script Reference
 
-```bash
-python -m pytest                                    # All tests
-python -m pytest tests/test_post_migration.py       # Specific test file
-python -m pytest --cov=. --cov-report=term-missing  # With coverage
-python -m pytest -x                                 # Stop on first failure
-```
+### Core Pipeline Scripts
 
----
+| Script | Purpose | When to Run |
+|--------|---------|-------------|
+| `setup_store.py` | Create metaobject/metafield definitions on Saudi store | Once before first build |
+| `export_spain.py` | Export all data from Spain Shopify store → `data/spain_export/` | Once (or when Spain data changes) |
+| `scrape_kuwait.py` | Scrape EN/AR content from Magento → `data/english/`, `data/arabic/` | Once (or when Magento data changes) |
+| `build_site.py` | **Master orchestrator** — runs all 8 phases in order | Main entry point for building |
 
-## Typical Full Migration Run
+### Translation Scripts
 
-### Quick Start (using build_site.py)
+| Script | Purpose |
+|--------|---------|
+| `translate_gaps.py` | Core translation engine — TOON-batched, scrape-first gap translation |
+| `translator.py` | LLM translation engine with TARA tone-of-voice system prompts |
 
-```bash
-# 0. Install and configure
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with credentials
+### Import Scripts
 
-# 1. Set up destination schema
-python setup_store.py
+| Script | Purpose |
+|--------|---------|
+| `import_english.py` | Create all resources in Saudi store (metaobjects → products → collections → pages → articles) |
+| `import_arabic.py` | Register Arabic translations via Shopify Translations API + update metaobject entries |
 
-# 2. Export from Spain
-python export_spain.py
+### Fix Scripts (incremental corrections)
 
-# 3. Scrape live Magento sites
-python scrape_kuwait.py --scrape
+| Script | CLI Flags | Purpose |
+|--------|-----------|---------|
+| `fix_prices.py` | `--update-shopify`, `--store`, `--site` | Fetch SAR prices from Magento, update local data + Shopify |
+| `fix_images.py` | `--discover`, `--dry-run`, `--local-only` | Replace Spanish product images with EN/AR from Magento |
+| `fix_metafields.py` | `--dry-run`, `--only-empty` | Backfill missing product metafields on already-imported products |
+| `fix_status.py` | `--dry-run`, `--skip-duplicates` | Publish unlisted products, detect and remove duplicates |
+| `fix_redirects.py` | `--dry-run` | Remap Spanish handles → English handles in existing redirects |
 
-# 4. Build everything (translate, import, images, configure)
-python build_site.py                  # Full build: EN + AR
-python build_site.py --lang en        # English only
-python build_site.py --lang ar        # Arabic only (after EN is done)
-python build_site.py --dry-run        # Preview all phases
-```
+### Image & Asset Scripts
 
-`build_site.py` orchestrates 8 phases in the correct order:
+| Script | Purpose |
+|--------|---------|
+| `migrate_all_images.py` | Unified 6-phase image migration (products → collections → homepage → metaobjects → articles → verify) |
+| `optimize_images.py` | Shared WebP image optimization library with Shopify-specific presets |
 
-| Phase | Name | Lang | What |
-|-------|------|------|------|
-| 1 | Translate ES → EN | en | Scrape-first TOON translation |
-| 2 | Fix SAR Prices | en | Magento prices → local data + Shopify |
-| 3 | Import English | en | Create resources in Saudi store |
-| 4 | Translate EN → AR | ar | Scrape-first TOON translation |
-| 5 | Import Arabic | ar | Register translations via API |
-| 6 | Migrate All Images | en | Product, collection, homepage, metaobject, article |
-| 7 | Resolve MO Diffs | en | Fix schema mismatches and references |
-| 8 | Post-Migration Setup | en | Locale, menus, SEO, redirects, publish |
+### Metaobject & Schema Scripts
 
-```bash
-# Resume from a specific phase
-python build_site.py --from 6         # Skip translate+import, just images onwards
+| Script | Purpose |
+|--------|---------|
+| `resolve_metaobject_diffs.py` | Compare Spain/Saudi metaobject schemas and entries; fix mismatches |
+| `migrate_metaobjects.py` | **Alternative path** — direct store-to-store metaobject migration (bypasses the translate→import pipeline; use `import_english.py` for the canonical flow) |
 
-# Run specific phases
-python build_site.py --phase 2,6      # Just fix prices and migrate images
+### Post-Migration & Setup Scripts
 
-# Skip specific phases
-python build_site.py --skip 2,7       # Skip price fix and metaobject diffs
-```
+| Script | Purpose |
+|--------|---------|
+| `post_migration.py` | 11-step post-migration orchestrator (locale → menus → SEO → publish → activate) |
+| `setup_collections.py` | Create collections from Magento category tree, link products by SKU |
+| `setup_menus.py` | Build main/footer navigation from Magento categories |
+| `setup_homepage.py` | Configure homepage section images from Magento |
 
-### Step-by-step (manual)
+### Utility Scripts
 
-```bash
-# 0. Install and configure
-pip install -r requirements.txt
-cp .env.example .env
+| Script | Purpose |
+|--------|---------|
+| `purge_saudi.py` | Delete Saudi store data (`--yes`) or everything (`--definitions --yes`) |
+| `compare_data.py` | Analyze gaps between Spain export and scraped EN/AR data |
+| `remap_redirects.py` | Build remapped redirects file (`data/remapped_redirects.json`) |
+| `generate_data_dictionary.py` | Generate field-level data dictionary from Spain export |
+| `get_flow_ids.py` | Print store GIDs needed for Shopify Flow configuration |
+| `get_token.py` | Get Shopify access tokens via OAuth |
 
-# 1. Set up destination schema
-python setup_store.py
+### Core Libraries (not run directly)
 
-# 2. Export from Spain
-python export_spain.py
-
-# 3. Scrape live Magento sites
-python scrape_kuwait.py --scrape
-
-# 4. (Optional) Check what needs translation
-python compare_data.py
-
-# 5. Translate gaps to English
-python translate_to_english.py
-
-# 6. Fix SAR prices
-python fix_prices.py --update-shopify
-
-# 7. Import English into Saudi store
-python import_english.py
-
-# 8. Translate gaps to Arabic
-python translate_to_arabic.py
-
-# 9. Import Arabic translations
-python import_arabic.py
-
-# 10. Migrate all images
-python migrate_all_images.py
-
-# 11. Fix any metaobject schema diffs
-python resolve_metaobject_diffs.py
-
-# 12. Post-migration setup (all 11 steps)
-python post_migration.py
-```
+| Script | Purpose |
+|--------|---------|
+| `shopify_client.py` | Shopify API client — GraphQL + REST with rate limiting, pagination, batch ops |
+| `translator.py` | LLM translation engine with TARA tone-of-voice prompts |
+| `utils.py` | Shared utilities — JSON I/O, directory paths, rich-text sanitization, handle conversion |
 
 ---
 
@@ -668,3 +608,14 @@ These cannot be automated and must be done in the Shopify admin:
 7. **Third-party apps** — Klaviyo, reviews, loyalty programs
 8. **Shopify Flows** — Export `.flow` files from Spain, import to Saudi (use `get_flow_ids.py` for destination GIDs)
 9. **End-to-end checkout test** — Place a test order through complete flow
+
+---
+
+## Running Tests
+
+```bash
+python -m pytest                                    # All tests
+python -m pytest tests/test_post_migration.py       # Specific test file
+python -m pytest --cov=. --cov-report=term-missing  # With coverage
+python -m pytest -x                                 # Stop on first failure
+```
