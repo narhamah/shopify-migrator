@@ -163,47 +163,6 @@ def main():
         defs = load_json(os.path.join(input_dir, "metaobject_definitions.json"))
         save_json(defs, os.path.join(output_dir, "metaobject_definitions.json"))
 
-    # --- Redirects ---
-    redirects_input = os.path.join(input_dir, "redirects.json")
-    translated_redirects = []
-    if os.path.exists(redirects_input):
-        redirects_file = os.path.join(output_dir, "redirects.json")
-        redirects = load_json(redirects_input)
-        translated_redirects = load_or_init(redirects_file)
-        existing_ids = {r["id"] for r in translated_redirects}
-
-        print(f"Translating redirects (ES → EN)... ({len(existing_ids)} already done)")
-        for i, redirect in enumerate(redirects):
-            if redirect["id"] in existing_ids:
-                print(f"  [{i+1}/{len(redirects)}] Skipping: {redirect.get('path', '')[:50]}")
-                continue
-            print(f"  [{i+1}/{len(redirects)}] Translating: {redirect.get('path', '')[:50]}")
-            translated = translator.translate_redirect(redirect, "Spanish", "English")
-            translated_redirects.append(translated)
-            save_json(translated_redirects, redirects_file)
-        print(f"  Done: {len(translated_redirects)} redirects")
-
-    # --- Policies ---
-    policies_input = os.path.join(input_dir, "policies.json")
-    translated_policies = []
-    if os.path.exists(policies_input):
-        policies_file = os.path.join(output_dir, "policies.json")
-        policies = load_json(policies_input)
-        translated_policies = load_or_init(policies_file)
-        existing_ids = {p.get("id") or p.get("title") for p in translated_policies}
-
-        print(f"Translating policies (ES → EN)... ({len(existing_ids)} already done)")
-        for i, policy in enumerate(policies):
-            pid = policy.get("id") or policy.get("title")
-            if pid in existing_ids:
-                print(f"  [{i+1}/{len(policies)}] Skipping: {policy.get('title', '')[:50]}")
-                continue
-            print(f"  [{i+1}/{len(policies)}] Translating: {policy.get('title', '')[:50]}")
-            translated = translator.translate_policy(policy, "Spanish", "English")
-            translated_policies.append(translated)
-            save_json(translated_policies, policies_file)
-        print(f"  Done: {len(translated_policies)} policies")
-
     print("\n--- Translation Summary (ES → EN) ---")
     print(f"  Products:    {len(translated_products)}")
     print(f"  Collections: {len(translated_collections)}")
@@ -212,8 +171,6 @@ def main():
     if os.path.exists(metaobjects_input):
         mo_count = sum(len(td.get("objects", [])) for td in translated_metaobjects.values())
         print(f"  Metaobjects: {mo_count}")
-    print(f"  Redirects:   {len(translated_redirects)}")
-    print(f"  Policies:    {len(translated_policies)}")
     print(f"  Output:      {output_dir}/")
 
 

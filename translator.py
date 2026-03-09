@@ -280,42 +280,6 @@ class Translator:
             translated["tags"] = self.translate(tags, source_lang, target_lang)
         return translated
 
-    def _translate_url_path(self, path, source_lang, target_lang):
-        """Translate a URL path, preserving resource prefixes like /products/."""
-        if not path:
-            return path
-        parts = path.strip("/").split("/")
-        # Known Shopify resource prefixes — keep these untranslated
-        resource_prefixes = {
-            "products", "collections", "pages", "blogs", "articles",
-            "policies", "apps", "account", "cart", "checkout",
-        }
-        translated_parts = []
-        for part in parts:
-            if part in resource_prefixes:
-                translated_parts.append(part)
-            else:
-                translated_parts.append(self.translate_handle(part, source_lang, target_lang))
-        return "/" + "/".join(translated_parts)
-
-    def translate_redirect(self, redirect, source_lang, target_lang):
-        """Translate a URL redirect's path and target slugs."""
-        translated = dict(redirect)
-        if redirect.get("path"):
-            translated["path"] = self._translate_url_path(redirect["path"], source_lang, target_lang)
-        if redirect.get("target"):
-            translated["target"] = self._translate_url_path(redirect["target"], source_lang, target_lang)
-        return translated
-
-    def translate_policy(self, policy, source_lang, target_lang):
-        """Translate a store policy's body text."""
-        translated = dict(policy)
-        if policy.get("body"):
-            translated["body"] = self.translate(policy["body"], source_lang, target_lang)
-        if policy.get("title"):
-            translated["title"] = self.translate(policy["title"], source_lang, target_lang)
-        return translated
-
     def translate_article(self, article, source_lang, target_lang):
         translated = dict(article)
         translated["title"] = self.translate(article.get("title", ""), source_lang, target_lang)
