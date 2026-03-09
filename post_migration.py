@@ -361,8 +361,124 @@ def step_set_seo_tags(client, dry_run=False):
 # Step 5: Create URL redirects
 # =============================================
 
+def _build_handle_remap():
+    """Build old_handle → new_handle maps from Spain export vs English data.
+
+    Returns a dict mapping old URL paths (e.g. /products/old-handle) to new
+    paths (e.g. /products/new-handle) for products, collections, pages, blogs,
+    and articles.
+    """
+    import re
+
+    remap = {}  # "/products/old-handle" → "/products/new-handle"
+
+    # Products
+    spain_products = load_json("data/spain_export/products.json")
+    english_products = load_json("data/english/products.json")
+    spain_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (spain_products if isinstance(spain_products, list) else [])}
+    eng_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (english_products if isinstance(english_products, list) else [])}
+    for src_id, old_handle in spain_prod_by_id.items():
+        new_handle = eng_prod_by_id.get(src_id, "")
+        if old_handle and new_handle and old_handle != new_handle:
+            remap[f"/products/{old_handle}"] = f"/products/{new_handle}"
+
+    # Collections
+    spain_collections = load_json("data/spain_export/collections.json")
+    english_collections = load_json("data/english/collections.json")
+    spain_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (spain_collections if isinstance(spain_collections, list) else [])}
+    eng_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (english_collections if isinstance(english_collections, list) else [])}
+    for src_id, old_handle in spain_coll_by_id.items():
+        new_handle = eng_coll_by_id.get(src_id, "")
+        if old_handle and new_handle and old_handle != new_handle:
+            remap[f"/collections/{old_handle}"] = f"/collections/{new_handle}"
+
+    # Pages
+    spain_pages = load_json("data/spain_export/pages.json")
+    english_pages = load_json("data/english/pages.json")
+    spain_page_by_id = {str(p["id"]): p.get("handle", "") for p in (spain_pages if isinstance(spain_pages, list) else [])}
+    eng_page_by_id = {str(p["id"]): p.get("handle", "") for p in (english_pages if isinstance(english_pages, list) else [])}
+    for src_id, old_handle in spain_page_by_id.items():
+        new_handle = eng_page_by_id.get(src_id, "")
+        if old_handle and new_handle and old_handle != new_handle:
+            remap[f"/pages/{old_handle}"] = f"/pages/{new_handle}"
+
+    # Blogs
+    spain_blogs = load_json("data/spain_export/blogs.json")
+    english_blogs = load_json("data/english/blogs.json")
+    spain_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (spain_blogs if isinstance(spain_blogs, list) else [])}
+    eng_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (english_blogs if isinstance(english_blogs, list) else [])}
+    blog_handle_map = {}  # old_blog_handle → new_blog_handle
+    for src_id, old_handle in spain_blog_by_id.items():
+        new_handle = eng_blog_by_id.get(src_id, "")
+        if old_handle and new_handle and old_handle != new_handle:
+            remap[f"/blogs/{old_handle}"] = f"/blogs/{new_handle}"
+            blog_handle_map[old_handle] = new_handle
+
+    # Articles (need blog handle context)
+    spain_articles = load_json("data/spain_export/articles.json")
+    english_articles = load_json("data/english/articles.json")
+    if isinstance(spain_articles, list) and isinstance(english_articles, list):
+        spain_art_by_id = {}
+        for a in spain_articles:
+            blog_id = str(a.get("blog_id", ""))
+            old_blog_handle = spain_blog_by_id.get(blog_id, "")
+            spain_art_by_id[str(a["id"])] = (old_blog_handle, a.get("handle", ""))
+        eng_art_by_id = {}
+        for a in english_articles:
+            blog_id = str(a.get("blog_id", ""))
+            new_blog_handle = eng_blog_by_id.get(blog_id, "")
+            eng_art_by_id[str(a["id"])] = (new_blog_handle, a.get("handle", ""))
+        for src_id, (old_bh, old_ah) in spain_art_by_id.items():
+            new_bh, new_ah = eng_art_by_id.get(src_id, ("", ""))
+            if old_bh and old_ah and new_bh and new_ah:
+                old_path = f"/blogs/{old_bh}/{old_ah}"
+                new_path = f"/blogs/{new_bh}/{new_ah}"
+                if old_path != new_path:
+                    remap[old_path] = new_path
+
+    return remap
+
+
+def _remap_redirect_target(target, remap):
+    """Remap a redirect target using the handle remap table.
+
+    Handles both path-only targets (/products/handle) and full URL targets
+    (https://store.myshopify.com/products/handle).
+    """
+    import urllib.parse
+
+    # Parse full URLs
+    parsed = urllib.parse.urlparse(target)
+    path = parsed.path if parsed.scheme else target
+
+    # Normalize: strip trailing slash for matching
+    path_normalized = path.rstrip("/")
+
+    # Direct match
+    if path_normalized in remap:
+        new_path = remap[path_normalized]
+        if parsed.scheme:
+            return urllib.parse.urlunparse(parsed._replace(path=new_path))
+        return new_path
+
+    # Check if path starts with a known old prefix (e.g. /collections/old/products/x)
+    for old_path, new_path in remap.items():
+        if path_normalized.startswith(old_path + "/"):
+            suffix = path_normalized[len(old_path):]
+            remapped = new_path + suffix
+            if parsed.scheme:
+                return urllib.parse.urlunparse(parsed._replace(path=remapped))
+            return remapped
+
+    return target
+
+
 def step_create_redirects(client, dry_run=False):
-    """Create URL redirects from exported redirect data."""
+    """Create URL redirects from exported redirect data.
+
+    Remaps redirect targets to account for handle changes (Spanish → English)
+    that occurred during import.
+    """
     print("\n=== Step 5: Create URL Redirects ===")
 
     redirects = load_json("data/spain_export/redirects.json")
@@ -370,8 +486,14 @@ def step_create_redirects(client, dry_run=False):
         print("  No redirects found in export data")
         return
 
+    # Build handle remap table (old Spanish handles → new English handles)
+    remap = _build_handle_remap()
+    if remap:
+        print(f"  Built handle remap table with {len(remap)} entries")
+
     progress = load_json("data/redirects_progress.json")
     created = 0
+    remapped = 0
 
     for redir in redirects:
         path = redir.get("path", "")
@@ -382,13 +504,21 @@ def step_create_redirects(client, dry_run=False):
         if path in progress:
             continue
 
+        # Remap target to use new handles
+        new_target = _remap_redirect_target(target, remap)
+        if new_target != target:
+            remapped += 1
+
         if dry_run:
-            print(f"  Would create redirect: {path} → {target}")
+            if new_target != target:
+                print(f"  Would create redirect: {path} → {new_target}  (was: {target})")
+            else:
+                print(f"  Would create redirect: {path} → {new_target}")
             created += 1
             continue
 
         try:
-            client.create_redirect(path, target)
+            client.create_redirect(path, new_target)
             created += 1
             progress[path] = True
         except Exception as e:
@@ -399,7 +529,7 @@ def step_create_redirects(client, dry_run=False):
                 print(f"  Error creating redirect {path}: {e}")
 
     save_json(progress, "data/redirects_progress.json")
-    print(f"  Created {created} redirects")
+    print(f"  Created {created} redirects ({remapped} targets remapped)")
 
 
 # =============================================

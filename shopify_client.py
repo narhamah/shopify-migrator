@@ -776,6 +776,22 @@ class ShopifyClient:
         })
         return resp.json().get("redirect", {})
 
+    def update_redirect(self, redirect_id, path=None, target=None):
+        """Update an existing URL redirect."""
+        update = {}
+        if path is not None:
+            update["path"] = path
+        if target is not None:
+            update["target"] = target
+        resp = self._request("PUT", f"redirects/{redirect_id}.json", json={
+            "redirect": update
+        })
+        return resp.json().get("redirect", {})
+
+    def delete_redirect(self, redirect_id):
+        """Delete a URL redirect."""
+        self._request("DELETE", f"redirects/{redirect_id}.json")
+
     # --- REST: Inventory ---
 
     def get_locations(self):
