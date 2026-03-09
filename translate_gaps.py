@@ -570,7 +570,8 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
                 ],
             }
             if is_reasoning:
-                api_kwargs["reasoning"] = {"effort": "low"}
+                # Try new SDK format first, fall back to legacy
+                api_kwargs["reasoning_effort"] = "low"
             else:
                 api_kwargs["temperature"] = 0.3
 
