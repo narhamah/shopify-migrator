@@ -1,0 +1,1919 @@
+{
+  "spain_store": "jp9wv0-d7.myshopify.com",
+  "saudi_store": "xkgw0m-sm.myshopify.com",
+  "timestamp": "2026-03-09 19:42:29",
+  "sections": [
+    {
+      "title": "PAGES",
+      "items": [
+        [
+          "INFO",
+          "Spain: 8 pages | Saudi: 12 pages"
+        ],
+        [
+          "MATCH",
+          "Page '/contact' exists with template 'contact'"
+        ],
+        [
+          "MATCH",
+          "Page '/philosophy → /philosophy-en' exists with template '(default)'"
+        ],
+        [
+          "MATCH",
+          "Page '/ingredients' exists with template 'ingredients'"
+        ],
+        [
+          "MATCH",
+          "Page '/para-faramcias → /for-pharmacies' exists with template 'para-framacias'"
+        ],
+        [
+          "MATCH",
+          "Page '/puntos-de-venta → /store-locator' exists with template 'store-locator'"
+        ],
+        [
+          "MATCH",
+          "Page '/quiz' exists with template 'quiz'"
+        ],
+        [
+          "MATCH",
+          "Page '/quiz-results' exists with template 'quiz-results'"
+        ],
+        [
+          "MATCH",
+          "Page '/suscripcion-newsletter → /newsletter-subscription' exists with template 'page'"
+        ],
+        [
+          "INFO",
+          "Saudi-only page: /faq"
+        ],
+        [
+          "INFO",
+          "Saudi-only page: /home-page-en"
+        ],
+        [
+          "INFO",
+          "Saudi-only page: /privacy-policy-en"
+        ],
+        [
+          "INFO",
+          "Saudi-only page: /terms-and-conditions-en"
+        ]
+      ]
+    },
+    {
+      "title": "COLLECTIONS",
+      "items": [
+        [
+          "INFO",
+          "Spain: 55 collections | Saudi: 21 collections"
+        ],
+        [
+          "MATCH",
+          "Collection '/accesorios → /accessories' (Accesorios → Accessories)"
+        ],
+        [
+          "MATCH",
+          "Collection '/ajo-negro-ceramidas → /black-garlic-ceramides' (Ajo Negro+ Ceramidas → Black Garlic+ Ceramides)"
+        ],
+        [
+          "MATCH",
+          "Collection '/cebolla-peptidos → /onion-peptides' (Cebolla+ Péptidos → Onion + Peptides)"
+        ],
+        [
+          "MATCH",
+          "Collection '/cabello → /shop-hair' (Cuidado Capilar → Shop Hair)"
+        ],
+        [
+          "MATCH",
+          "Collection '/datil-multivitaminico → /date-multivitamin' (Dátil+ Multivitamínico → Date+ Multivitamin)"
+        ],
+        [
+          "MATCH",
+          "Collection '/detox' (Detox → Detox)"
+        ],
+        [
+          "MATCH",
+          "Collection '/fresa-nmf → /strawberry-nmf' (Fresa+ NMF → Strawberry+ NMF)"
+        ],
+        [
+          "MATCH",
+          "Collection '/mas-vendidos → /best-sellers' (Más Vendidos → Best Sellers)"
+        ],
+        [
+          "MATCH",
+          "Collection '/mascarillas-capilares → /hair-masks' (Mascarillas Capilares → Hair Masks)"
+        ],
+        [
+          "MATCH",
+          "Collection '/novedades → /new-arrivals' (Novedades → New Arrivals)"
+        ],
+        [
+          "MATCH",
+          "Collection '/por-producto → /by-product' (Por Producto → By Product)"
+        ],
+        [
+          "MATCH",
+          "Collection '/premiados → /award-winners' (Premiados → Award‑Winners)"
+        ],
+        [
+          "MATCH",
+          "Collection '/productos-de-acabado → /finishing-products' (Productos de Acabado → Finishing Products)"
+        ],
+        [
+          "MATCH",
+          "Collection '/romero-peptidos → /rosemary-peptides' (Romero+ Péptidos → Rosemary+ Peptides)"
+        ],
+        [
+          "MATCH",
+          "Collection '/salvia-multivitaminico → /sage-multivitamin' (Salvia+ Multivitamínico → Sage+ Multivitamin)"
+        ],
+        [
+          "MATCH",
+          "Collection '/serums-cuero-cabelludo → /scalp-serums' (Sérums Cuero Cabelludo → Scalp Serums)"
+        ],
+        [
+          "MATCH",
+          "Collection '/sets-capilares → /black-friday-sets' (Sets Capilares → BLACK FRIDAY SETS)"
+        ],
+        [
+          "MISSING",
+          "Collection '/aceite-de-aguacate' (Aceite de Aguacate)"
+        ],
+        [
+          "MISSING",
+          "Collection '/aceite-de-argan' (Aceite de argan)"
+        ],
+        [
+          "MISSING",
+          "Collection '/aceite-de-oliva' (Aceite de oliva)"
+        ],
+        [
+          "MISSING",
+          "Collection '/aceite-de-sesamo' (Aceite de sésamo)"
+        ],
+        [
+          "MISSING",
+          "Collection '/aceite-de-uva' (Aceite de uva)"
+        ],
+        [
+          "MISSING",
+          "Collection '/acetil-tetrapeptido-3' (Acetil Tetrapéptido-3)"
+        ],
+        [
+          "MISSING",
+          "Collection '/acido-salicilico' (Ácido Salicílico)"
+        ],
+        [
+          "MATCH",
+          "Collection '/acondicionadores → /conditioners' (Acondicionadores → Conditioners)"
+        ],
+        [
+          "MISSING",
+          "Collection '/ajo-negro' (Ajo Negro)"
+        ],
+        [
+          "MISSING",
+          "Collection '/alga-roja' (Alga Roja)"
+        ],
+        [
+          "MISSING",
+          "Collection '/arcilla-ghassoul' (Arcilla Ghassoul)"
+        ],
+        [
+          "MISSING",
+          "Collection '/biotinoyl-tripeptido-1' (Biotinoyl Tripéptido-1)"
+        ],
+        [
+          "MISSING",
+          "Collection '/carbon-activado' (Carbón Activado)"
+        ],
+        [
+          "MISSING",
+          "Collection '/ceramida-np' (Ceramida NP)"
+        ],
+        [
+          "MISSING",
+          "Collection '/ceramidas' (Ceramidas)"
+        ],
+        [
+          "MATCH",
+          "Collection '/champus → /shampoos' (Champús → Shampoos)"
+        ],
+        [
+          "MISSING",
+          "Collection '/colageno-hidrolizado' (Colágeno hidrolizado)"
+        ],
+        [
+          "MISSING",
+          "Collection '/colageno-vegetal' (Colágeno Vegetal)"
+        ],
+        [
+          "MISSING",
+          "Collection '/complejo-multivitaminico' (Complejo Multivitamínico)"
+        ],
+        [
+          "MISSING",
+          "Collection '/corteza-de-inga-alba' (Corteza de Inga Alba)"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-cebolla-roja' (Extracto de Cebolla Roja)"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-datil' (Extracto de Dátil)"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-fresa' (Extracto de Fresa)"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-levadura' (Extracto de Levadura)"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-nopal-cactus' (Extracto de Nopal (Cactus))"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-romero' (Extracto de Romero)"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-salvia' (Extracto de Salvia)"
+        ],
+        [
+          "MISSING",
+          "Collection '/extracto-de-soja' (Extracto de soja)"
+        ],
+        [
+          "MISSING",
+          "Collection '/factor-natural-de-hidratacion-nmf' (Factor Natural de Hidratación (NMF))"
+        ],
+        [
+          "MISSING",
+          "Collection '/manteca-de-karite' (Manteca de Karité)"
+        ],
+        [
+          "MISSING",
+          "Collection '/manteca-de-mango' (Manteca de Mango)"
+        ],
+        [
+          "MISSING",
+          "Collection '/manteca-de-mango-1' (Manteca de Mango)"
+        ],
+        [
+          "MISSING",
+          "Collection '/micro-queratina' (Micro Queratina)"
+        ],
+        [
+          "MISSING",
+          "Collection '/niacinamida' (Niacinamida)"
+        ],
+        [
+          "MISSING",
+          "Collection '/palmitoil-dipeptido-52' (Palmitoil Dipéptido-52)"
+        ],
+        [
+          "MISSING",
+          "Collection '/raiz-de-jengibre' (Raíz de Jengibre)"
+        ],
+        [
+          "MISSING",
+          "Collection '/semilla-de-apio' (Semilla de Apio)"
+        ],
+        [
+          "MISSING",
+          "Collection '/vitamina-b-5' (Vitamina B5)"
+        ],
+        [
+          "INFO",
+          "\n  36 collections missing in Saudi"
+        ]
+      ]
+    },
+    {
+      "title": "PRODUCTS",
+      "items": [
+        [
+          "INFO",
+          "Spain: 42 products | Saudi: 36 products"
+        ],
+        [
+          "MATCH",
+          "Product 'Acondicionador Densificante' → 'Strand Thicken Conditioner' (/acondicionador-densificante → /strand-thicken-conditioner)"
+        ],
+        [
+          "DIFF",
+          "  'Acondicionador Densificante': image count Spain=6 vs Saudi=18"
+        ],
+        [
+          "MATCH",
+          "Product 'Acondicionador Hidratante' → 'Nurture Conditioner' (/acondicionador-hidratante → /nurture-conditioner)"
+        ],
+        [
+          "DIFF",
+          "  'Acondicionador Hidratante': image count Spain=6 vs Saudi=36"
+        ],
+        [
+          "MATCH",
+          "Product 'Acondicionador Nutritivo' → 'Hydrating conditioner' (/acondicionador-hidratante-1 → /hydrating-conditioner)"
+        ],
+        [
+          "DIFF",
+          "  'Acondicionador Nutritivo': image count Spain=5 vs Saudi=15"
+        ],
+        [
+          "MATCH",
+          "Product 'Acondicionador Regenerativo' → 'Replenishing Conditioner' (/acondicionador-reparador → /replenishing-conditioner)"
+        ],
+        [
+          "DIFF",
+          "  'Acondicionador Regenerativo': image count Spain=8 vs Saudi=33"
+        ],
+        [
+          "MATCH",
+          "Product 'Acondicionador sin Aclarado Hidratante' → 'Nurture Leave-In Conditioner' (/acondicionador-sin-aclarado-hidratante → /nurture-leave-in-conditioner)"
+        ],
+        [
+          "DIFF",
+          "  'Acondicionador sin Aclarado Hi': image count Spain=7 vs Saudi=43"
+        ],
+        [
+          "MATCH",
+          "Product 'Acondicionador Suavizante' → 'Ghassoul + Avocado Smoothing Conditioner' (/acondicionador-suavizante → /ghassoul-avocado-smoothing-conditioner)"
+        ],
+        [
+          "DIFF",
+          "  'Acondicionador Suavizante': image count Spain=6 vs Saudi=22"
+        ],
+        [
+          "MISSING",
+          "Product 'Acondicionador Voluminizador' (/acondicionador-voluminizador)"
+        ],
+        [
+          "MATCH",
+          "Product 'Champú Densificante Preparador del Cuero' → 'Scalp Prep Shampoo' (/champu-densificante → /scalp-prep-shampoo)"
+        ],
+        [
+          "DIFF",
+          "  'Champú Densificante Preparador': image count Spain=6 vs Saudi=18"
+        ],
+        [
+          "MATCH",
+          "Product 'Champú Exfoliante Carbón + Salicílico' → 'Charcoal + Salicylic Exfoliating Shampoo' (/champu-exfoliante → /charcoal-salicylic-exfoliating-shampoo)"
+        ],
+        [
+          "DIFF",
+          "  'Champú Exfoliante Carbón + Sal': image count Spain=7 vs Saudi=18"
+        ],
+        [
+          "MATCH",
+          "Product 'Champú Hidratante' → 'Nurture Shampoo' (/champu-hidratante → /nurture-shampoo)"
+        ],
+        [
+          "DIFF",
+          "  'Champú Hidratante': image count Spain=6 vs Saudi=39"
+        ],
+        [
+          "MATCH",
+          "Product 'Champú Nutritivo' → 'Nourishing shampoo' (/champu-nutritivo → /nourishing-shampoo)"
+        ],
+        [
+          "DIFF",
+          "  'Champú Nutritivo': image count Spain=5 vs Saudi=16"
+        ],
+        [
+          "MATCH",
+          "Product 'Champú Regenerativo' → 'Revitalizing Shampoo' (/champu-revitalizante → /revitalizing-shampoo)"
+        ],
+        [
+          "DIFF",
+          "  'Champú Regenerativo': image count Spain=8 vs Saudi=35"
+        ],
+        [
+          "MATCH",
+          "Product 'Champú Revitalizante' → 'Invigorating Shampoo' (/ajo-negro-champu-revitalizante → /invigorating-shampoo)"
+        ],
+        [
+          "DIFF",
+          "  'Champú Revitalizante': image count Spain=7 vs Saudi=17"
+        ],
+        [
+          "MISSING",
+          "Product 'Champú Voluminizador' (/champu-voluminizador)"
+        ],
+        [
+          "MATCH",
+          "Product 'Mascarilla Reparadora' → 'Repairing Hair Mask' (/ajo-negro-ceramidas-mascarilla-reparadora → /repairing-hair-mask)"
+        ],
+        [
+          "DIFF",
+          "  'Mascarilla Reparadora': image count Spain=7 vs Saudi=13"
+        ],
+        [
+          "MATCH",
+          "Product 'Neceser de Belleza' → 'Beauty Case' (/neceser-de-belleza → /beauty-case)"
+        ],
+        [
+          "BROKEN",
+          "  'Neceser de Belleza': Saudi status is 'draft' (not active)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Ajo Negro+ Ceramidas Muestra Delu' → 'Black Garlic + Ceramides Deluxe Sample R' (/rutina-ajo-negro-ceramidas-muestra-deluxe → /black-garlic-ceramides-deluxe-sample)"
+        ],
+        [
+          "BROKEN",
+          "  'Rutina Ajo Negro+ Ceramidas Mu': Saudi status is 'unlisted' (not active)"
+        ],
+        [
+          "MISSING",
+          "Product 'Rutina Anticaída y Volumen' (/tratamiento-voluminizador-anticaida)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Anticaída y Volumen' → 'Hair Stimulation System' (/rutina-anticaida-y-volumen → /hair-stimulation-system)"
+        ],
+        [
+          "DIFF",
+          "  'Rutina Anticaída y Volumen': image count Spain=8 vs Saudi=30"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Cebolla+ Péptidos Muestra Deluxe' → 'Onion + Peptides Deluxe Sample Routine' (/rutina-cebolla-peptidos-muestra-deluxe → /onion-peptides-deluxe-sample)"
+        ],
+        [
+          "BROKEN",
+          "  'Rutina Cebolla+ Péptidos Muest': Saudi status is 'unlisted' (not active)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Dátil+ Multivitamínico Muestra De' → 'Date + Multivitamin Deluxe Sample Routin' (/rutina-datil-multivitaminico-muestra-deluxe → /date-multivitamin-deluxe-sample)"
+        ],
+        [
+          "BROKEN",
+          "  'Rutina Dátil+ Multivitamínico ': Saudi status is 'unlisted' (not active)"
+        ],
+        [
+          "MISSING",
+          "Product 'Rutina Densificante' (/tratamiento-densificador)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Densificante' → 'Hair Density System' (/rutina-densificante → /hair-density-system)"
+        ],
+        [
+          "DIFF",
+          "  'Rutina Densificante': image count Spain=8 vs Saudi=22"
+        ],
+        [
+          "MISSING",
+          "Product 'Rutina Hidratante' (/sistema-hidratante)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Hidratante' → 'Nurture System' (/rutina-hidratante → /nurture-system)"
+        ],
+        [
+          "DIFF",
+          "  'Rutina Hidratante': image count Spain=9 vs Saudi=50"
+        ],
+        [
+          "MISSING",
+          "Product 'Rutina Nutritiva y Bienestar Capilar' (/sistema-bienestar-capilar)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Nutritiva y Bienestar Capilar' → 'Hair wellness system' (/rutina-nutritiva-y-bienestar-capilar → /hair-wellness-system)"
+        ],
+        [
+          "DIFF",
+          "  'Rutina Nutritiva y Bienestar C': image count Spain=7 vs Saudi=24"
+        ],
+        [
+          "MISSING",
+          "Product 'Rutina Regenerativa “Age-Well”' (/sistema-regenerativo-age-well)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Regenerativa “Age-Well”' → 'Age-Well System' (/rutina-regenerativa-age-well → /age-well-system)"
+        ],
+        [
+          "DIFF",
+          "  'Rutina Regenerativa “Age-Well”': image count Spain=8 vs Saudi=52"
+        ],
+        [
+          "MISSING",
+          "Product 'Rutina Reparadora y Fortalecedora' (/sistema-fortalecedor-del-cabello)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Reparadora y Fortalecedora' → 'Hair Strength System' (/rutina-reparadora-y-fortalecedora → /hair-strength-system)"
+        ],
+        [
+          "DIFF",
+          "  'Rutina Reparadora y Fortaleced': image count Spain=9 vs Saudi=19"
+        ],
+        [
+          "MISSING",
+          "Product 'Rutina Revitalizante para Cuero Cabelludo' (/tratamiento-revitalizante-para-cuero-cabelludo)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Revitalizante para Cuero Cabellud' → 'Scalp + Hair Revival System' (/rutina-revitalizante-para-cuero-cabelludo → /scalp-hair-revival-system)"
+        ],
+        [
+          "DIFF",
+          "  'Rutina Revitalizante para Cuer': image count Spain=9 vs Saudi=25"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Romero+ Péptidos Muestra Deluxe' → 'Rosemary + Peptides Deluxe Sample Routin' (/rutina-romero-peptidos-muestra-deluxe → /rosemary-peptides-deluxe-sample)"
+        ],
+        [
+          "BROKEN",
+          "  'Rutina Romero+ Péptidos Muestr': Saudi status is 'unlisted' (not active)"
+        ],
+        [
+          "MATCH",
+          "Product 'Rutina Salvia+ Multivitamínico Muestra D' → 'Sage + Multivitamin Deluxe Sample Routin' (/rutina-salvia-multivitaminico-muestra-deluxe → /sage-multivitamin-deluxe-sample)"
+        ],
+        [
+          "BROKEN",
+          "  'Rutina Salvia+ Multivitamínico': Saudi status is 'unlisted' (not active)"
+        ],
+        [
+          "MATCH",
+          "Product 'Sérum Age-Well para el Cuero Cabelludo' → 'Scalp Support Serum' (/serum-cuero-cabelludo → /scalp-support-serum)"
+        ],
+        [
+          "DIFF",
+          "  'Sérum Age-Well para el Cuero C': image count Spain=7 vs Saudi=41"
+        ],
+        [
+          "MATCH",
+          "Product 'Sérum Calmante para el Cuero Cabelludo' → 'Cactus + Red Seaweed Scalp Serum' (/serum-calmante-para-el-cuero-cabelludo → /cactus-red-seaweed-scalp-serum)"
+        ],
+        [
+          "DIFF",
+          "  'Sérum Calmante para el Cuero C': image count Spain=6 vs Saudi=24"
+        ],
+        [
+          "MATCH",
+          "Product 'Sérum de Apoyo para el Cuero Cabelludo' → 'Rejuvenating Scalp Serum' (/serum-de-apoyo-para-el-cuero-cabelludo → /rejuvenating-scalp-serum)"
+        ],
+        [
+          "DIFF",
+          "  'Sérum de Apoyo para el Cuero C': image count Spain=6 vs Saudi=17"
+        ],
+        [
+          "MATCH",
+          "Product 'Sérum Densificante para el Cuero Cabellu' → 'Follicle-Boost Serum' (/serum-foliculoestimulante → /follicle-boost-serum)"
+        ],
+        [
+          "DIFF",
+          "  'Sérum Densificante para el Cue': image count Spain=6 vs Saudi=15"
+        ],
+        [
+          "MISSING",
+          "Product 'Sérum Foliculoestimulante para el Cuero Cabelludo' (/serum-foliculoestimulante-para-cuero-cabelludo)"
+        ],
+        [
+          "MATCH",
+          "Product 'Sérum Fortalecedor para el Cuero Cabellu' → 'Strengthening Scalp Serum' (/serum-fortalecedor-para-el-cuero-cabelludo → /strengthening-scalp-serum)"
+        ],
+        [
+          "DIFF",
+          "  'Sérum Fortalecedor para el Cue': image count Spain=7 vs Saudi=14"
+        ],
+        [
+          "MATCH",
+          "Product 'Signature Tote Bag' → 'Signature Tote Bag' (/signature-tote-bag → /signature-tote-bag)"
+        ],
+        [
+          "BROKEN",
+          "  'Signature Tote Bag': Saudi status is 'draft' (not active)"
+        ]
+      ]
+    },
+    {
+      "title": "PRODUCT PAGE FEATURES",
+      "items": [
+        [
+          "INFO",
+          "\n  Product: 'Acondicionador Densificante' → 'Strand Thicken Conditioner'"
+        ],
+        [
+          "INFO",
+          "  Spain metafields: 27 | Saudi metafields: 24"
+        ],
+        [
+          "MATCH",
+          "  custom.tagline: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.ingredients: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.faqs: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.size_ml: populated on both"
+        ],
+        [
+          "INFO",
+          "\n  Product: 'Acondicionador Hidratante' → 'Nurture Conditioner'"
+        ],
+        [
+          "INFO",
+          "  Spain metafields: 25 | Saudi metafields: 23"
+        ],
+        [
+          "MATCH",
+          "  custom.tagline: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.ingredients: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.faqs: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.size_ml: populated on both"
+        ],
+        [
+          "INFO",
+          "\n  Product: 'Acondicionador Nutritivo' → 'Hydrating conditioner'"
+        ],
+        [
+          "INFO",
+          "  Spain metafields: 29 | Saudi metafields: 24"
+        ],
+        [
+          "MATCH",
+          "  custom.tagline: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.ingredients: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.faqs: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.size_ml: populated on both"
+        ],
+        [
+          "INFO",
+          "\n  Product: 'Acondicionador Regenerativo' → 'Replenishing Conditioner'"
+        ],
+        [
+          "INFO",
+          "  Spain metafields: 28 | Saudi metafields: 24"
+        ],
+        [
+          "MATCH",
+          "  custom.tagline: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.ingredients: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.faqs: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.size_ml: populated on both"
+        ],
+        [
+          "INFO",
+          "\n  Product: 'Acondicionador sin Aclarado Hi' → 'Nurture Leave-In Conditioner'"
+        ],
+        [
+          "INFO",
+          "  Spain metafields: 23 | Saudi metafields: 22"
+        ],
+        [
+          "MATCH",
+          "  custom.tagline: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.ingredients: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.faqs: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.key_benefits_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.how_to_use_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.whats_inside_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.free_of_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_heading: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.fragrance_content: populated on both"
+        ],
+        [
+          "MATCH",
+          "  custom.size_ml: populated on both"
+        ]
+      ]
+    },
+    {
+      "title": "METAOBJECTS",
+      "items": [
+        [
+          "INFO",
+          "Spain: 15 definitions | Saudi: 16 definitions"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--suitable-for-hair-type' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--suitable-for-hair-type: Spain=17 entries, Saudi=17 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--target-gender' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--target-gender: Spain=1 entries, Saudi=1 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--hair-care-items-included' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--hair-care-items-included: Spain=7 entries, Saudi=7 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'faq_entry' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  faq_entry: Spain=124 entries, Saudi=124 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--hair-loss-type' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--hair-loss-type: Spain=2 entries, Saudi=2 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--treatment-type' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--treatment-type: Spain=1 entries, Saudi=1 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--constitutive-ingredients' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--constitutive-ingredients: Spain=3 entries, Saudi=3 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--product-certifications-standards' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--product-certifications-standards: Spain=6 entries, Saudi=6 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--conditioner-effect' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--conditioner-effect: Spain=17 entries, Saudi=17 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--age-group' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--age-group: Spain=2 entries, Saudi=2 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'ingredient' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  ingredient: Spain=34 entries, Saudi=34 entries"
+        ],
+        [
+          "MISSING",
+          "  12 ingredients missing in Saudi: ['Capixyl™ (Acetil Tetrapéptido-3)', 'Procapil® (Biotinoyl Tripéptido-1)', 'Silverfree™ (Palmitoyl Dipeptide-52)', 'Ajo Negro (ABG10+®)', 'Queratina Hidrolizada']"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--product-form' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--product-form: Spain=1 entries, Saudi=1 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'benefit' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  benefit: Spain=122 entries, Saudi=122 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'shopify--scalp-concern' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  shopify--scalp-concern: Spain=9 entries, Saudi=9 entries"
+        ],
+        [
+          "MATCH",
+          "Definition 'store_location' exists on both stores"
+        ],
+        [
+          "INFO",
+          "  store_location: Spain=0 entries, Saudi=0 entries"
+        ]
+      ]
+    },
+    {
+      "title": "NAVIGATION MENUS",
+      "items": [
+        [
+          "INFO",
+          "Spain: 4 menus | Saudi: 4 menus"
+        ],
+        [
+          "MATCH",
+          "Menu 'main-menu': Spain=5 items, Saudi=2 items"
+        ],
+        [
+          "DIFF",
+          "Menu 'main-menu' item count differs"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Cuidado Capilar' (/en/collections/cabello)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Diagnóstico Capilar ' (/en/pages/quiz)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Ingredientes' (/en/pages/ingredients)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Filosofía ' (/en/pages/philosophy)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Diario' (/en/blogs/journal)"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Home' → /"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Catalog' → /collections/all"
+        ],
+        [
+          "MATCH",
+          "Menu 'footer': Spain=5 items, Saudi=1 items"
+        ],
+        [
+          "DIFF",
+          "Menu 'footer' item count differs"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Comprar Cuidado Capilar' (/en/collections/cabello)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Diagnóstico Capilar' (/en/policies/privacy-policy)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Nuestra Filosofía' (/en/pages/philosophy)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Nuestros Ingredientes' (/en/pages/ingredients)"
+        ],
+        [
+          "INFO",
+          "  'Buscar un Producto' → 'Search'"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Search' → /search"
+        ],
+        [
+          "MATCH",
+          "Menu 'customer-account-main-menu': Spain=3 items, Saudi=2 items"
+        ],
+        [
+          "DIFF",
+          "Menu 'customer-account-main-menu' item count differs"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Orders' (https://shopify.com/70614384682/account/orders)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'Profile' (https://shopify.com/70614384682/account/profile)"
+        ],
+        [
+          "MISSING",
+          "  Menu item 'My Account' (https://shopify.com/70614384682/account/pages/6971b1a1-27f6-4c27-b8b0-3009fd3b921d)"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Orders' → https://shopify.com/79840575721/account/orders"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Profile' → https://shopify.com/79840575721/account/profile"
+        ],
+        [
+          "MATCH",
+          "Menu 'footer-servicio-al-cliente': Spain=4 items, Saudi=4 items"
+        ],
+        [
+          "INFO",
+          "  'Política de Privacidad y Cookies' → 'Política de Privacidad y Cookies'"
+        ],
+        [
+          "INFO",
+          "  'Términos y Condiciones de Venta' → 'Términos y Condiciones de Venta'"
+        ],
+        [
+          "INFO",
+          "  'Política de Envío y Devoluciones' → 'Política de Privacidad y Cookies'"
+        ],
+        [
+          "INFO",
+          "  'Contacta con nosotros' → 'Contacta con nosotros'"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Política de Privacidad y Cookies' → /en/policies/privacy-policy"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Términos y Condiciones de Venta' → /en/policies/terms-of-service"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Política de Envío y Devoluciones' → /en/policies/privacy-policy"
+        ],
+        [
+          "INFO",
+          "  Saudi menu: 'Contacta con nosotros' → /pages/contact"
+        ]
+      ]
+    },
+    {
+      "title": "BLOGS & ARTICLES",
+      "items": [
+        [
+          "INFO",
+          "Spain: 2 blogs | Saudi: 2 blogs"
+        ],
+        [
+          "MATCH",
+          "Blog 'journal': Spain=3 articles, Saudi=3 articles"
+        ],
+        [
+          "MISSING",
+          "Article '/journal/cuidado-cuero-cabelludo-ingredientes-botanicos' (Ciencia y botánica para un cuero cabellu)"
+        ],
+        [
+          "MATCH",
+          "Article '/journal/metodo-de-aplicacion-de-tara-guia-para-aplicar-nuestros-productos-y-potenciar-resultados' → '/journal/tara-application-method-guide-to-apply-our-products-and-boost-results'"
+        ],
+        [
+          "MATCH",
+          "Article '/journal/como-cepillar-el-cabello-fino-correctamente' → '/journal/how-to-brush-fine-hair-correctly'"
+        ],
+        [
+          "MATCH",
+          "Blog 'hero': Spain=0 articles, Saudi=0 articles"
+        ]
+      ]
+    },
+    {
+      "title": "THEME TEMPLATES",
+      "items": [
+        [
+          "INFO",
+          "Spain: 21 templates | Saudi: 21 templates"
+        ],
+        [
+          "MATCH",
+          "Template: templates/404.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/article.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/article.tara.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/blog.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/blog.tara.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/cart.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/collection.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/gift_card.liquid"
+        ],
+        [
+          "MATCH",
+          "Template: templates/index.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/list-collections.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/metaobject/ingredient.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/page.contact.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/page.ingredients.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/page.json"
+        ],
+        [
+          "MISSING",
+          "Template: templates/page.para-framacias.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/page.quiz-results.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/page.quiz.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/page.store-locator.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/password.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/product.json"
+        ],
+        [
+          "MATCH",
+          "Template: templates/search.json"
+        ],
+        [
+          "INFO",
+          "\nSpain: 61 sections | Saudi: 61 sections"
+        ],
+        [
+          "MATCH",
+          "All 61 sections present in Saudi"
+        ],
+        [
+          "INFO",
+          "\nSpain: 118 snippets | Saudi: 118 snippets"
+        ],
+        [
+          "MATCH",
+          "All 118 snippets present in Saudi"
+        ]
+      ]
+    },
+    {
+      "title": "HOMEPAGE CONTENT",
+      "items": [
+        [
+          "INFO",
+          "Spain: 13 sections | Saudi: 12 sections"
+        ],
+        [
+          "INFO",
+          "Spain section types: ['hero', 'section', 'hero', '_blocks', 'product-list', 'section', 'section', '_blocks', 'icon-row-with-heading', 'ingredient-listing', 'section', 'faq', 'collection-list']"
+        ],
+        [
+          "INFO",
+          "Saudi section types: ['hero', 'section', 'hero', '_blocks', 'product-list', 'section', 'section', 'icon-row-with-heading', 'ingredient-listing', 'section', 'faq', 'collection-list']"
+        ],
+        [
+          "MATCH",
+          "Section type '_blocks' present on both homepages"
+        ],
+        [
+          "MATCH",
+          "Section type 'collection-list' present on both homepages"
+        ],
+        [
+          "MATCH",
+          "Section type 'icon-row-with-heading' present on both homepages"
+        ],
+        [
+          "MATCH",
+          "Section type 'ingredient-listing' present on both homepages"
+        ],
+        [
+          "MATCH",
+          "Section type 'hero' present on both homepages"
+        ],
+        [
+          "MATCH",
+          "Section type 'faq' present on both homepages"
+        ],
+        [
+          "MATCH",
+          "Section type 'section' present on both homepages"
+        ],
+        [
+          "MATCH",
+          "Section type 'product-list' present on both homepages"
+        ],
+        [
+          "INFO",
+          "  [hero_JdUAKa] type=hero, images=4 set, 0 empty"
+        ],
+        [
+          "INFO",
+          "  [section_KPkrGJ] type=section, images=1 set, 0 empty"
+        ],
+        [
+          "INFO",
+          "  [hero_X6DGwJ] type=hero, images=2 set, 0 empty"
+        ],
+        [
+          "INFO",
+          "  [17710990838fd55331] type=_blocks, images=1 set, 0 empty"
+        ],
+        [
+          "INFO",
+          "  [product_list_fa6P9H] type=product-list, images=1 set, 0 empty, collection='best-sellers'"
+        ],
+        [
+          "INFO",
+          "  [section_T8xnnA] type=section, images=1 set, 0 empty"
+        ],
+        [
+          "INFO",
+          "  [section_6xbiJX] type=section, images=4 set, 0 empty"
+        ],
+        [
+          "INFO",
+          "  [icon_row_with_heading_dT4] type=icon-row-with-heading, heading='Formulas You Can Feel Good About'"
+        ],
+        [
+          "INFO",
+          "  [ingredient_listing_HY7xw9] type=ingredient-listing, images=1 set, 1 empty"
+        ],
+        [
+          "BROKEN",
+          "  Section 'ingredient_listing_HY7xw9' has 1 empty image slots"
+        ],
+        [
+          "INFO",
+          "  [section_mLJgtc] type=section, images=3 set, 0 empty"
+        ],
+        [
+          "INFO",
+          "  [faq_ghk6Xg] type=faq, heading='FAQs'"
+        ],
+        [
+          "INFO",
+          "  [collection_list_fGeHYT] type=collection-list, images=1 set, 0 empty"
+        ],
+        [
+          "BROKEN",
+          "  Product section 'collection_list_fGeHYT' ('') has NO collection assigned!"
+        ]
+      ]
+    },
+    {
+      "title": "PRODUCT-COLLECTION LINKS",
+      "items": [
+        [
+          "INFO",
+          "Saudi: 21 collections"
+        ],
+        [
+          "BROKEN",
+          "21 Saudi collections have 0 products:"
+        ],
+        [
+          "INFO",
+          "  - accessories (Accessories)"
+        ],
+        [
+          "INFO",
+          "  - award-winners (Award‑Winners)"
+        ],
+        [
+          "INFO",
+          "  - best-sellers (Best Sellers)"
+        ],
+        [
+          "INFO",
+          "  - black-friday-sets (BLACK FRIDAY SETS)"
+        ],
+        [
+          "INFO",
+          "  - black-garlic-ceramides (Black Garlic+ Ceramides)"
+        ],
+        [
+          "INFO",
+          "  - by-product (By Product)"
+        ],
+        [
+          "INFO",
+          "  - date-multivitamin (Date+ Multivitamin)"
+        ],
+        [
+          "INFO",
+          "  - detox (Detox)"
+        ],
+        [
+          "INFO",
+          "  - finishing-products (Finishing Products)"
+        ],
+        [
+          "INFO",
+          "  - hair-masks (Hair Masks)"
+        ],
+        [
+          "INFO",
+          "  - new-arrivals (New Arrivals)"
+        ],
+        [
+          "INFO",
+          "  - onion-peptides (Onion + Peptides)"
+        ],
+        [
+          "INFO",
+          "  - rosemary-peptides (Rosemary+ Peptides)"
+        ],
+        [
+          "INFO",
+          "  - sage-multivitamin (Sage+ Multivitamin)"
+        ],
+        [
+          "INFO",
+          "  - scalp-serums (Scalp Serums)"
+        ],
+        [
+          "INFO",
+          "  - shop-hair (Shop Hair)"
+        ],
+        [
+          "INFO",
+          "  - shop-skin (Shop Skin)"
+        ],
+        [
+          "INFO",
+          "  - strawberry-nmf (Strawberry+ NMF)"
+        ],
+        [
+          "INFO",
+          "  - tara-formula (Tara Formula)"
+        ],
+        [
+          "INFO",
+          "  - conditioners (Conditioners)"
+        ],
+        [
+          "INFO",
+          "  - shampoos (Shampoos)"
+        ]
+      ]
+    },
+    {
+      "title": "URL REDIRECTS",
+      "items": [
+        [
+          "INFO",
+          "Spain: 90 redirects | Saudi: 90 redirects"
+        ],
+        [
+          "MATCH",
+          "Saudi has 90 URL redirects configured"
+        ]
+      ]
+    },
+    {
+      "title": "STOREFRONT RENDERING (Public Scrape)",
+      "items": [
+        [
+          "INFO",
+          "\n  Homepage (/):"
+        ],
+        [
+          "INFO",
+          "    Spain: HTTP 200 (417 KB)"
+        ],
+        [
+          "INFO",
+          "    Saudi: HTTP 200 (255 KB)"
+        ],
+        [
+          "INFO",
+          "  Images: Spain=69, Saudi=52"
+        ],
+        [
+          "INFO",
+          "  Product links: Spain=4, Saudi=4"
+        ],
+        [
+          "MATCH",
+          "Homepage has product links"
+        ],
+        [
+          "INFO",
+          "  Collection links: Spain=17, Saudi=6"
+        ],
+        [
+          "INFO",
+          "  Headings on Spain homepage (26):"
+        ],
+        [
+          "INFO",
+          "    - Tara"
+        ],
+        [
+          "INFO",
+          "    - Tu carrito esta vacío"
+        ],
+        [
+          "INFO",
+          "    - Tu carrito esta vacío"
+        ],
+        [
+          "INFO",
+          "    - Dentro de la Fórmula. Dentro de la Ciencia."
+        ],
+        [
+          "INFO",
+          "    - Nuestros mejores productos"
+        ],
+        [
+          "INFO",
+          "    - Sérum Calmante para el Cuero Cabelludo"
+        ],
+        [
+          "INFO",
+          "    - Mascarilla Reparadora"
+        ],
+        [
+          "INFO",
+          "    - Champú Voluminizador"
+        ],
+        [
+          "INFO",
+          "    - Rutina Anticaída y Volumen"
+        ],
+        [
+          "INFO",
+          "    - Champú Exfoliante Carbón + Salicílico"
+        ],
+        [
+          "INFO",
+          "  Headings on Saudi homepage (50):"
+        ],
+        [
+          "INFO",
+          "    - Tara Saudi"
+        ],
+        [
+          "INFO",
+          "    - Your cart is empty"
+        ],
+        [
+          "INFO",
+          "    - Your cart is empty"
+        ],
+        [
+          "INFO",
+          "    - Inside the Formula. Inside the Science."
+        ],
+        [
+          "INFO",
+          "    - Our Best Products"
+        ],
+        [
+          "INFO",
+          "    - Formulas You Can Feel Good About"
+        ],
+        [
+          "INFO",
+          "    - Our Key Ingredients"
+        ],
+        [
+          "INFO",
+          "    - Aceite de Aguacate"
+        ],
+        [
+          "INFO",
+          "    - Aceite de Argán Puro"
+        ],
+        [
+          "INFO",
+          "    - Aceite de Oliva"
+        ],
+        [
+          "INFO",
+          "  Spain title: Tara"
+        ],
+        [
+          "INFO",
+          "  Saudi title: Tara Saudi"
+        ],
+        [
+          "INFO",
+          "\n  Collections Index (/collections):"
+        ],
+        [
+          "INFO",
+          "    Spain: HTTP 200 (261 KB)"
+        ],
+        [
+          "INFO",
+          "    Saudi: HTTP 200 (279 KB)"
+        ],
+        [
+          "INFO",
+          "  Images: Spain=27, Saudi=17"
+        ],
+        [
+          "INFO",
+          "  Product links: Spain=4, Saudi=4"
+        ],
+        [
+          "MATCH",
+          "Collections Index has product links"
+        ],
+        [
+          "INFO",
+          "  Collection links: Spain=33, Saudi=21"
+        ],
+        [
+          "INFO",
+          "  Spain title: Colecciones\n &ndash; Tara"
+        ],
+        [
+          "INFO",
+          "  Saudi title: Collections\n &ndash; Tara Saudi"
+        ],
+        [
+          "INFO",
+          "\n  Ingredients Library (/pages/ingredients):"
+        ],
+        [
+          "INFO",
+          "    Spain: HTTP 200 (274 KB)"
+        ],
+        [
+          "INFO",
+          "    Saudi: HTTP 200 (257 KB)"
+        ],
+        [
+          "INFO",
+          "  Images: Spain=44, Saudi=72"
+        ],
+        [
+          "INFO",
+          "  Product links: Spain=4, Saudi=4"
+        ],
+        [
+          "MATCH",
+          "Ingredients Library has product links"
+        ],
+        [
+          "INFO",
+          "  Collection links: Spain=17, Saudi=1"
+        ],
+        [
+          "INFO",
+          "  Ingredient links: Spain=43, Saudi=3"
+        ],
+        [
+          "MATCH",
+          "Ingredients page has 3 clickable ingredient links"
+        ],
+        [
+          "INFO",
+          "  Spain title: Extractos botánicos y activos avanzados | TARA\n &ndash; Tara"
+        ],
+        [
+          "INFO",
+          "  Saudi title: Our Ingredients\n &ndash; Tara Saudi"
+        ],
+        [
+          "INFO",
+          "\n  Hair Quiz (/pages/quiz):"
+        ],
+        [
+          "INFO",
+          "    Spain: HTTP 200 (199 KB)"
+        ],
+        [
+          "INFO",
+          "    Saudi: HTTP 200 (150 KB)"
+        ],
+        [
+          "INFO",
+          "  Images: Spain=10, Saudi=9"
+        ],
+        [
+          "INFO",
+          "  Product links: Spain=4, Saudi=4"
+        ],
+        [
+          "MATCH",
+          "Hair Quiz has product links"
+        ],
+        [
+          "INFO",
+          "  Collection links: Spain=17, Saudi=1"
+        ],
+        [
+          "INFO",
+          "  Spain title: Quiz\n &ndash; Tara"
+        ],
+        [
+          "INFO",
+          "  Saudi title: Quiz\n &ndash; Tara Saudi"
+        ],
+        [
+          "INFO",
+          "\n  Contact (/pages/contact):"
+        ],
+        [
+          "INFO",
+          "    Spain: HTTP 200 (203 KB)"
+        ],
+        [
+          "INFO",
+          "    Saudi: HTTP 200 (154 KB)"
+        ],
+        [
+          "INFO",
+          "  Images: Spain=9, Saudi=8"
+        ],
+        [
+          "INFO",
+          "  Product links: Spain=4, Saudi=4"
+        ],
+        [
+          "MATCH",
+          "Contact has product links"
+        ],
+        [
+          "INFO",
+          "  Collection links: Spain=17, Saudi=1"
+        ],
+        [
+          "INFO",
+          "  Spain title: Contact\n &ndash; Tara"
+        ],
+        [
+          "INFO",
+          "  Saudi title: Contact\n &ndash; Tara Saudi"
+        ],
+        [
+          "INFO",
+          "\n  Blog (/blogs):"
+        ],
+        [
+          "INFO",
+          "    Spain: HTTP 404 (281 KB)"
+        ],
+        [
+          "INFO",
+          "    Saudi: HTTP 404 (230 KB)"
+        ],
+        [
+          "INFO",
+          "  Both stores return non-200 for /blogs — may be password-protected"
+        ]
+      ]
+    },
+    {
+      "title": "PRODUCT PAGE RENDERING",
+      "items": [
+        [
+          "INFO",
+          "Spain: /products/acondicionador-densificante → HTTP 200 (339 KB)"
+        ],
+        [
+          "INFO",
+          "Saudi: /products/age-well-system → HTTP 200 (530 KB)"
+        ],
+        [
+          "MATCH",
+          "Add to cart button present"
+        ],
+        [
+          "INFO",
+          "Product-related images: Spain=13, Saudi=105"
+        ],
+        [
+          "INFO",
+          "Accordion/collapsible elements: Spain=179, Saudi=159"
+        ],
+        [
+          "MATCH",
+          "Price displayed on product page"
+        ],
+        [
+          "INFO",
+          "Ingredient references: Spain=54, Saudi=44"
+        ],
+        [
+          "MATCH",
+          "Reviews section present on product page"
+        ],
+        [
+          "MATCH",
+          "Subscription option present"
+        ]
+      ]
+    },
+    {
+      "title": "INGREDIENT DETAIL PAGES",
+      "items": [
+        [
+          "INFO",
+          "Testing 3 ingredient detail pages..."
+        ],
+        [
+          "BROKEN",
+          "Ingredient 'Extracto de Cebolla Roja' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/extracto-de-cebolla-roja"
+        ],
+        [
+          "BROKEN",
+          "Ingredient 'Capixyl™ (Acetyl Tetrapeptide-3)' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/capixyl-acetyl-tetrapeptide-3"
+        ],
+        [
+          "BROKEN",
+          "Ingredient 'Procapil® (Biotinoyl Tripeptide-1)' returns 404 at https://xkgw0m-sm.myshopify.com/pages/ingredient/procapil-biotinoyl-tripeptide-1"
+        ]
+      ]
+    }
+  ],
+  "totals": {
+    "matching": 193,
+    "missing": 61,
+    "broken": 13
+  },
+  "all_pass": false
+}

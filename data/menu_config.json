@@ -1,0 +1,78 @@
+{
+  "main-menu": {
+    "title": "Main Menu",
+    "items": [
+      {
+        "title": "Home",
+        "url": "/"
+      },
+      {
+        "title": "Tara Formula",
+        "resourceId": "gid://shopify/Collection/466273173737",
+        "items": [
+          {
+            "title": "Shop Hair",
+            "url": "/collections/hair-care"
+          }
+        ]
+      },
+      {
+        "title": "Shop Hair",
+        "url": "/collections/hair-care"
+      }
+    ]
+  },
+  "footer": {
+    "title": "Footer Menu",
+    "items": [
+      {
+        "title": "Contact",
+        "url": "/pages/contact"
+      },
+      {
+        "title": "FAQ",
+        "url": "/pages/faq"
+      },
+      {
+        "title": "For Pharmacies",
+        "url": "/pages/for-pharmacies"
+      },
+      {
+        "title": "Home page EN",
+        "url": "/pages/home-page-en"
+      },
+      {
+        "title": "Our Ingredients",
+        "url": "/pages/ingredients"
+      },
+      {
+        "title": "Philosophy EN",
+        "url": "/pages/philosophy-en"
+      },
+      {
+        "title": "Points of Sale",
+        "url": "/pages/store-locator"
+      },
+      {
+        "title": "Privacy Policy EN",
+        "url": "/pages/privacy-policy-en"
+      },
+      {
+        "title": "Quiz",
+        "url": "/pages/quiz"
+      },
+      {
+        "title": "Quiz Results",
+        "url": "/pages/quiz-results"
+      },
+      {
+        "title": "Terms & Conditions EN",
+        "url": "/pages/terms-and-conditions-en"
+      },
+      {
+        "title": "Contact",
+        "url": "/pages/contact"
+      }
+    ]
+  }
+}

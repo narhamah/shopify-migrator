@@ -1,0 +1,290 @@
+{
+  "store": "xkgw0m-sm.myshopify.com",
+  "timestamp": "2026-03-09 19:43:07",
+  "sections": {
+    "PRODUCTS": {
+      "pass": [
+        "29 active products",
+        "Product checks complete"
+      ],
+      "fail": [
+        "Zero price: 'Black Garlic + Ceramides Deluxe Sample R' → Default Title",
+        "Zero price: 'Date + Multivitamin Deluxe Sample Routin' → Default Title",
+        "Zero price: 'Onion + Peptides Deluxe Sample Routine' → Default Title",
+        "Zero price: 'Rosemary + Peptides Deluxe Sample Routin' → Default Title",
+        "Zero price: 'Sage + Multivitamin Deluxe Sample Routin' → Default Title"
+      ],
+      "warn": [
+        "2 draft products: ['Beauty Case', 'Signature Tote Bag']"
+      ],
+      "info": [
+        "Found 36 products"
+      ]
+    },
+    "PRODUCT METAFIELDS": {
+      "pass": [
+        "'Age-Well System' has tagline",
+        "'Age-Well System' has ingredients list"
+      ],
+      "fail": [],
+      "warn": [
+        "'Argan Oil' missing custom.tagline metafield",
+        "'Argan Oil' missing custom.ingredients metafield",
+        "'Beauty Case' missing custom.tagline metafield",
+        "'Beauty Case' missing custom.ingredients metafield",
+        "'Black Garlic + Ceramides Delux' missing custom.tagline metafield",
+        "'Black Garlic + Ceramides Delux' missing custom.ingredients metafield",
+        "'Botanical Water Cream' missing custom.tagline metafield",
+        "'Botanical Water Cream' missing custom.ingredients metafield"
+      ],
+      "info": [
+        "  'Age-Well System' has 10 accordion fields"
+      ]
+    },
+    "COLLECTIONS": {
+      "pass": [
+        "Best Sellers collection exists",
+        "21 collections found"
+      ],
+      "fail": [],
+      "warn": [
+        "No image: collection 'Accessories'",
+        "No image: collection 'Award‑Winners'",
+        "No image: collection 'Best Sellers'",
+        "No image: collection 'BLACK FRIDAY SETS'",
+        "No image: collection 'By Product'",
+        "No image: collection 'Finishing Products'",
+        "No image: collection 'Hair Masks'",
+        "No image: collection 'New Arrivals'",
+        "No image: collection 'Scalp Serums'",
+        "No image: collection 'Tara Formula'",
+        "No image: collection 'Conditioners'",
+        "No image: collection 'Shampoos'"
+      ],
+      "info": [
+        "Found 21 collections"
+      ]
+    },
+    "PAGES": {
+      "pass": [
+        "Page 'ingredients' exists (template: ingredients)",
+        "Page 'quiz' exists (template: quiz)",
+        "Page 'quiz-results' exists (template: quiz-results)",
+        "Page 'contact' exists (template: contact)"
+      ],
+      "fail": [],
+      "warn": [],
+      "info": [
+        "Found 12 pages: ['contact', 'faq', 'for-pharmacies', 'home-page-en', 'newsletter-subscription', 'ingredients', 'philosophy-en', 'store-locator', 'privacy-policy-en', 'quiz', 'quiz-results', 'terms-and-conditions-en']",
+        "Optional page 'store-locator' exists",
+        "Optional page 'for-pharmacies' exists"
+      ]
+    },
+    "BLOGS & ARTICLES": {
+      "pass": [
+        "3 total articles"
+      ],
+      "fail": [],
+      "warn": [],
+      "info": [
+        "Found 2 blogs",
+        "Blog 'Dossier' (/journal): 3 articles",
+        "Blog 'Hero' (/hero): 0 articles"
+      ]
+    },
+    "NAVIGATION MENUS": {
+      "pass": [
+        "Menu 'main-menu' exists with 2 items",
+        "Menu 'footer' exists with 1 items"
+      ],
+      "fail": [],
+      "warn": [
+        "  Menu missing 'shop' item",
+        "  Menu missing 'ingredients' item",
+        "  Menu missing 'quiz' item",
+        "  Menu missing 'blog' item",
+        "  Menu missing 'contact' item"
+      ],
+      "info": [
+        "Found 4 menus",
+        "  → Home [/]",
+        "  → Catalog [/collections/all]",
+        "  → Search [/search]"
+      ]
+    },
+    "METAOBJECT DEFINITIONS": {
+      "pass": [
+        "Definition 'benefit' exists",
+        "Definition 'faq_entry' exists",
+        "Definition 'blog_author' exists",
+        "Definition 'ingredient' exists"
+      ],
+      "fail": [
+        "  'ingredient' missing renderable capability (ingredient pages won't work!)"
+      ],
+      "warn": [],
+      "info": [
+        "Found 16 metaobject definitions"
+      ]
+    },
+    "METAOBJECT ENTRIES": {
+      "pass": [
+        "benefit: 122 entries",
+        "faq_entry: 124 entries",
+        "ingredient: 34 entries"
+      ],
+      "fail": [],
+      "warn": [
+        "blog_author: 0 entries",
+        "  2 ingredients missing image/icon"
+      ],
+      "info": []
+    },
+    "METAFIELD DEFINITIONS": {
+      "pass": [
+        "All 18 required product metafield definitions exist"
+      ],
+      "fail": [
+        "Missing 2 article metafield definitions:"
+      ],
+      "warn": [],
+      "info": [
+        "Found 21 product metafield definitions",
+        "Found 12 article metafield definitions",
+        "  - custom.show_toc",
+        "  - custom.subtitle"
+      ]
+    },
+    "THEME TEMPLATES": {
+      "pass": [
+        "Template exists: templates/index.json",
+        "Template exists: templates/product.json",
+        "Template exists: templates/collection.json",
+        "Template exists: templates/page.ingredients.json",
+        "Template exists: templates/page.quiz.json",
+        "Template exists: templates/page.quiz-results.json",
+        "Template exists: templates/metaobject/ingredient.json"
+      ],
+      "fail": [],
+      "warn": [],
+      "info": [
+        "Theme has 523 assets",
+        "Optional template exists: templates/article.tara.json",
+        "Optional template exists: templates/blog.tara.json",
+        "Optional template exists: templates/page.store-locator.json",
+        "Optional template exists: templates/page.contact.json"
+      ]
+    },
+    "HOMEPAGE CONTENT": {
+      "pass": [
+        "Product section 'product_list_fa6P9H' has collection: best-sellers",
+        "19 images configured on homepage"
+      ],
+      "fail": [
+        "Product section 'collection_list_fGeHYT' (type: collection-list) has NO collection assigned"
+      ],
+      "warn": [
+        "1 empty image slots on homepage"
+      ],
+      "info": [
+        "Homepage has 12 sections, order has 12 entries",
+        "Section types: ['hero', 'section', 'hero', '_blocks', 'product-list', 'section', 'section', 'icon-row-with-heading', 'ingredient-listing', 'section', 'faq', 'collection-list']",
+        "  Heading: 'N/A'",
+        "  Settings: {\n    \"collection_list\": [\n        \"black-garlic-ceramides\",\n        \"onion-peptides\",\n        \"detox\",\n        \"date-multivitamin\"\n    ],\n    \"layout_type\": \"bento\",\n    \"carousel_on_mobile\": false,\n    \"columns\": 4,\n    \"mobile_columns\": \"2\",\n    \"mobile_card_size\": \"60cqw\",\n    \"columns_gap\": 8,\n"
+      ]
+    },
+    "INGREDIENT PAGES": {
+      "pass": [
+        "page.ingredients.json template exists",
+        "metaobject/ingredient.json template exists"
+      ],
+      "fail": [
+        "Ingredient definition does NOT have renderable capability",
+        "Ingredient definition does NOT have publishable capability"
+      ],
+      "warn": [
+        "  Section 'tara-ingredient-hero' has NO link/URL references — cards may not be clickable!",
+        "  Section 'tara-ingredient-hero' has NO link/URL references — cards may not be clickable!"
+      ],
+      "info": [
+        "  5 sections in ingredients page",
+        "  Section: hero (type: tara-ingredient-hero)",
+        "  Section: standards (type: tara-ingredient-hero)",
+        "  Section: featured (type: ingredient-listing)",
+        "  Section 'ingredient-listing' has link/URL references",
+        "    → {{ 'tara-ingredient-listing.css' | asset_url | stylesheet_tag }}",
+        "    → <script src=\"{{ 'ingredient-filter.js' | asset_url }}\" type=\"module\" fetchpriority=\"low\"></script>",
+        "  Section: library (type: ingredient-listing)",
+        "  Section 'ingredient-listing' has link/URL references",
+        "    → {{ 'tara-ingredient-listing.css' | asset_url | stylesheet_tag }}",
+        "    → <script src=\"{{ 'ingredient-filter.js' | asset_url }}\" type=\"module\" fetchpriority=\"low\"></script>",
+        "  Section: faq (type: faq)",
+        "  Section 'faq' has link/URL references",
+        "    → href=\"{{ section.settings.button_link }}\"",
+        "    → href=\"{{ section.settings.button_link }}\"",
+        "    → {{- contact.settings.avatar | image_url: width: max_width | image_tag: loading: 'lazy', sizes: sizes, widths: widths, st",
+        "    → \"type\": \"url\",",
+        "Sample ingredient URL: /pages/ingredient/extracto-de-cebolla-roja",
+        "Total ingredients: 34"
+      ]
+    },
+    "LOCALES & LANGUAGES": {
+      "pass": [
+        "English locale configured",
+        "Arabic locale configured"
+      ],
+      "fail": [],
+      "warn": [],
+      "info": [
+        "  ar [published]",
+        "  en (PRIMARY) [published]"
+      ]
+    },
+    "IMAGE ACCESSIBILITY": {
+      "pass": [
+        "All 8 sampled images are accessible"
+      ],
+      "fail": [],
+      "warn": [],
+      "info": []
+    },
+    "SEO META TAGS": {
+      "pass": [
+        "4/10 sampled products have SEO tags"
+      ],
+      "fail": [],
+      "warn": [
+        "6 products missing SEO meta tags"
+      ],
+      "info": []
+    },
+    "STOREFRONT RENDERING": {
+      "pass": [
+        "Homepage (/): 200 OK (255 KB)",
+        "  Homepage has 4 product links",
+        "  Homepage has 11 collection links",
+        "  Homepage has products section heading",
+        "Ingredients Page (/pages/ingredients): 200 OK (257 KB)",
+        "  Found 3 ingredient links on page",
+        "Quiz Page (/pages/quiz): 200 OK (150 KB)",
+        "Contact Page (/pages/contact): 200 OK (154 KB)",
+        "Collections (/collections): 200 OK (279 KB)"
+      ],
+      "fail": [],
+      "warn": [],
+      "info": [
+        "    Title: Tara Saudi",
+        "  Homepage has 52 <img> tags",
+        "    Title: Our Ingredients\n &ndash; Tara Saudi",
+        "    href=\"https://tara-saudi.myshopify.com/pages/ingredients\"",
+        "    href=\"//tara-saudi.myshopify.com/cdn/shop/t/2/assets/tara-ingredient-listing.css?v=90064264286755274121772988117\"",
+        "    href=\"//tara-saudi.myshopify.com/cdn/shop/t/2/assets/tara-ingredient-listing.css?v=90064264286755274121772988117\"",
+        "  Page contains 'ingredient' references",
+        "    Title: Quiz\n &ndash; Tara Saudi",
+        "    Title: Contact\n &ndash; Tara Saudi",
+        "    Title: Collections\n &ndash; Tara Saudi"
+      ]
+    }
+  },
+  "all_pass": false
+}

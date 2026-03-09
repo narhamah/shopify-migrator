@@ -1,0 +1,35 @@
+{
+  "missing_in_saudi": [
+    "shopify--suitable-for-hair-type",
+    "shopify--target-gender",
+    "shopify--hair-care-items-included",
+    "shopify--hair-loss-type",
+    "shopify--treatment-type",
+    "shopify--constitutive-ingredients",
+    "shopify--product-certifications-standards",
+    "shopify--conditioner-effect",
+    "shopify--age-group",
+    "shopify--product-form",
+    "shopify--scalp-concern"
+  ],
+  "extra_in_saudi": [
+    "blog_author"
+  ],
+  "field_diffs": {
+    "benefit": {
+      "missing_fields": [],
+      "type_mismatches": [
+        {
+          "key": "icon_label",
+          "spain_type": "file_reference",
+          "saudi_type": "single_line_text_field"
+        }
+      ]
+    }
+  },
+  "matching": [
+    "faq_entry",
+    "ingredient",
+    "store_location"
+  ]
+}
