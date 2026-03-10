@@ -378,8 +378,22 @@ def main():
                     })
 
             if translations:
-                shopify.register_translations(gid, ARABIC_LOCALE, translations)
-                registered += len(translations)
+                # Sanitize JSON values: fix literal newlines inside JSON strings
+                for t in translations:
+                    val = t["value"]
+                    if val.startswith(("{", "[")):
+                        try:
+                            json.loads(val)
+                        except json.JSONDecodeError:
+                            # Replace literal newlines with escaped \\n in JSON
+                            t["value"] = val.replace("\n", "\\n")
+
+                # Shopify limits translationsRegister to 250 items per call
+                BATCH_LIMIT = 250
+                for chunk_start in range(0, len(translations), BATCH_LIMIT):
+                    chunk = translations[chunk_start:chunk_start + BATCH_LIMIT]
+                    shopify.register_translations(gid, ARABIC_LOCALE, chunk)
+                    registered += len(chunk)
                 if (i + 1) % 50 == 0 or i + 1 == total:
                     print(f"  [{i+1}/{total}] {registered} translations registered...")
 
