@@ -270,9 +270,9 @@ def main():
                         choices=["none", "low", "medium", "high", "xhigh"],
                         help="Reasoning effort (default: medium)")
     parser.add_argument("--overwrite", action="store_true",
-                        help="Re-translate rows that already have Arabic content")
+                        help="Ignore original CSV translations (re-translate them)")
     parser.add_argument("--reset", action="store_true",
-                        help="Clear progress file and start fresh")
+                        help="Clear progress file (re-translate what this script did before)")
     args = parser.parse_args()
 
     # Default output: Arabic/<input_filename>
@@ -334,7 +334,7 @@ def main():
             skip.append((i, "non-translatable"))
         elif _is_keep_as_is(row):
             keep_as_is.append(i)
-        elif field_id in our_translations and not args.overwrite:
+        elif field_id in our_translations and not args.reset:
             # We translated this in a previous run — apply it, skip API call
             from_previous_run.append((i, field_id))
         elif translated and not args.overwrite:
