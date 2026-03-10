@@ -1,0 +1,89 @@
+======================================================================
+SHOPIFY FLOW: Auto-create collection when Ingredient metaobject is created
+======================================================================
+
+Store: xkgw0m-sm.myshopify.com
+MetafieldDefinition (custom.ingredients): gid://shopify/MetafieldDefinition/157472850153
+Publications: 2 channels
+
+    Online Store                    gid://shopify/Publication/177292902633
+    Point of Sale                   gid://shopify/Publication/177292968169
+
+======================================================================
+TRIGGER
+======================================================================
+
+  Type:  Metaobject entry created
+  Filter: Metaobject type = Ingredient
+
+======================================================================
+ACTION 1: Send Admin API request — collectionCreate
+======================================================================
+
+Mutation: collectionCreate
+
+{
+  "input": {
+    "title": "{{metaobject.name}}",
+    "handle": "{{metaobject.system.handle}}",
+    "ruleSet": {
+      "appliedDisjunctively": false,
+      "rules": [
+        {
+          "column": "PRODUCT_METAFIELD_DEFINITION",
+          "relation": "EQUALS",
+          "condition": "{{metaobject.system.id}}",
+          "conditionObjectId": "gid://shopify/MetafieldDefinition/157472850153"
+        }
+      ]
+    }
+  }
+}
+
+======================================================================
+ACTION 2: Send Admin API request — publishablePublish
+======================================================================
+
+Mutation: publishablePublish
+
+{
+  "id": "{{sendAdminApiRequest.collection.id}}",
+  "input": [
+    {
+      "publicationId": "gid://shopify/Publication/177292902633"
+    },
+    {
+      "publicationId": "gid://shopify/Publication/177292968169"
+    }
+  ]
+}
+
+======================================================================
+ACTION 3: Send Admin API request — metaobjectUpdate
+======================================================================
+
+Mutation: metaobjectUpdate
+
+{
+  "id": "{{metaobject.system.id}}",
+  "metaobject": {
+    "fields": [
+      {
+        "key": "collection",
+        "value": "{{sendAdminApiRequest.collection.id}}"
+      }
+    ]
+  }
+}
+
+======================================================================
+NOTES
+======================================================================
+
+- Action 2 references {{sendAdminApiRequest.collection.id}} from Action 1
+- Action 3 also references {{sendAdminApiRequest.collection.id}} from Action 1
+- In the Shopify Flow UI, use the first "Send Admin API request" output
+  variable for both Action 2 and Action 3
+- The conditionObjectId in Action 1 is the MetafieldDefinition GID for
+  custom.ingredients — this tells the smart collection rule to match
+  products whose custom.ingredients list contains the ingredient metaobject
