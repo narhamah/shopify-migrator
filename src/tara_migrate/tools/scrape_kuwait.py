@@ -444,11 +444,15 @@ def _print_category_tree(items, indent=4):
 # Scraper: fetch all content and output in Shopify format
 # ------------------------------------------------------------------
 class KuwaitScraper:
-    def __init__(self, gql_en, gql_ar=None, en_store=None, ar_store=None):
+    def __init__(self, gql_en, gql_ar=None, en_store=None, ar_store=None,
+                 output_dir_en=None, output_dir_ar=None, lang=None):
         self.gql_en = gql_en
         self.gql_ar = gql_ar or gql_en  # Arabic may come from UAE site
         self.en_store = en_store  # None = default (English on KW)
         self.ar_store = ar_store  # e.g., "ae-ar" on UAE site
+        self.output_dir_en = output_dir_en or OUTPUT_DIR_EN
+        self.output_dir_ar = output_dir_ar or OUTPUT_DIR_AR
+        self.lang = lang  # None = both, "en" = English only, "ar" = Arabic only
         self.spain_products = load_json(os.path.join(SPAIN_DIR, "products.json"))
         self.spain_collections = load_json(os.path.join(SPAIN_DIR, "collections.json"))
         self.spain_pages = load_json(os.path.join(SPAIN_DIR, "pages.json"))
@@ -534,9 +538,19 @@ class KuwaitScraper:
             if category_keys:
                 print(f"    Sitemap category url_keys: {len(category_keys)}")
 
+    def _scrape_en(self):
+        """Whether to scrape English content."""
+        return self.lang is None or self.lang == "en"
+
+    def _scrape_ar(self):
+        """Whether to scrape Arabic content."""
+        return self.lang is None or self.lang == "ar"
+
     def scrape_all(self, only=None):
-        os.makedirs(OUTPUT_DIR_EN, exist_ok=True)
-        os.makedirs(OUTPUT_DIR_AR, exist_ok=True)
+        if self._scrape_en():
+            os.makedirs(self.output_dir_en, exist_ok=True)
+        if self._scrape_ar():
+            os.makedirs(self.output_dir_ar, exist_ok=True)
 
         if only is None or only == "products":
             self.scrape_products()
@@ -554,8 +568,10 @@ class KuwaitScraper:
             src = os.path.join(SPAIN_DIR, fname)
             if os.path.exists(src):
                 data = load_json(src)
-                save_json(data, os.path.join(OUTPUT_DIR_EN, fname))
-                save_json(data, os.path.join(OUTPUT_DIR_AR, fname))
+                if self._scrape_en():
+                    save_json(data, os.path.join(self.output_dir_en, fname))
+                if self._scrape_ar():
+                    save_json(data, os.path.join(self.output_dir_ar, fname))
 
         self._print_summary()
 
@@ -567,26 +583,29 @@ class KuwaitScraper:
         print("SCRAPING PRODUCTS")
         print("=" * 60)
 
-        # Fetch all English products
-        print("\n--- Fetching English products ---")
-        en_raw = self._fetch_all_products(self.gql_en, self.en_store)
-        print(f"  Fetched {len(en_raw)} English products from GraphQL")
+        en_products = None
 
-        en_products = self._map_products(en_raw)
-        save_json(en_products, os.path.join(OUTPUT_DIR_EN, "products.json"))
-        print(f"  Saved {len(en_products)} English products")
+        # Fetch English products
+        if self._scrape_en():
+            print("\n--- Fetching English products ---")
+            en_raw = self._fetch_all_products(self.gql_en, self.en_store)
+            print(f"  Fetched {len(en_raw)} English products from GraphQL")
+            en_products = self._map_products(en_raw)
+            save_json(en_products, os.path.join(self.output_dir_en, "products.json"))
+            print(f"  Saved {len(en_products)} English products")
 
         # Fetch Arabic products
-        if self.ar_store is not None:
-            print("\n--- Fetching Arabic products ---")
-            ar_raw = self._fetch_all_products(self.gql_ar, self.ar_store)
-            print(f"  Fetched {len(ar_raw)} Arabic products from GraphQL")
-            ar_products = self._map_products(ar_raw)
-            save_json(ar_products, os.path.join(OUTPUT_DIR_AR, "products.json"))
-            print(f"  Saved {len(ar_products)} Arabic products")
-        else:
-            print("\n--- No Arabic store code — copying English as placeholder ---")
-            save_json(en_products, os.path.join(OUTPUT_DIR_AR, "products.json"))
+        if self._scrape_ar():
+            if self.ar_store is not None:
+                print("\n--- Fetching Arabic products ---")
+                ar_raw = self._fetch_all_products(self.gql_ar, self.ar_store)
+                print(f"  Fetched {len(ar_raw)} Arabic products from GraphQL")
+                ar_products = self._map_products(ar_raw)
+                save_json(ar_products, os.path.join(self.output_dir_ar, "products.json"))
+                print(f"  Saved {len(ar_products)} Arabic products")
+            elif en_products is not None:
+                print("\n--- No Arabic store code — copying English as placeholder ---")
+                save_json(en_products, os.path.join(self.output_dir_ar, "products.json"))
 
     def _fetch_all_products(self, gql, store_code, page_size=20):
         """Fetch all products via paginated GraphQL queries."""
@@ -787,20 +806,24 @@ class KuwaitScraper:
         print("SCRAPING COLLECTIONS")
         print("=" * 60)
 
-        print("\n--- Fetching English categories ---")
-        en_cats = self._fetch_categories(self.gql_en, self.en_store)
-        en_collections = self._map_categories(en_cats)
-        save_json(en_collections, os.path.join(OUTPUT_DIR_EN, "collections.json"))
-        print(f"  Saved {len(en_collections)} English collections")
+        en_collections = None
 
-        if self.ar_store is not None:
-            print("\n--- Fetching Arabic categories ---")
-            ar_cats = self._fetch_categories(self.gql_ar, self.ar_store)
-            ar_collections = self._map_categories(ar_cats)
-            save_json(ar_collections, os.path.join(OUTPUT_DIR_AR, "collections.json"))
-            print(f"  Saved {len(ar_collections)} Arabic collections")
-        else:
-            save_json(en_collections, os.path.join(OUTPUT_DIR_AR, "collections.json"))
+        if self._scrape_en():
+            print("\n--- Fetching English categories ---")
+            en_cats = self._fetch_categories(self.gql_en, self.en_store)
+            en_collections = self._map_categories(en_cats)
+            save_json(en_collections, os.path.join(self.output_dir_en, "collections.json"))
+            print(f"  Saved {len(en_collections)} English collections")
+
+        if self._scrape_ar():
+            if self.ar_store is not None:
+                print("\n--- Fetching Arabic categories ---")
+                ar_cats = self._fetch_categories(self.gql_ar, self.ar_store)
+                ar_collections = self._map_categories(ar_cats)
+                save_json(ar_collections, os.path.join(self.output_dir_ar, "collections.json"))
+                print(f"  Saved {len(ar_collections)} Arabic collections")
+            elif en_collections is not None:
+                save_json(en_collections, os.path.join(self.output_dir_ar, "collections.json"))
 
     def _fetch_categories(self, gql, store_code):
         result = gql.query("""
@@ -913,16 +936,18 @@ class KuwaitScraper:
             "privacy-policy", "terms-and-conditions", "shipping", "returns",
         ]))
 
-        en_pages = self._fetch_cms_pages(identifiers, self.gql_en, self.en_store)
-        save_json(en_pages, os.path.join(OUTPUT_DIR_EN, "pages.json"))
-        print(f"  Saved {len(en_pages)} English pages")
+        if self._scrape_en():
+            en_pages = self._fetch_cms_pages(identifiers, self.gql_en, self.en_store)
+            save_json(en_pages, os.path.join(self.output_dir_en, "pages.json"))
+            print(f"  Saved {len(en_pages)} English pages")
 
-        if self.ar_store is not None:
-            ar_pages = self._fetch_cms_pages(identifiers, self.gql_ar, self.ar_store)
-            save_json(ar_pages, os.path.join(OUTPUT_DIR_AR, "pages.json"))
-            print(f"  Saved {len(ar_pages)} Arabic pages")
-        else:
-            save_json(self.spain_pages, os.path.join(OUTPUT_DIR_AR, "pages.json"))
+        if self._scrape_ar():
+            if self.ar_store is not None:
+                ar_pages = self._fetch_cms_pages(identifiers, self.gql_ar, self.ar_store)
+                save_json(ar_pages, os.path.join(self.output_dir_ar, "pages.json"))
+                print(f"  Saved {len(ar_pages)} Arabic pages")
+            else:
+                save_json(self.spain_pages, os.path.join(self.output_dir_ar, "pages.json"))
 
     def _fetch_cms_pages(self, identifiers, gql, store_code):
         pages = []
@@ -982,10 +1007,12 @@ class KuwaitScraper:
         print("  Blog articles not available via Magento GraphQL.")
         print("  Copying Spain articles as base — these will need LLM translation.")
 
-        save_json(self.spain_articles, os.path.join(OUTPUT_DIR_EN, "articles.json"))
-        save_json(self.spain_articles, os.path.join(OUTPUT_DIR_AR, "articles.json"))
-        save_json(self.spain_blogs, os.path.join(OUTPUT_DIR_EN, "blogs.json"))
-        save_json(self.spain_blogs, os.path.join(OUTPUT_DIR_AR, "blogs.json"))
+        if self._scrape_en():
+            save_json(self.spain_articles, os.path.join(self.output_dir_en, "articles.json"))
+            save_json(self.spain_blogs, os.path.join(self.output_dir_en, "blogs.json"))
+        if self._scrape_ar():
+            save_json(self.spain_articles, os.path.join(self.output_dir_ar, "articles.json"))
+            save_json(self.spain_blogs, os.path.join(self.output_dir_ar, "blogs.json"))
         print(f"  Copied {len(self.spain_articles)} articles")
 
     # ------------------------------------------------------------------
@@ -996,53 +1023,48 @@ class KuwaitScraper:
         print("SCRAPING METAOBJECTS")
         print("=" * 60)
 
-        # Start with Spain metaobjects as base structure
-        en_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
-        ar_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
-
-        # Slugify all metaobject handles from their name field
-        # (Spain handles are Spanish — we need EN/AR handles)
-        _slugify_metaobject_handles(en_metaobjects)
-        _slugify_metaobject_handles(ar_metaobjects)
-
         # Scrape ingredients from dedicated pages
         print("\n--- Scraping ingredients from HTML pages ---")
-        en_ingredients = self._scrape_ingredients_page(
-            f"{self.gql_en.base_url}/kw-en/ingredients",
-            fallback_urls=[
-                f"{self.gql_en.base_url}/us-en/ingredients",
-                f"{self.gql_en.base_url}/ingredients",
-            ]
-        )
-        ar_ingredients = self._scrape_ingredients_page(
-            f"{self.gql_ar.base_url}/ae-ar/ingredients",
-            fallback_urls=[
-                f"{self.gql_ar.base_url}/ingredients",
-                "https://taraformula.com.kw/ingredients",
-            ]
-        )
 
-        if en_ingredients:
-            print(f"  Found {len(en_ingredients)} English ingredients")
-            self._merge_ingredients(en_metaobjects, en_ingredients)
-        else:
-            print("  No English ingredients scraped from HTML")
+        if self._scrape_en():
+            en_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
+            _slugify_metaobject_handles(en_metaobjects)
+            en_ingredients = self._scrape_ingredients_page(
+                f"{self.gql_en.base_url}/kw-en/ingredients",
+                fallback_urls=[
+                    f"{self.gql_en.base_url}/us-en/ingredients",
+                    f"{self.gql_en.base_url}/ingredients",
+                ]
+            )
+            if en_ingredients:
+                print(f"  Found {len(en_ingredients)} English ingredients")
+                self._merge_ingredients(en_metaobjects, en_ingredients)
+            else:
+                print("  No English ingredients scraped from HTML")
+            _slugify_metaobject_handles(en_metaobjects)
+            save_json(en_metaobjects, os.path.join(self.output_dir_en, "metaobjects.json"))
+            total = sum(len(td.get("objects", [])) for td in en_metaobjects.values())
+            print(f"  Saved {total} EN metaobjects across {len(en_metaobjects)} types")
 
-        if ar_ingredients:
-            print(f"  Found {len(ar_ingredients)} Arabic ingredients")
-            self._merge_ingredients(ar_metaobjects, ar_ingredients)
-        else:
-            print("  No Arabic ingredients scraped from HTML")
-
-        # Re-slugify handles after merge (names may have changed)
-        _slugify_metaobject_handles(en_metaobjects)
-        _slugify_metaobject_handles(ar_metaobjects)
-
-        save_json(en_metaobjects, os.path.join(OUTPUT_DIR_EN, "metaobjects.json"))
-        save_json(ar_metaobjects, os.path.join(OUTPUT_DIR_AR, "metaobjects.json"))
-
-        total = sum(len(td.get("objects", [])) for td in en_metaobjects.values())
-        print(f"  Saved {total} metaobjects across {len(en_metaobjects)} types")
+        if self._scrape_ar():
+            ar_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
+            _slugify_metaobject_handles(ar_metaobjects)
+            ar_ingredients = self._scrape_ingredients_page(
+                f"{self.gql_ar.base_url}/ae-ar/ingredients",
+                fallback_urls=[
+                    f"{self.gql_ar.base_url}/ingredients",
+                    "https://taraformula.com.kw/ingredients",
+                ]
+            )
+            if ar_ingredients:
+                print(f"  Found {len(ar_ingredients)} Arabic ingredients")
+                self._merge_ingredients(ar_metaobjects, ar_ingredients)
+            else:
+                print("  No Arabic ingredients scraped from HTML")
+            _slugify_metaobject_handles(ar_metaobjects)
+            save_json(ar_metaobjects, os.path.join(self.output_dir_ar, "metaobjects.json"))
+            total = sum(len(td.get("objects", [])) for td in ar_metaobjects.values())
+            print(f"  Saved {total} AR metaobjects across {len(ar_metaobjects)} types")
 
     def _scrape_ingredients_page(self, url, fallback_urls=None):
         """Scrape ingredients from the ingredients listing page."""
@@ -1225,7 +1247,12 @@ class KuwaitScraper:
         print("SCRAPE SUMMARY")
         print("=" * 60)
 
-        for label, directory in [("English", OUTPUT_DIR_EN), ("Arabic", OUTPUT_DIR_AR)]:
+        dirs = []
+        if self._scrape_en():
+            dirs.append(("English", self.output_dir_en))
+        if self._scrape_ar():
+            dirs.append(("Arabic", self.output_dir_ar))
+        for label, directory in dirs:
             print(f"\n  {label} ({directory}/):")
             for fname in ["products.json", "collections.json", "pages.json",
                           "articles.json", "blogs.json", "metaobjects.json"]:
@@ -1282,6 +1309,10 @@ def main():
     parser.add_argument("--scrape", action="store_true", help="Scrape all content")
     parser.add_argument("--only", choices=["products", "collections", "pages", "articles", "metaobjects"],
                        help="Scrape only a specific content type")
+    parser.add_argument("--lang", choices=["en", "ar"],
+                       help="Scrape only one language (default: both)")
+    parser.add_argument("--output-dir",
+                       help="Output directory (overrides default for the selected language)")
     parser.add_argument("--en-site", default=DEFAULT_EN_SITE,
                        help=f"English site URL (default: {DEFAULT_EN_SITE})")
     parser.add_argument("--en-store", default=DEFAULT_EN_STORE,
@@ -1297,6 +1328,19 @@ def main():
     gql_en = MagentoGraphQL(base_url=args.en_site, delay=args.delay)
     gql_ar = MagentoGraphQL(base_url=args.ar_site, delay=args.delay)
 
+    # Determine output directories
+    output_dir_en = OUTPUT_DIR_EN
+    output_dir_ar = OUTPUT_DIR_AR
+    if args.output_dir:
+        if args.lang == "en":
+            output_dir_en = args.output_dir
+        elif args.lang == "ar":
+            output_dir_ar = args.output_dir
+        else:
+            # No --lang specified: use output-dir for both
+            output_dir_en = os.path.join(args.output_dir, "english")
+            output_dir_ar = os.path.join(args.output_dir, "arabic")
+
     if args.explore:
         explore(gql_en, gql_ar, args.en_store, args.ar_store)
     elif args.scrape:
@@ -1305,6 +1349,9 @@ def main():
             gql_ar=gql_ar,
             en_store=args.en_store,
             ar_store=args.ar_store,
+            output_dir_en=output_dir_en,
+            output_dir_ar=output_dir_ar,
+            lang=args.lang,
         )
         scraper.scrape_all(only=args.only)
     else:
@@ -1312,6 +1359,8 @@ def main():
         print("  python scrape_kuwait.py --explore")
         print("  python scrape_kuwait.py --scrape")
         print("  python scrape_kuwait.py --scrape --only products")
+        print("  python scrape_kuwait.py --scrape --lang ar")
+        print("  python scrape_kuwait.py --scrape --lang ar --output-dir Arabic/")
 
 
 if __name__ == "__main__":

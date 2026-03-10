@@ -34,8 +34,8 @@ ARABIC_LOCALE = "ar"
 RESOURCE_TYPE_CONFIG = {
     "PRODUCT": ("gid://shopify/Product/", "product", "prod"),
     "COLLECTION": ("gid://shopify/Collection/", "collection", "coll"),
-    "ONLINE_STORE_PAGE": ("gid://shopify/OnlineStorePage/", "page", "page"),
-    "ONLINE_STORE_ARTICLE": ("gid://shopify/OnlineStoreArticle/", "article", "art"),
+    "ONLINE_STORE_PAGE": ("gid://shopify/Page/", "page", "page"),
+    "ONLINE_STORE_ARTICLE": ("gid://shopify/Article/", "article", "art"),
     "ONLINE_STORE_BLOG": ("gid://shopify/Blog/", "blog", "blog"),
     "METAOBJECT": ("gid://shopify/Metaobject/", "metaobject", "mo"),
 }
@@ -263,15 +263,35 @@ def _extract_handle_from_resource(resource):
     return ""
 
 
+def _should_translate_field(key, en_value):
+    """Check if a translatable field should be translated.
+
+    Skips empty values, handles (which cause conflicts), and reference fields.
+    """
+    if not en_value or not en_value.strip():
+        return False
+    # Skip handle fields — they cause "already taken" errors
+    if key == "handle":
+        return False
+    # Skip fields that are just IDs or references
+    if en_value.startswith("gid://"):
+        return False
+    return True
+
+
 def process_resource_type(
     client, resource_type, lookup, progress, progress_file,
     openai_client=None, model="gpt-5-mini", dry_run=False, ai_fallback=False,
 ):
-    """Process a single resource type: fetch from store, match local, register.
+    """Process a single resource type: query ALL store resources, translate everything.
 
-    Two-pass approach:
-      Pass 1: Collect all resources and identify gaps
-      Pass 2: (Optional) AI-translate gaps in batch, then register all
+    Store-first approach:
+      1. Query the store for ALL translatable resources of this type
+      2. For each resource, check each translatable field:
+         - If local Arabic data exists → use it
+         - If not and AI fallback enabled → add to AI batch
+      3. Batch AI-translate all gaps
+      4. Register all translations
 
     Args:
         client: ShopifyClient instance (None for dry run)
@@ -285,7 +305,7 @@ def process_resource_type(
         ai_fallback: if True, use AI for missing translations
     """
     config = RESOURCE_TYPE_CONFIG[resource_type]
-    gid_prefix, progress_prefix, _ = config
+    _, progress_prefix, _ = config
 
     print(f"\n{'='*60}")
     print(f"Processing {resource_type} translations...")
@@ -304,115 +324,82 @@ def process_resource_type(
         print(f"  Handles with data: {matched}/{len(lookup)}")
         return
 
-    # For metaobjects, use get_translatable_resources to list all
-    # For others, we iterate using id_map + local data
+    # Metaobjects have special GID resolution via id_map
     if resource_type == "METAOBJECT":
         _process_metaobjects(client, lookup, progress, progress_file,
                              openai_client, model, ai_fallback)
         return
 
-    # For standard resources, iterate local data and register
-    id_map = load_json(ID_MAP_FILE)
-    resource_key = {
-        "PRODUCT": "products",
-        "COLLECTION": "collections",
-        "ONLINE_STORE_PAGE": "pages",
-        "ONLINE_STORE_ARTICLE": "articles",
-        "ONLINE_STORE_BLOG": "blogs",
-    }.get(resource_type)
+    # ---- Store-first: query ALL translatable resources from the store ----
+    print(f"  Fetching all {resource_type} resources from store...")
+    all_resources = client.get_translatable_resources(resource_type)
+    total = len(all_resources)
+    print(f"  Found {total} translatable resources on store")
 
-    if not resource_key:
-        print(f"  Unknown resource type: {resource_type}")
-        return
-
-    id_section = id_map.get(resource_key, {})
-    # We need to iterate Arabic data and match to dest IDs
-    # Load the Arabic JSON to get handle → source_id mapping
-    type_prefix = config[2]
-    filename, _ = FIELD_BUILDERS.get(type_prefix, (None, None))
-    if not filename:
-        return
-
-    ar_items = load_json(os.path.join(AR_DIR, filename))
-    if isinstance(ar_items, dict):
-        ar_items = []  # handle empty/wrong format
-
-    # Build handle → dest_id mapping
-    handle_to_dest = {}
-    for item in ar_items:
-        source_id = str(item.get("id", ""))
-        handle = item.get("handle", "")
-        dest_id = id_section.get(source_id)
-        if dest_id and handle:
-            handle_to_dest[handle] = str(dest_id)
-
-    # Also check English data for handles that may have different IDs
-    en_filename = filename
-    en_items = load_json(os.path.join(EN_DIR, en_filename))
-    if isinstance(en_items, list):
-        for item in en_items:
-            source_id = str(item.get("id", ""))
-            handle = item.get("handle", "")
-            dest_id = id_section.get(source_id)
-            if dest_id and handle and handle not in handle_to_dest:
-                handle_to_dest[handle] = str(dest_id)
-
-    # Collect gaps for AI fallback
-    gaps = []
-    resource_contexts = []  # (handle, dest_id, gid, arabic_fields, translatable_content)
-
-    total = len(handle_to_dest)
+    gaps = []  # fields needing AI translation
     done_count = 0
     skip_count = 0
+    local_count = 0
 
-    for i, (handle, dest_id) in enumerate(handle_to_dest.items()):
-        progress_key = f"{progress_prefix}_{dest_id}"
+    for i, resource in enumerate(all_resources):
+        gid = resource["resourceId"]
+        # Extract numeric ID from GID for progress tracking
+        resource_id = gid.rsplit("/", 1)[-1]
+        progress_key = f"{progress_prefix}_{resource_id}"
+
         if progress_key in progress:
             skip_count += 1
             continue
 
-        ar_fields = lookup.get(handle, {})
-        if not ar_fields:
-            # Try with the Arabic handle (some lookups use Arabic handles)
-            continue
+        tc = resource.get("translatableContent", [])
+        handle = _extract_handle_from_resource(resource)
+        label = f"  [{i+1}/{total}] {handle or resource_id}"
 
-        gid = f"{gid_prefix}{dest_id}"
-        label = f"  [{i+1}/{total}] {handle[:50]}"
+        # Look up local Arabic data by handle
+        ar_fields = lookup.get(handle, {}) if handle else {}
 
-        try:
-            resource = client.get_translatable_resource(gid)
-            if not resource:
-                print(f"{label} — could not fetch translatable content")
+        # Build translation inputs: local data for known fields
+        local_translations = []
+        for item in tc:
+            key = item["key"]
+            en_value = item.get("value", "")
+
+            if not _should_translate_field(key, en_value):
                 continue
 
-            tc = resource.get("translatableContent", [])
+            if key in ar_fields and ar_fields[key]:
+                # Have local Arabic data
+                local_translations.append({
+                    "key": key,
+                    "value": ar_fields[key],
+                    "locale": ARABIC_LOCALE,
+                    "translatableContentDigest": item["digest"],
+                })
+            elif ai_fallback and openai_client:
+                # No local data — add to AI gaps
+                gaps.append({
+                    "id": f"{gid}|{key}",
+                    "value": en_value,
+                    "_digest": item["digest"],
+                })
 
-            # Check for gaps — fields that exist on store but not in local data
-            if ai_fallback and openai_client:
-                for item in tc:
-                    key = item["key"]
-                    en_value = item.get("value", "")
-                    if en_value and key not in ar_fields:
-                        gaps.append({
-                            "id": f"{gid}|{key}",
-                            "value": en_value,
-                        })
+        # Register local translations immediately
+        try:
+            if local_translations:
+                client.register_translations(gid, ARABIC_LOCALE, local_translations)
+                local_count += len(local_translations)
+                print(f"{label} — registered {len(local_translations)} local translations")
+            elif not (ai_fallback and openai_client):
+                # No local data and no AI — nothing to do
+                print(f"{label} — no local Arabic data")
 
-            translations = build_translation_inputs(tc, ar_fields)
-
-            if resource_type == "PRODUCT":
-                # Handle product image alt text
+            # Product image alt text
+            if resource_type == "PRODUCT" and handle:
                 img_count = _register_product_image_alts(
-                    client, dest_id, handle, lookup
+                    client, resource_id, handle, lookup
                 )
                 if img_count:
-                    resource_contexts.append(("img", handle, img_count))
-
-            if translations:
-                client.register_translations(gid, ARABIC_LOCALE, translations)
-                print(f"{label} — registered {len(translations)} translations")
-            else:
-                print(f"{label} — no matching translatable fields")
+                    print(f"    + {img_count} image alts")
 
             progress[progress_key] = True
             done_count += 1
@@ -420,132 +407,155 @@ def process_resource_type(
         except Exception as e:
             print(f"{label} — error: {e}")
 
-    # AI fallback: batch translate gaps
+    # ---- Pass 2: AI batch translate all gaps ----
     if gaps and ai_fallback and openai_client:
-        print(f"\n  AI fallback: {len(gaps)} gaps to translate...")
-        ai_translations = _translate_gaps_batch(openai_client, model, gaps)
+        print(f"\n  AI fallback: {len(gaps)} fields to translate...")
+        # Extract just id+value for the translation batch
+        gap_inputs = [{"id": g["id"], "value": g["value"]} for g in gaps]
+        ai_translations = _translate_gaps_batch(openai_client, model, gap_inputs)
 
-        # Register AI translations
-        ai_registered = 0
+        # Build digest lookup for registration
+        digest_by_gap_id = {g["id"]: g["_digest"] for g in gaps}
+
+        # Group AI translations by GID for efficient registration
+        by_gid = {}
         for gap_id, translated_value in ai_translations.items():
             gid, key = gap_id.split("|", 1)
+            digest = digest_by_gap_id.get(gap_id, "")
+            by_gid.setdefault(gid, []).append({
+                "key": key,
+                "value": translated_value,
+                "locale": ARABIC_LOCALE,
+                "translatableContentDigest": digest,
+            })
+
+        ai_registered = 0
+        ai_errors = 0
+        for gid, translations in by_gid.items():
             try:
-                resource = client.get_translatable_resource(gid)
-                if resource:
-                    ai_inputs = build_translation_inputs(
-                        resource["translatableContent"],
-                        {key: translated_value}
-                    )
-                    if ai_inputs:
-                        client.register_translations(gid, ARABIC_LOCALE, ai_inputs)
-                        ai_registered += 1
+                client.register_translations(gid, ARABIC_LOCALE, translations)
+                ai_registered += len(translations)
             except Exception as e:
-                print(f"    AI translation error for {gid}|{key}: {e}")
-        print(f"  AI fallback: registered {ai_registered} translations")
+                ai_errors += 1
+                print(f"    AI registration error for {gid}: {e}")
+        print(f"  AI fallback: registered {ai_registered} translations ({ai_errors} errors)")
+    elif gaps:
+        print(f"\n  {len(gaps)} fields need translation but AI fallback not enabled")
 
     if skip_count:
         print(f"  Skipped {skip_count} already-done resources")
-    print(f"  Completed: {done_count} new translations registered")
+    print(f"  Completed: {done_count} resources, {local_count} local translations")
 
 
 def _process_metaobjects(client, lookup, progress, progress_file,
                          openai_client, model, ai_fallback):
-    """Process metaobject translations using id_map for GID resolution."""
-    id_map = load_json(ID_MAP_FILE)
-    ar_metaobjects = load_json(os.path.join(AR_DIR, "metaobjects.json"))
-    en_metaobjects = load_json(os.path.join(EN_DIR, "metaobjects.json"))
+    """Process ALL metaobject translations — store-first approach.
 
-    if not isinstance(ar_metaobjects, dict):
-        print("  No metaobject data found")
-        return
+    Queries the store for all METAOBJECT translatable resources, then
+    matches against local data. AI-translates any gaps.
+    """
+    print("  Fetching all METAOBJECT resources from store...")
+    all_resources = client.get_translatable_resources("METAOBJECT")
+    total = len(all_resources)
+    print(f"  Found {total} translatable metaobjects on store")
 
     gaps = []
     total_registered = 0
+    skip_count = 0
+    done_count = 0
 
-    for mo_type, ar_type_data in ar_metaobjects.items():
-        ar_objects = ar_type_data.get("objects", [])
-        en_objects = en_metaobjects.get(mo_type, {}).get("objects", [])
-        en_by_handle = {o.get("handle"): o for o in en_objects}
-        map_key = f"metaobjects_{mo_type}"
+    for i, resource in enumerate(all_resources):
+        gid = resource["resourceId"]
+        resource_id = gid.rsplit("/", 1)[-1]
+        progress_key = f"metaobject_{gid}"
 
-        print(f"\n  {mo_type}: {len(ar_objects)} objects")
+        # Also check old-style progress keys
+        if progress_key in progress or f"metaobject_{resource_id}" in progress:
+            skip_count += 1
+            continue
 
-        for j, ar_obj in enumerate(ar_objects):
-            handle = ar_obj.get("handle", "")
-            source_id = ar_obj.get("id", "")
-            dest_id = id_map.get(map_key, {}).get(source_id)
+        tc = resource.get("translatableContent", [])
+        handle = _extract_handle_from_resource(resource)
 
-            if not dest_id:
-                en_obj = en_by_handle.get(handle)
-                if en_obj:
-                    dest_id = id_map.get(map_key, {}).get(en_obj.get("id", ""))
-                if not dest_id:
-                    continue
+        # Try to determine the metaobject type from GID or content
+        # The lookup uses composite keys like "shopify--suitable-for-hair-type.damaged"
+        # Try matching by handle across all type prefixes in lookup
+        ar_fields = {}
+        for composite_key, fields in lookup.items():
+            if composite_key.endswith(f".{handle}"):
+                ar_fields = fields
+                break
 
-            progress_key = f"metaobject_{dest_id}"
-            if progress_key in progress:
+        label = f"  [{i+1}/{total}] {handle or resource_id}"
+
+        # Build translation inputs: local data + gaps
+        local_translations = []
+        for item in tc:
+            key = item["key"]
+            en_value = item.get("value", "")
+
+            if not _should_translate_field(key, en_value):
                 continue
 
-            # Get Arabic fields from lookup (progress file + full JSON)
-            composite_key = f"{mo_type}.{handle}"
-            ar_fields = lookup.get(composite_key, {})
-            if not ar_fields:
-                ar_fields = build_metaobject_arabic_fields(ar_obj)
+            if key in ar_fields and ar_fields[key]:
+                local_translations.append({
+                    "key": key,
+                    "value": ar_fields[key],
+                    "locale": ARABIC_LOCALE,
+                    "translatableContentDigest": item["digest"],
+                })
+            elif ai_fallback and openai_client:
+                gaps.append({
+                    "id": f"{gid}|{key}",
+                    "value": en_value,
+                    "_digest": item["digest"],
+                })
 
-            label = f"    [{j+1}/{len(ar_objects)}] {handle}"
+        try:
+            if local_translations:
+                client.register_translations(gid, ARABIC_LOCALE, local_translations)
+                total_registered += len(local_translations)
+                print(f"{label} — registered {len(local_translations)}")
 
-            try:
-                resource = client.get_translatable_resource(dest_id)
-                if not resource:
-                    print(f"{label} — could not fetch")
-                    continue
-
-                tc = resource.get("translatableContent", [])
-
-                # Collect gaps for AI
-                if ai_fallback and openai_client:
-                    for item in tc:
-                        key = item["key"]
-                        en_value = item.get("value", "")
-                        if en_value and key not in ar_fields:
-                            gaps.append({
-                                "id": f"{dest_id}|{key}",
-                                "value": en_value,
-                            })
-
-                translations = build_translation_inputs(tc, ar_fields)
-                if translations:
-                    client.register_translations(dest_id, ARABIC_LOCALE, translations)
-                    print(f"{label} — registered {len(translations)}")
-                    total_registered += len(translations)
-
-                progress[progress_key] = True
-                save_json(progress, progress_file)
-            except Exception as e:
-                print(f"{label} — error: {e}")
+            progress[progress_key] = True
+            done_count += 1
+            save_json(progress, progress_file)
+        except Exception as e:
+            print(f"{label} — error: {e}")
 
     # AI fallback for metaobject gaps
     if gaps and ai_fallback and openai_client:
-        print(f"\n  AI fallback for metaobjects: {len(gaps)} gaps...")
-        ai_translations = _translate_gaps_batch(openai_client, model, gaps)
-        ai_registered = 0
-        for gap_id, translated_value in ai_translations.items():
-            dest_gid, key = gap_id.split("|", 1)
-            try:
-                resource = client.get_translatable_resource(dest_gid)
-                if resource:
-                    ai_inputs = build_translation_inputs(
-                        resource["translatableContent"],
-                        {key: translated_value}
-                    )
-                    if ai_inputs:
-                        client.register_translations(dest_gid, ARABIC_LOCALE, ai_inputs)
-                        ai_registered += 1
-            except Exception as e:
-                print(f"    AI error for {dest_gid}|{key}: {e}")
-        print(f"  AI fallback: registered {ai_registered} metaobject translations")
+        print(f"\n  AI fallback for metaobjects: {len(gaps)} fields...")
+        gap_inputs = [{"id": g["id"], "value": g["value"]} for g in gaps]
+        ai_translations = _translate_gaps_batch(openai_client, model, gap_inputs)
 
-    print(f"  Total metaobject translations registered: {total_registered}")
+        digest_by_gap_id = {g["id"]: g["_digest"] for g in gaps}
+
+        by_gid = {}
+        for gap_id, translated_value in ai_translations.items():
+            gid, key = gap_id.split("|", 1)
+            digest = digest_by_gap_id.get(gap_id, "")
+            by_gid.setdefault(gid, []).append({
+                "key": key,
+                "value": translated_value,
+                "locale": ARABIC_LOCALE,
+                "translatableContentDigest": digest,
+            })
+
+        ai_registered = 0
+        for gid, translations in by_gid.items():
+            try:
+                client.register_translations(gid, ARABIC_LOCALE, translations)
+                ai_registered += len(translations)
+            except Exception as e:
+                print(f"    AI error for {gid}: {e}")
+        print(f"  AI fallback: registered {ai_registered} metaobject translations")
+    elif gaps:
+        print(f"\n  {len(gaps)} metaobject fields need translation but AI fallback not enabled")
+
+    if skip_count:
+        print(f"  Skipped {skip_count} already-done metaobjects")
+    print(f"  Completed: {done_count} resources, {total_registered} local translations")
 
 
 # =====================================================================
