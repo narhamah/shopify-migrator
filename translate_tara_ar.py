@@ -148,7 +148,7 @@ def load_developer_prompt():
 
 
 def translate_batch_responses_api(client, model, fields, developer_prompt,
-                                  batch_num, total_batches):
+                                  batch_num, total_batches, reasoning_effort="medium"):
     """Translate a batch of fields using the OpenAI Responses API with prompt caching.
 
     Uses prompt_cache_key so the developer prompt is cached across all requests.
@@ -170,7 +170,7 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
                 model=model,
                 instructions=developer_prompt,
                 input=user_message,
-                temperature=0.3,
+                reasoning={"effort": reasoning_effort},
             )
 
             # Extract text output from the response
@@ -266,6 +266,9 @@ def main():
                         help="Max tokens per batch (default: 6000)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
+    parser.add_argument("--reasoning", default="medium",
+                        choices=["none", "low", "medium", "high", "xhigh"],
+                        help="Reasoning effort (default: medium)")
     parser.add_argument("--overwrite", action="store_true",
                         help="Re-translate rows that already have Arabic content")
     args = parser.parse_args()
@@ -416,7 +419,7 @@ def main():
         api_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
         t_map, tokens = translate_batch_responses_api(
             client, args.model, api_batch, developer_prompt,
-            i + 1, len(batches),
+            i + 1, len(batches), reasoning_effort=args.reasoning,
         )
         all_translations.update(t_map)
         total_tokens += tokens
