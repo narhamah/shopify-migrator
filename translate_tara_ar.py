@@ -343,11 +343,17 @@ def main():
         else:
             to_translate.append(i)
 
+    # Count gaps: if we have progress, fields in to_translate are gaps
+    # (they were eligible but the model missed them in partial batches)
+    n_gaps = len(to_translate) if our_translations and not args.reset else 0
+
     print(f"\nBreakdown:")
     print(f"  From original CSV (already done):  {len(from_csv)}")
     print(f"  From previous run (resuming):      {len(from_previous_run)}")
     print(f"  Keep as-is (URLs/images/config):   {len(keep_as_is)}")
     print(f"  Need AI translation NOW:           {len(to_translate)}")
+    if n_gaps:
+        print(f"    ↳ of which {n_gaps} are gaps/retries from previous run")
     print(f"  Skip (empty/non-translatable):     {len(skip)}")
 
     # Apply keep-as-is
