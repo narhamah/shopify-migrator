@@ -276,7 +276,7 @@ def main():
     print(f"Total tokens used: {total_tokens:,}")
 
     # Write output CSV
-    with open(args.output, "w", encoding="utf-8", newline="") as f:
+    with open(args.output, "w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
