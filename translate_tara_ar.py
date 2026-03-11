@@ -101,6 +101,27 @@ def _is_keep_as_is(row):
     return False
 
 
+def _has_arabic(text, min_ratio=0.3):
+    """Check if text contains sufficient Arabic characters.
+
+    Returns False for text that's mostly Latin/Spanish/English.
+    Ignores HTML tags, CSS, and JSON structure when counting.
+    """
+    # Strip HTML tags and CSS for ratio check
+    stripped = re.sub(r"<[^>]+>", " ", text)
+    stripped = re.sub(r"\{[^}]*\}", " ", stripped)  # CSS blocks
+    stripped = stripped.strip()
+    if not stripped:
+        return True  # empty after stripping = structural content, OK
+
+    arabic = len(re.findall(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", stripped))
+    alpha = len(re.findall(r"[a-zA-ZÀ-ÿ\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", stripped))
+
+    if alpha == 0:
+        return True  # no letters at all (numbers, symbols) = OK
+    return arabic / alpha >= min_ratio
+
+
 # =====================================================================
 # Token estimation & batching
 # =====================================================================
@@ -156,7 +177,8 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
     """
     toon_input = to_toon(fields)
     user_message = (
-        "Translate the following TOON input into Tara Arabic and return TOON only.\n\n"
+        "Translate the following TOON input into Tara Arabic and return TOON only.\n"
+        "The source text may be in English or Spanish — translate both to Arabic.\n\n"
         f"<TOON>\n{toon_input}\n</TOON>"
     )
 
@@ -269,6 +291,8 @@ def main():
     parser.add_argument("--reasoning", default="medium",
                         choices=["minimal", "low", "medium", "high"],
                         help="Reasoning effort (default: medium)")
+    parser.add_argument("--fix", action="store_true",
+                        help="Re-translate fields that have no/low Arabic (bad translations)")
     parser.add_argument("--overwrite", action="store_true",
                         help="Ignore original CSV translations (re-translate them)")
     parser.add_argument("--reset", action="store_true",
@@ -305,6 +329,18 @@ def main():
         with open(progress_file, "r", encoding="utf-8") as f:
             our_translations = json.load(f)
 
+    # --fix: purge bad translations from progress (non-Arabic results)
+    if args.fix and our_translations:
+        bad_keys = [k for k, v in our_translations.items() if not _has_arabic(v)]
+        if bad_keys:
+            for k in bad_keys:
+                del our_translations[k]
+            with open(progress_file, "w", encoding="utf-8") as f:
+                json.dump(our_translations, f, ensure_ascii=False)
+            print(f"--fix: purged {len(bad_keys)} bad translations from progress")
+        else:
+            print("--fix: progress file is clean (all have Arabic)")
+
     # ----------------------------------------------------------------
     # 3. Read CSV
     # ----------------------------------------------------------------
@@ -322,6 +358,7 @@ def main():
     from_previous_run = []  # Translated by us in a previous run
     keep_as_is = []         # URLs, images, config — copy as-is
     skip = []               # Empty, handles, non-translatable
+    fix_bad_csv = []        # --fix: CSV has translation but it's not Arabic
 
     for i, row in enumerate(rows):
         default = row.get("Default content", "").strip()
@@ -338,22 +375,29 @@ def main():
             # We translated this in a previous run — apply it, skip API call
             from_previous_run.append((i, field_id))
         elif translated and not args.overwrite:
-            # Was already in the original CSV export
-            from_csv.append(i)
+            # Has translated content — but is it actually Arabic?
+            if args.fix and not _has_arabic(translated):
+                # Bad translation (Spanish/English left as-is) → re-translate
+                fix_bad_csv.append(i)
+                to_translate.append(i)
+            else:
+                from_csv.append(i)
         else:
             to_translate.append(i)
 
     # Count gaps: if we have progress, fields in to_translate are gaps
     # (they were eligible but the model missed them in partial batches)
-    n_gaps = len(to_translate) if our_translations and not args.reset else 0
+    n_gaps = len(to_translate) - len(fix_bad_csv) if our_translations and not args.reset else 0
 
     print(f"\nBreakdown:")
     print(f"  From original CSV (already done):  {len(from_csv)}")
     print(f"  From previous run (resuming):      {len(from_previous_run)}")
     print(f"  Keep as-is (URLs/images/config):   {len(keep_as_is)}")
     print(f"  Need AI translation NOW:           {len(to_translate)}")
-    if n_gaps:
-        print(f"    ↳ of which {n_gaps} are gaps/retries from previous run")
+    if fix_bad_csv:
+        print(f"    ↳ {len(fix_bad_csv)} bad translations (no Arabic) to re-translate")
+    if n_gaps > 0:
+        print(f"    ↳ {n_gaps} gaps/retries from previous run")
     print(f"  Skip (empty/non-translatable):     {len(skip)}")
 
     # Apply keep-as-is
