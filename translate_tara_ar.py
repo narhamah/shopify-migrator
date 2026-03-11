@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from tara_migrate.translation.toon import from_toon, to_toon  # noqa: E402
+from tara_migrate.translation.toon import DELIM, from_toon, to_toon  # noqa: E402
 
 ARABIC_DIR = os.path.join(os.path.dirname(__file__), "Arabic")
 PROMPT_FILE = os.path.join(ARABIC_DIR, "tara_cached_developer_prompt.txt")
@@ -193,6 +193,31 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
                 reasoning={"effort": reasoning_effort},
             )
 
+            # Check for refusal before parsing
+            for item in response.output:
+                if item.type == "message":
+                    for content in item.content:
+                        if getattr(content, "type", "") == "refusal":
+                            refusal_text = getattr(content, "refusal", str(content))
+                            print(f"    REFUSAL (attempt {attempt+1}): {refusal_text}")
+                            # Dump the input that triggered refusal
+                            debug_file = os.path.join(ARABIC_DIR, f".debug_refusal_batch_{batch_num}.txt")
+                            with open(debug_file, "w", encoding="utf-8") as df:
+                                df.write(f"=== REFUSAL (attempt {attempt+1}) ===\n")
+                                df.write(f"{refusal_text}\n\n")
+                                df.write(f"=== INPUT TOON ({len(fields)} fields) ===\n")
+                                df.write(toon_input[:5000])
+                            print(f"    Refusal debug dumped to {debug_file}")
+                            if attempt < 3:
+                                print("    Retrying...")
+                                time.sleep(2)
+                                break
+                    else:
+                        continue
+                    break  # break outer loop if refusal found
+            else:
+                pass  # no refusal found, continue normally
+
             # Extract text output from the response
             result = ""
             for item in response.output:
@@ -202,6 +227,21 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
                             result += content.text
 
             result = result.strip()
+
+            # Detect text-based refusal (model says sorry instead of TOON)
+            if result and not DELIM in result and ("sorry" in result.lower() or "can't process" in result.lower()):
+                print(f"    TEXT REFUSAL (attempt {attempt+1}): {result[:200]}")
+                debug_file = os.path.join(ARABIC_DIR, f".debug_refusal_batch_{batch_num}.txt")
+                with open(debug_file, "w", encoding="utf-8") as df:
+                    df.write(f"=== TEXT REFUSAL (attempt {attempt+1}) ===\n")
+                    df.write(f"{result}\n\n")
+                    df.write(f"=== INPUT TOON ({len(fields)} fields, first 5000 chars) ===\n")
+                    df.write(toon_input[:5000])
+                print(f"    Refusal debug dumped to {debug_file}")
+                if attempt < 3:
+                    time.sleep(2)
+                    continue
+                return {}, 0
 
             # Strip markdown code fences if model wraps output
             if result.startswith("```"):
