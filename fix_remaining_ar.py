@@ -269,21 +269,33 @@ def fetch_translatable_resources(client, gids):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource."""
-    try:
-        result = client._graphql(REGISTER_TRANSLATIONS_MUTATION, {
-            "resourceId": gid,
-            "translations": translations_input,
-        })
-        user_errors = result.get("translationsRegister", {}).get("userErrors", [])
-        if user_errors:
-            for ue in user_errors:
-                print(f"    ERROR {gid}: {ue['field']}: {ue['message']}")
-            return len(translations_input) - len(user_errors), len(user_errors)
-        return len(translations_input), 0
-    except Exception as e:
-        print(f"    ERROR uploading {gid}: {e}")
-        return 0, len(translations_input)
+    """Upload translations for a single resource, chunking if needed (Shopify limit: 250)."""
+    MAX_PER_REQUEST = 250
+    total_uploaded = 0
+    total_errors = 0
+
+    for chunk_start in range(0, len(translations_input), MAX_PER_REQUEST):
+        chunk = translations_input[chunk_start:chunk_start + MAX_PER_REQUEST]
+        try:
+            result = client._graphql(REGISTER_TRANSLATIONS_MUTATION, {
+                "resourceId": gid,
+                "translations": chunk,
+            })
+            user_errors = result.get("translationsRegister", {}).get("userErrors", [])
+            if user_errors:
+                for ue in user_errors:
+                    print(f"    ERROR {gid}: {ue['field']}: {ue['message']}")
+                total_uploaded += len(chunk) - len(user_errors)
+                total_errors += len(user_errors)
+            else:
+                total_uploaded += len(chunk)
+        except Exception as e:
+            print(f"    ERROR uploading {gid}: {e}")
+            total_errors += len(chunk)
+        if chunk_start + MAX_PER_REQUEST < len(translations_input):
+            time.sleep(0.3)
+
+    return total_uploaded, total_errors
 
 
 def fix_metaobjects(client, developer_prompt, model, reasoning_effort="minimal", dry_run=False):
@@ -781,9 +793,22 @@ def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort
                 if not shopify_field:
                     continue
 
-                # Sanitize rich_text JSON
+                # Skip handle fields (cause conflicts with existing handles)
+                if item["key"] == "handle":
+                    continue
+
+                # Sanitize and validate rich_text JSON
                 if ar_value.strip().startswith("{") and '"type"' in ar_value:
                     ar_value = sanitize_rich_text_json(ar_value)
+
+                # Validate JSON fields before uploading
+                if ar_value.strip().startswith(("{", "[")):
+                    try:
+                        json.loads(ar_value)
+                    except json.JSONDecodeError:
+                        print(f"    WARNING: Skipping truncated JSON for {gid} {item['key']} ({len(ar_value)} chars)")
+                        errors += 1
+                        continue
 
                 translations_input.append({
                     "locale": LOCALE,
