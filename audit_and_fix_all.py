@@ -29,7 +29,7 @@ Usage:
     python audit_and_fix_all.py --verify                # Re-check previously fixed pages
     python audit_and_fix_all.py --type PRODUCT          # Audit one resource type
     python audit_and_fix_all.py --screenshots           # Save before/after screenshots
-    python audit_and_fix_all.py --upload                # Upload via API instead of CSV
+    python audit_and_fix_all.py --csv                   # Output CSV instead of API upload
 """
 
 import argparse
@@ -763,11 +763,11 @@ def _gid_to_type(gid):
 
 
 def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False,
-                 upload=False, csv_out=None):
+                 csv_mode=False, csv_out=None):
     """Fix all identified problems by re-translating.
 
-    Default mode: outputs a Shopify-format CSV for manual upload.
-    With --upload: pushes directly via API.
+    Default mode: uploads directly via API (one key at a time).
+    With --csv: outputs a Shopify-format CSV for manual upload.
 
     Returns (fixed_count, errors).
     """
@@ -897,8 +897,8 @@ def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False,
 
     print(f"\n  Prepared {len(csv_rows)} translated rows ({errors} skipped)")
 
-    # ---- CSV output (default) ----
-    if not upload:
+    # ---- CSV output (with --csv flag) ----
+    if csv_mode:
         csv_path = csv_out or os.path.join(OUTPUT_DIR, "audit_fix_translations.csv")
         os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
         with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -924,7 +924,7 @@ def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False,
         print(f"\n  To upload: Shopify Admin → Settings → Languages → Arabic → Import")
         return len(csv_rows), errors
 
-    # ---- API upload (with --upload flag) ----
+    # ---- API upload (default) ----
     print(f"\n  Uploading {len(csv_rows)} translations via API...")
     uploaded = 0
 
@@ -1051,10 +1051,10 @@ def main():
                         help="Reasoning effort (default: minimal)")
     parser.add_argument("--batch-size", type=int, default=80,
                         help="Fields per translation batch (default: 80)")
+    parser.add_argument("--csv", action="store_true",
+                        help="Output CSV instead of uploading via API")
     parser.add_argument("--csv-out", default=None,
-                        help="Output CSV path (default: Arabic/audit_fix_translations.csv)")
-    parser.add_argument("--upload", action="store_true",
-                        help="Upload via API instead of generating CSV")
+                        help="CSV output path (default: Arabic/audit_fix_translations.csv)")
     args = parser.parse_args()
 
     load_dotenv()
@@ -1072,7 +1072,7 @@ def main():
     print("  FULL TRANSLATION AUDIT & FIX")
     print(f"  Store: {args.base_url}")
     print(f"  Locale: {args.locale}")
-    mode = "DRY RUN" if args.dry_run else ("API UPLOAD" if args.upload else "CSV OUTPUT")
+    mode = "DRY RUN" if args.dry_run else ("CSV OUTPUT" if args.csv else "API UPLOAD")
     print(f"  Mode: {mode}")
     print("=" * 70)
 
@@ -1207,7 +1207,7 @@ def main():
         client, engine, api_problems,
         locale=args.locale,
         dry_run=args.dry_run,
-        upload=args.upload,
+        csv_mode=args.csv,
         csv_out=args.csv_out,
     )
 
@@ -1243,15 +1243,15 @@ def main():
     print(f"  Problems found:     {api_stats['total'] - api_stats['ok']}")
     if args.dry_run:
         print(f"  (DRY RUN — no changes made)")
-    elif args.upload:
-        print(f"  Translations uploaded: {uploaded}")
-        print(f"  Errors:               {errors}")
-    else:
+    elif args.csv:
         csv_path = args.csv_out or os.path.join(OUTPUT_DIR, "audit_fix_translations.csv")
         print(f"  CSV rows written:     {uploaded}")
         print(f"  Skipped (bad JSON):   {errors}")
         print(f"  Output:               {csv_path}")
         print(f"\n  Upload: Shopify Admin → Settings → Languages → Arabic → Import")
+    else:
+        print(f"  Translations uploaded: {uploaded}")
+        print(f"  Errors:               {errors}")
     print(f"{'=' * 70}")
 
 
