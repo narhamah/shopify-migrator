@@ -308,7 +308,7 @@ def main():
     # ----------------------------------------------------------------
     # 3. Read CSV
     # ----------------------------------------------------------------
-    with open(args.input, "r", encoding="utf-8") as f:
+    with open(args.input, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames
         rows = list(reader)
