@@ -288,6 +288,10 @@ def main():
                         help="Show what would be translated without API calls")
     parser.add_argument("--max-batches", type=int, default=0,
                         help="Stop after N batches (0 = unlimited, for testing)")
+    parser.add_argument("--start-batch", type=int, default=0,
+                        help="Skip to batch N (0-indexed, for parallel runs)")
+    parser.add_argument("--progress-suffix", default="",
+                        help="Suffix for progress file (e.g. '_b0' for parallel runs)")
     parser.add_argument("--reasoning", default="medium",
                         choices=["minimal", "low", "medium", "high"],
                         help="Reasoning effort (default: medium)")
@@ -322,7 +326,7 @@ def main():
     # ----------------------------------------------------------------
     # 2. Load progress file (tracks what THIS SCRIPT translated)
     # ----------------------------------------------------------------
-    progress_file = os.path.join(ARABIC_DIR, ".tara_ar_progress.json")
+    progress_file = os.path.join(ARABIC_DIR, f".tara_ar_progress{args.progress_suffix}.json")
 
     if args.reset and os.path.exists(progress_file):
         os.remove(progress_file)
@@ -589,7 +593,9 @@ def main():
     start_time = time.time()
 
     for i, batch in enumerate(batches):
-        if args.max_batches and i >= args.max_batches:
+        if i < args.start_batch:
+            continue
+        if args.max_batches and (i - args.start_batch) >= args.max_batches:
             print(f"\n--max-batches {args.max_batches} reached, stopping early.")
             break
 
