@@ -321,8 +321,8 @@ def fetch_translatable_resources(client, gids):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource, chunking if needed (Shopify limit: 100)."""
-    MAX_PER_REQUEST = 100
+    """Upload translations for a single resource, chunking if needed (Shopify limit: ~70)."""
+    MAX_PER_REQUEST = 50
     total_uploaded = 0
     total_errors = 0
 
