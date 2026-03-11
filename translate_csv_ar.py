@@ -678,11 +678,8 @@ def main():
 
     print(f"Saved to {args.output}")
 
-    # Clean up progress on completion
-    if len(all_translations) >= len(fields) * 0.95:
-        if os.path.exists(progress_file):
-            os.remove(progress_file)
-            print("Cleaned up progress file")
+    # Keep progress file for future runs
+    print(f"Progress file kept at {progress_file}")
 
     # Summary
     final_translated = sum(1 for r in rows if r.get("Translated content", "").strip())

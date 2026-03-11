@@ -101,6 +101,27 @@ def _is_keep_as_is(row):
     return False
 
 
+def _has_arabic(text, min_ratio=0.3):
+    """Check if text contains sufficient Arabic characters.
+
+    Returns False for text that's mostly Latin/Spanish/English.
+    Ignores HTML tags, CSS, and JSON structure when counting.
+    """
+    # Strip HTML tags and CSS for ratio check
+    stripped = re.sub(r"<[^>]+>", " ", text)
+    stripped = re.sub(r"\{[^}]*\}", " ", stripped)  # CSS blocks
+    stripped = stripped.strip()
+    if not stripped:
+        return True  # empty after stripping = structural content, OK
+
+    arabic = len(re.findall(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", stripped))
+    alpha = len(re.findall(r"[a-zA-ZÀ-ÿ\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", stripped))
+
+    if alpha == 0:
+        return True  # no letters at all (numbers, symbols) = OK
+    return arabic / alpha >= min_ratio
+
+
 # =====================================================================
 # Token estimation & batching
 # =====================================================================
@@ -156,7 +177,8 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
     """
     toon_input = to_toon(fields)
     user_message = (
-        "Translate the following TOON input into Tara Arabic and return TOON only.\n\n"
+        "Translate the following TOON input into Tara Arabic and return TOON only.\n"
+        "The source text may be in English or Spanish — translate both to Arabic.\n\n"
         f"<TOON>\n{toon_input}\n</TOON>"
     )
 
@@ -267,10 +289,18 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
     parser.add_argument("--reasoning", default="medium",
-                        choices=["none", "low", "medium", "high", "xhigh"],
+                        choices=["minimal", "low", "medium", "high"],
                         help="Reasoning effort (default: medium)")
+    parser.add_argument("--fix", action="store_true",
+                        help="Re-translate fields that have no/low Arabic (bad translations)")
+    parser.add_argument("--todo", default=None,
+                        help="To-do JSON from verify_translation.py (translate only listed items)")
+    parser.add_argument("--fix-spanish", action="store_true",
+                        help="Also translate Spanish 'Default content' to English")
     parser.add_argument("--overwrite", action="store_true",
-                        help="Re-translate rows that already have Arabic content")
+                        help="Ignore original CSV translations (re-translate them)")
+    parser.add_argument("--reset", action="store_true",
+                        help="Clear progress file (re-translate what this script did before)")
     args = parser.parse_args()
 
     # Default output: Arabic/<input_filename>
@@ -290,53 +320,146 @@ def main():
     print(f"Cache key: {CACHE_KEY}")
 
     # ----------------------------------------------------------------
-    # 2. Read CSV
+    # 2. Load progress file (tracks what THIS SCRIPT translated)
     # ----------------------------------------------------------------
-    with open(args.input, "r", encoding="utf-8") as f:
+    progress_file = os.path.join(ARABIC_DIR, ".tara_ar_progress.json")
+
+    if args.reset and os.path.exists(progress_file):
+        os.remove(progress_file)
+        print("Progress file cleared (--reset)")
+
+    our_translations = {}  # field_id → Arabic value (from previous runs)
+    if os.path.exists(progress_file):
+        with open(progress_file, "r", encoding="utf-8") as f:
+            our_translations = json.load(f)
+
+    # --fix: purge bad translations from progress (non-Arabic results)
+    if args.fix and our_translations:
+        bad_keys = [k for k, v in our_translations.items() if not _has_arabic(v)]
+        if bad_keys:
+            for k in bad_keys:
+                del our_translations[k]
+            with open(progress_file, "w", encoding="utf-8") as f:
+                json.dump(our_translations, f, ensure_ascii=False)
+            print(f"--fix: purged {len(bad_keys)} bad translations from progress")
+        else:
+            print("--fix: progress file is clean (all have Arabic)")
+
+    # ----------------------------------------------------------------
+    # 3. Read CSV
+    # ----------------------------------------------------------------
+    with open(args.input, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames
         rows = list(reader)
     print(f"Read {len(rows)} rows from {args.input}")
 
     # ----------------------------------------------------------------
-    # 3. Categorize rows
+    # 4. Categorize rows
     # ----------------------------------------------------------------
-    to_translate = []
-    keep_as_is = []
-    skip = []
+    to_translate = []       # Need AI translation this run
+    to_fix_spanish = []     # Spanish "Default content" → translate to English
+    from_csv = []           # Already translated in the original CSV
+    from_previous_run = []  # Translated by us in a previous run
+    keep_as_is = []         # URLs, images, config — copy as-is
+    skip = []               # Empty, handles, non-translatable
+    fix_bad_csv = []        # --fix: CSV has translation but it's not Arabic
 
+    # Build row index by field_id for --todo lookups
+    row_by_field_id = {}
     for i, row in enumerate(rows):
-        default = row.get("Default content", "").strip()
-        translated = row.get("Translated content", "").strip()
+        field_id = f"{row['Type']}|{row['Identification']}|{row['Field']}"
+        row_by_field_id[field_id] = i
 
-        if not default:
-            skip.append((i, "empty"))
-        elif _is_non_translatable(row):
-            skip.append((i, "non-translatable"))
-        elif _is_keep_as_is(row):
-            keep_as_is.append(i)
-        elif translated and not args.overwrite:
-            skip.append((i, "already translated"))
-        else:
-            to_translate.append(i)
+    if args.todo:
+        # --todo mode: only process items from the to-do file
+        with open(args.todo, "r", encoding="utf-8") as f:
+            todo_items = json.load(f)
 
-    already_count = sum(1 for _, r in skip if r == "already translated")
-    print(f"\nBreakdown:")
-    print(f"  Will translate:                  {len(to_translate)}")
-    print(f"  Already translated (skip):       {already_count}")
-    print(f"  Keep as-is (URLs/images/config):  {len(keep_as_is)}")
-    print(f"  Skip (empty/non-translatable):   {len(skip) - already_count}")
+        for item in todo_items:
+            fid = item["field_id"]
+            action = item["action"]
+            idx = row_by_field_id.get(fid)
+            if idx is None:
+                continue
+
+            if action == "fix_default_es_to_en" and args.fix_spanish:
+                to_fix_spanish.append(idx)
+            elif action in ("translate", "translate_es_to_ar"):
+                # Skip if progress already has good Arabic for this field
+                if fid in our_translations and _has_arabic(our_translations[fid]):
+                    from_previous_run.append((idx, fid))
+                    continue
+                # Purge bad translation from progress
+                if fid in our_translations:
+                    del our_translations[fid]
+                to_translate.append(idx)
+
+        print(f"\n--todo mode: {len(todo_items)} items from {args.todo}")
+        print(f"  Already good (in progress):  {len(from_previous_run)}")
+        print(f"  To translate (→ Arabic):     {len(to_translate)}")
+        if to_fix_spanish:
+            print(f"  Fix Spanish → English:       {len(to_fix_spanish)}")
+
+    else:
+        # Normal mode: classify all rows
+        for i, row in enumerate(rows):
+            default = row.get("Default content", "").strip()
+            translated = row.get("Translated content", "").strip()
+            field_id = f"{row['Type']}|{row['Identification']}|{row['Field']}"
+
+            if not default:
+                skip.append((i, "empty"))
+            elif _is_non_translatable(row):
+                skip.append((i, "non-translatable"))
+            elif _is_keep_as_is(row):
+                keep_as_is.append(i)
+            elif field_id in our_translations and not args.reset:
+                from_previous_run.append((i, field_id))
+            elif translated and not args.overwrite:
+                if args.fix and not _has_arabic(translated):
+                    fix_bad_csv.append(i)
+                    to_translate.append(i)
+                else:
+                    from_csv.append(i)
+            else:
+                to_translate.append(i)
+
+        n_gaps = len(to_translate) - len(fix_bad_csv) if our_translations and not args.reset else 0
+
+        print(f"\nBreakdown:")
+        print(f"  From original CSV (already done):  {len(from_csv)}")
+        print(f"  From previous run (resuming):      {len(from_previous_run)}")
+        print(f"  Keep as-is (URLs/images/config):   {len(keep_as_is)}")
+        print(f"  Need AI translation NOW:           {len(to_translate)}")
+        if fix_bad_csv:
+            print(f"    ↳ {len(fix_bad_csv)} bad translations (no Arabic) to re-translate")
+        if n_gaps > 0:
+            print(f"    ↳ {n_gaps} gaps/retries from previous run")
+        print(f"  Skip (empty/non-translatable):     {len(skip)}")
 
     # Apply keep-as-is
     for idx in keep_as_is:
         rows[idx]["Translated content"] = rows[idx]["Default content"]
 
-    if not to_translate:
-        print("\nNothing to translate. All rows are done.")
+    # Apply translations from previous runs
+    for idx, field_id in from_previous_run:
+        rows[idx]["Translated content"] = our_translations[field_id]
+
+    if not to_translate and not to_fix_spanish:
+        if from_previous_run:
+            with open(args.output, "w", encoding="utf-8-sig", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+            print(f"\nNothing new to translate. Applied {len(from_previous_run)} "
+                  f"from previous run → {args.output}")
+        else:
+            print("\nNothing to translate. All rows are done.")
         return
 
     # ----------------------------------------------------------------
-    # 4. Build TOON field list
+    # 5. Build TOON field list (only what needs translating NOW)
     # ----------------------------------------------------------------
     fields = []
     for idx in to_translate:
@@ -349,7 +472,7 @@ def main():
         })
 
     # ----------------------------------------------------------------
-    # 5. Batch fields
+    # 6. Batch fields
     # ----------------------------------------------------------------
     batches = adaptive_batch(fields, max_tokens=args.batch_size)
     total_value_tokens = sum(_estimate_tokens(f["value"]) for f in fields)
@@ -383,7 +506,7 @@ def main():
         return
 
     # ----------------------------------------------------------------
-    # 6. Initialize OpenAI
+    # 7. Initialize OpenAI
     # ----------------------------------------------------------------
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -394,23 +517,73 @@ def main():
     client = OpenAI(api_key=api_key)
 
     # ----------------------------------------------------------------
-    # 7. Load progress (resumable)
+    # 7b. Fix Spanish → English in "Default content" (if --fix-spanish)
     # ----------------------------------------------------------------
-    progress_file = os.path.join(ARABIC_DIR, ".tara_ar_progress.json")
-    all_translations = {}
-    if os.path.exists(progress_file):
-        with open(progress_file, "r", encoding="utf-8") as f:
-            all_translations = json.load(f)
-        print(f"Resuming: {len(all_translations)} fields already done")
+    if to_fix_spanish:
+        print(f"\nStep 1: Translating {len(to_fix_spanish)} Spanish fields → English...")
+        es_fields = []
+        for idx in to_fix_spanish:
+            r = rows[idx]
+            field_id = f"{r['Type']}|{r['Identification']}|{r['Field']}"
+            es_fields.append({
+                "id": field_id,
+                "value": r["Default content"],
+                "_row_idx": idx,
+            })
 
-    # Filter out already-translated fields from batches
-    remaining_fields = [f for f in fields if f["id"] not in all_translations]
-    if len(remaining_fields) < len(fields):
-        batches = adaptive_batch(remaining_fields, max_tokens=args.batch_size)
-        print(f"Remaining: {len(remaining_fields)} fields in {len(batches)} batches\n")
+        es_batches = adaptive_batch(es_fields, max_tokens=args.batch_size)
+        es_prompt = (
+            "Translate the following TOON input from Spanish to English.\n"
+            "Keep brand names (Tara, CapixylTM, etc.) as-is.\n"
+            "Keep all HTML tags intact. Return TOON only.\n"
+        )
+
+        es_tokens = 0
+        for i, batch in enumerate(es_batches):
+            api_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
+            toon_input = to_toon(api_batch)
+            user_msg = f"{es_prompt}\n<TOON>\n{toon_input}\n</TOON>"
+
+            print(f"  ES→EN batch {i+1}/{len(es_batches)}: {len(batch)} fields...")
+            try:
+                response = client.responses.create(
+                    model=args.model,
+                    input=user_msg,
+                    reasoning={"effort": "low"},
+                )
+                result = ""
+                for item in response.output:
+                    if item.type == "message":
+                        for content in item.content:
+                            if content.type == "output_text":
+                                result += content.text
+                result = result.strip()
+                if result.startswith("```"):
+                    lines = result.split("\n")
+                    if lines[-1].strip() == "```":
+                        result = "\n".join(lines[1:-1])
+                    else:
+                        result = "\n".join(lines[1:])
+                result = re.sub(r"</?TOON>", "", result).strip()
+
+                translated_es = from_toon(result)
+                t_map = {e["id"]: e["value"] for e in translated_es}
+                usage = response.usage
+                es_tokens += (usage.input_tokens or 0) + (usage.output_tokens or 0)
+
+                # Apply English translations back to "Default content"
+                for field in batch:
+                    if field["id"] in t_map:
+                        rows[field["_row_idx"]]["Default content"] = t_map[field["id"]]
+
+                print(f"    Done: {len(t_map)} fields")
+            except Exception as e:
+                print(f"    Error: {e}")
+
+        print(f"  Spanish→English complete ({es_tokens:,} tokens)")
 
     # ----------------------------------------------------------------
-    # 8. Translate batches
+    # 8. Translate batches → Arabic
     # ----------------------------------------------------------------
     total_tokens = 0
     start_time = time.time()
@@ -421,28 +594,27 @@ def main():
             client, args.model, api_batch, developer_prompt,
             i + 1, len(batches), reasoning_effort=args.reasoning,
         )
-        all_translations.update(t_map)
+        our_translations.update(t_map)
         total_tokens += tokens
 
-        # Save progress every 5 batches
-        if (i + 1) % 5 == 0 or i == len(batches) - 1:
-            with open(progress_file, "w", encoding="utf-8") as f:
-                json.dump(all_translations, f, ensure_ascii=False)
+        # Save progress after every batch
+        with open(progress_file, "w", encoding="utf-8") as f:
+            json.dump(our_translations, f, ensure_ascii=False)
 
     elapsed = time.time() - start_time
     print(f"\nTranslation complete: {total_tokens:,} tokens in {elapsed:.1f}s")
 
     # ----------------------------------------------------------------
-    # 9. Apply translations to CSV rows
+    # 9. Apply NEW translations to CSV rows
     # ----------------------------------------------------------------
     applied = 0
     for field in fields:
         row_idx = field["_row_idx"]
-        if field["id"] in all_translations:
-            rows[row_idx]["Translated content"] = all_translations[field["id"]]
+        if field["id"] in our_translations:
+            rows[row_idx]["Translated content"] = our_translations[field["id"]]
             applied += 1
 
-    print(f"Applied {applied}/{len(fields)} translations")
+    print(f"Applied {applied}/{len(fields)} new translations")
 
     # ----------------------------------------------------------------
     # 10. Write output CSV
@@ -452,12 +624,6 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
     print(f"Saved to {args.output}")
-
-    # Clean up progress on completion
-    if len(all_translations) >= len(fields) * 0.95:
-        if os.path.exists(progress_file):
-            os.remove(progress_file)
-            print("Cleaned up progress file")
 
     # ----------------------------------------------------------------
     # 11. Summary
@@ -470,8 +636,15 @@ def main():
         and r.get("Field") != "handle"
     )
     print(f"\nFinal: {final_translated}/{len(rows)} rows have Arabic content")
+    print(f"  From original CSV:    {len(from_csv)}")
+    print(f"  From previous runs:   {len(from_previous_run)}")
+    print(f"  Translated this run:  {applied}")
+    print(f"  Keep-as-is:           {len(keep_as_is)}")
     if final_empty:
-        print(f"  {final_empty} rows still untranslated (re-run to retry)")
+        print(f"  Still untranslated:   {final_empty} (re-run to retry)")
+
+    print(f"\nProgress saved to {progress_file}")
+    print(f"  ({len(our_translations)} total fields translated by this script)")
 
     print(f"\nReady to import:")
     print(f"  File: {args.output}")
