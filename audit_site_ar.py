@@ -126,20 +126,35 @@ def extract_visible_text(page):
 
 
 def crawl_site(base_url, page, max_pages=100, screenshots_dir=None):
-    """Crawl the Arabic site and find untranslated text."""
+    """Crawl the Arabic site and find untranslated text.
+
+    base_url should be the full base including /ar, e.g. https://sa.taraformula.com/ar
+    """
     visited = set()
-    to_visit = [base_url]
+    # Seed with the /ar homepage and key sections
+    ar_home = base_url.rstrip("/")
+    if not ar_home.endswith("/ar"):
+        ar_home = ar_home + "/ar"
+    to_visit = [
+        ar_home,
+        ar_home + "/collections/all",
+        ar_home + "/collections",
+    ]
     all_issues = []
     page_count = 0
+    domain = urlparse(ar_home).netloc
 
     while to_visit and page_count < max_pages:
         url = to_visit.pop(0)
         if url in visited:
             continue
 
-        # Only visit Arabic pages on the same domain
+        # Only visit pages on the same domain
         parsed = urlparse(url)
-        if "/ar" not in parsed.path and not parsed.path.endswith("/ar"):
+        if parsed.netloc != domain:
+            continue
+        # Must be an Arabic page (contains /ar)
+        if "/ar" not in parsed.path:
             continue
 
         visited.add(url)
@@ -200,18 +215,18 @@ def crawl_site(base_url, page, max_pages=100, screenshots_dir=None):
         all_issues.extend(page_issues)
 
         # Find links to other Arabic pages
-        links = page.evaluate("""(baseUrl) => {
+        links = page.evaluate("""(domain) => {
             const links = new Set();
             document.querySelectorAll('a[href]').forEach(a => {
                 const href = a.href;
-                if (href && href.includes('/ar') && href.startsWith(baseUrl)) {
+                if (href && href.includes('/ar') && href.includes(domain)) {
                     // Skip anchors, query params, external
                     const clean = href.split('#')[0].split('?')[0];
-                    if (clean !== baseUrl) links.add(clean);
+                    links.add(clean);
                 }
             });
             return [...links];
-        }""", base_url.rstrip("/"))
+        }""", domain)
 
         for link in links:
             if link not in visited:
@@ -306,7 +321,7 @@ def main():
             print(f"  Max pages: {args.max_pages}")
 
             issues, visited = crawl_site(
-                args.base_url.rstrip("/"), page,
+                start_url, page,
                 max_pages=args.max_pages,
                 screenshots_dir=screenshots_dir,
             )
