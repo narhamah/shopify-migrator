@@ -47,8 +47,6 @@ def _is_non_translatable(row):
 
     if not default:
         return True
-    if field == "handle":
-        return True
     if default.startswith(("shopify://", "http://", "https://", "/", "gid://")):
         return True
     if re.match(r"^-?\d+\.?\d*$", default):
