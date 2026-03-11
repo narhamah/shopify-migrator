@@ -5,7 +5,7 @@ Checks:
   1. Coverage — every translatable field has Arabic content
   2. Gaps — lists missing translations by type/field
   3. Local checks — HTML integrity, truncation, Arabic presence
-  4. AI spot-check — GPT-5-nano (reasoning: none) flags quality issues
+  4. AI spot-check — GPT-5-nano (reasoning: minimal) flags quality issues
 
 Usage:
     python verify_translation.py --input Arabic/Tara_Saudi_translations_Mar-10-2026.csv
@@ -150,7 +150,7 @@ def spot_check_batch(client, model, samples):
         response = client.responses.create(
             model=model,
             input=f"{SPOT_CHECK_PROMPT}\n\n{toon_input}",
-            reasoning={"effort": "none"},
+            reasoning={"effort": "minimal"},
         )
         result = ""
         for item in response.output:
@@ -338,7 +338,7 @@ def main():
                 })
 
             print(f"\nAI spot-check: {len(samples)} samples via {args.model} "
-                  f"(reasoning: none)...")
+                  f"(reasoning: minimal)...")
 
             ai_issues = []
             total_tokens = 0

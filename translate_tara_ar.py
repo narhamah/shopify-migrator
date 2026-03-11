@@ -267,7 +267,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
     parser.add_argument("--reasoning", default="medium",
-                        choices=["none", "low", "medium", "high", "xhigh"],
+                        choices=["minimal", "low", "medium", "high"],
                         help="Reasoning effort (default: medium)")
     parser.add_argument("--overwrite", action="store_true",
                         help="Ignore original CSV translations (re-translate them)")
