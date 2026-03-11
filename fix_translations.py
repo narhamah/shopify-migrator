@@ -238,27 +238,70 @@ def paginate_query(client, query, result_key, variables=None, page_size=50):
 
 
 # ---------------------------------------------------------------------------
+# Progress tracking
+# ---------------------------------------------------------------------------
+
+def _progress_path(audit_file):
+    """Return progress file path for a given audit file."""
+    base, ext = os.path.splitext(audit_file)
+    return f"{base}_progress.json"
+
+
+def _load_progress(audit_file):
+    """Load set of already-uploaded field IDs from progress file."""
+    path = _progress_path(audit_file)
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return set(data.get("uploaded", []))
+    return set()
+
+
+def _save_progress(audit_file, uploaded_ids):
+    """Save set of successfully uploaded field IDs."""
+    path = _progress_path(audit_file)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"uploaded": sorted(uploaded_ids)}, f, indent=2)
+
+
+# ---------------------------------------------------------------------------
 # Fix from audit JSON
 # ---------------------------------------------------------------------------
 
 def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
-    """Fix all problems identified by audit_translations.py."""
+    """Fix all problems identified by audit_translations.py.
+
+    Saves progress after each upload batch so re-runs skip already-uploaded fields.
+    """
     print(f"\n=== FIXING FROM AUDIT: {audit_file} ===")
 
     with open(audit_file, "r", encoding="utf-8") as f:
         problems = json.load(f)
 
+    # Load progress from previous runs
+    done_ids = _load_progress(audit_file)
+    if done_ids:
+        print(f"  Resuming: {len(done_ids)} fields already uploaded (skipping)")
+
     print(f"  Total problems in audit: {len(problems)}")
 
-    # Group by resource_id
+    # Group by resource_id, skipping already-done fields
     by_resource = {}
     for p in problems:
         rid = p["resource_id"]
+        field_id = f"{p['resource_type']}|{rid}|{p['key']}"
+        if field_id in done_ids:
+            continue
         if rid not in by_resource:
             by_resource[rid] = []
         by_resource[rid].append(p)
 
-    print(f"  Across {len(by_resource)} resources")
+    remaining = sum(len(v) for v in by_resource.values())
+    print(f"  Remaining: {remaining} fields across {len(by_resource)} resources")
+
+    if remaining == 0:
+        print("  Nothing to fix — all fields already uploaded!")
+        return 0, 0
 
     # Build translation input — engine handles rich_text decomposition
     fields_for_ai = []
@@ -307,6 +350,7 @@ def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
                 continue
             dm = digest_map[gid]
             translations_input = []
+            field_ids_in_batch = []
 
             for item in by_resource[gid]:
                 if item["key"] == "handle":
@@ -339,11 +383,16 @@ def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
                     "value": ar_value,
                     "translatableContentDigest": shopify_field["digest"],
                 })
+                field_ids_in_batch.append(field_id)
 
             if translations_input:
                 u, e = upload_translations(client, gid, translations_input)
                 uploaded += u
                 errors += e
+                # Mark successfully uploaded fields in progress
+                if u > 0:
+                    done_ids.update(field_ids_in_batch)
+                    _save_progress(audit_file, done_ids)
 
         time.sleep(0.3)
 
