@@ -903,9 +903,9 @@ def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort
             print(f"    ... and {len(fields_for_ai) - 20} more")
         return 0, 0
 
-    # Translate in batches (up to 100 fields at a time)
+    # Translate in small batches to avoid output truncation
     t_map = {}
-    batch_size = 80
+    batch_size = 30
     for i in range(0, len(fields_for_ai), batch_size):
         batch = fields_for_ai[i:i+batch_size]
         ai_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
