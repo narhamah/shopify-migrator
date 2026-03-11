@@ -288,6 +288,8 @@ def main():
                         help="Max tokens per batch (default: 6000)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
+    parser.add_argument("--max-batches", type=int, default=0,
+                        help="Stop after N batches (0 = unlimited, for testing)")
     parser.add_argument("--reasoning", default="medium",
                         choices=["minimal", "low", "medium", "high"],
                         help="Reasoning effort (default: medium)")
@@ -589,6 +591,10 @@ def main():
     start_time = time.time()
 
     for i, batch in enumerate(batches):
+        if args.max_batches and i >= args.max_batches:
+            print(f"\n--max-batches {args.max_batches} reached, stopping early.")
+            break
+
         api_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
         t_map, tokens = translate_batch_responses_api(
             client, args.model, api_batch, developer_prompt,
