@@ -144,7 +144,7 @@ def _has_arabic(text, min_ratio=0.3):
     return arabic / alpha >= min_ratio
 
 
-def translate_fields(fields, developer_prompt, model="gpt-4o-mini"):
+def translate_fields(fields, developer_prompt, model="gpt-5-nano", reasoning_effort="minimal"):
     """Translate a list of {id, value} dicts using OpenAI."""
     import openai
     client = openai.OpenAI()
@@ -161,17 +161,16 @@ def translate_fields(fields, developer_prompt, model="gpt-4o-mini"):
         f"<TOON>\n{toon_input}\n</TOON>"
     )
 
-    print(f"    Translating {len(fields)} fields...")
+    print(f"    Translating {len(fields)} fields ({model}, reasoning={reasoning_effort})...")
     for attempt in range(3):
         try:
-            # Only add reasoning for models that support it
             kwargs = {
                 "model": model,
                 "instructions": developer_prompt,
                 "input": user_message,
             }
             if model.startswith("o") or "nano" in model:
-                kwargs["reasoning"] = {"effort": "medium"}
+                kwargs["reasoning"] = {"effort": reasoning_effort}
             response = client.responses.create(**kwargs)
 
             result = ""
@@ -253,7 +252,7 @@ def upload_translations(client, gid, translations_input):
         return 0, len(translations_input)
 
 
-def fix_metaobjects(client, developer_prompt, model, dry_run=False):
+def fix_metaobjects(client, developer_prompt, model, reasoning_effort="minimal", dry_run=False):
     """Find and fix untranslated metaobject fields."""
     print("\n=== FIXING METAOBJECT TRANSLATIONS ===")
 
@@ -347,7 +346,7 @@ def fix_metaobjects(client, developer_prompt, model, dry_run=False):
         field_id = f"{item['type']}|{item['handle']}|{item['key']}"
         fields_for_ai.append({"id": field_id, "value": item["english"]})
 
-    t_map = translate_fields(fields_for_ai, developer_prompt, model)
+    t_map = translate_fields(fields_for_ai, developer_prompt, model, reasoning_effort)
 
     # Upload translations
     uploaded = 0
@@ -380,7 +379,7 @@ def fix_metaobjects(client, developer_prompt, model, dry_run=False):
     return uploaded, errors
 
 
-def fix_product_metafields(client, developer_prompt, model, dry_run=False):
+def fix_product_metafields(client, developer_prompt, model, reasoning_effort="minimal", dry_run=False):
     """Fix key_benefits_heading and key_benefits_content for all products."""
     print("\n=== FIXING PRODUCT METAFIELD TRANSLATIONS ===")
 
@@ -500,7 +499,7 @@ def fix_product_metafields(client, developer_prompt, model, dry_run=False):
         fields_for_ai.append({"id": field_id, "value": item["english"]})
 
     if fields_for_ai:
-        t_map = translate_fields(fields_for_ai, developer_prompt, model)
+        t_map = translate_fields(fields_for_ai, developer_prompt, model, reasoning_effort)
     else:
         t_map = {}
 
@@ -651,8 +650,11 @@ def main():
                         help="Preview what would be fixed without making changes")
     parser.add_argument("--only", choices=["metaobjects", "products", "theme"],
                         help="Fix only one category")
-    parser.add_argument("--model", default="gpt-4o-mini",
-                        help="OpenAI model for translation (default: gpt-4o-mini)")
+    parser.add_argument("--model", default="gpt-5-nano",
+                        help="OpenAI model for translation (default: gpt-5-nano)")
+    parser.add_argument("--reasoning", default="minimal",
+                        choices=["minimal", "low", "medium", "high"],
+                        help="Reasoning effort (default: minimal)")
     parser.add_argument("--csv", default=None,
                         help="CSV file for theme re-upload (clean CSV)")
     args = parser.parse_args()
@@ -685,12 +687,12 @@ def main():
     total_errors = 0
 
     if args.only is None or args.only == "metaobjects":
-        u, e = fix_metaobjects(client, developer_prompt, args.model, args.dry_run)
+        u, e = fix_metaobjects(client, developer_prompt, args.model, args.reasoning, args.dry_run)
         total_uploaded += u
         total_errors += e
 
     if args.only is None or args.only == "products":
-        u, e = fix_product_metafields(client, developer_prompt, args.model, args.dry_run)
+        u, e = fix_product_metafields(client, developer_prompt, args.model, args.reasoning, args.dry_run)
         total_uploaded += u
         total_errors += e
 
