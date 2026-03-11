@@ -164,6 +164,58 @@ def _extract_text_from_json(json_str):
     return " ".join(parts) if parts else None
 
 
+def _is_rich_text_json(value):
+    """Check if a value is Shopify rich_text JSON."""
+    if not value or not isinstance(value, str):
+        return False
+    s = value.strip()
+    if not s.startswith("{"):
+        return False
+    try:
+        data = json.loads(s)
+        return isinstance(data, dict) and data.get("type") == "root"
+    except (json.JSONDecodeError, TypeError):
+        return False
+
+
+def _extract_rich_text_texts(json_str):
+    """Extract text values from rich_text JSON, returning (texts, parsed_data).
+
+    Returns list of (path, text_value) tuples and the parsed JSON.
+    Path is a list of indices to navigate back to each text node.
+    """
+    data = json.loads(json_str)
+    texts = []
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            if node.get("type") == "text" and "value" in node:
+                texts.append((list(path) + ["value"], node["value"]))
+            for i, child in enumerate(node.get("children", [])):
+                walk(child, path + ["children", i])
+        elif isinstance(node, list):
+            for i, item in enumerate(node):
+                walk(item, path + [i])
+
+    walk(data, [])
+    return texts, data
+
+
+def _rebuild_rich_text(parsed_data, translations):
+    """Replace text values in parsed rich_text JSON using path→translation map.
+
+    translations: dict of (tuple(path) → arabic_text)
+    """
+    import copy
+    data = copy.deepcopy(parsed_data)
+    for path, ar_text in translations.items():
+        node = data
+        for step in path[:-1]:
+            node = node[step]
+        node[path[-1]] = ar_text
+    return json.dumps(data, ensure_ascii=False)
+
+
 def _has_significant_english(text, threshold=0.15):
     """Return True if text has significant English (>threshold ratio of Latin alpha chars)."""
     if not text:
@@ -724,20 +776,53 @@ def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort
     print(f"  Across {len(by_resource)} resources")
 
     # Collect all fields that need translation
-    fields_for_ai = []
+    # For rich_text JSON fields, extract text nodes and translate those separately
+    fields_for_ai = []       # plain text fields
+    rich_text_fields = {}    # field_id → {parsed_data, texts: [(path, english)]}
+
     for rid, items in by_resource.items():
         for item in items:
             field_id = f"{item['resource_type']}|{rid}|{item['key']}"
+            english = item["english"]
+
+            if _is_rich_text_json(english):
+                # Extract text nodes from JSON, send each as separate translation unit
+                texts, parsed = _extract_rich_text_texts(english)
+                if texts:
+                    rich_text_fields[field_id] = {
+                        "parsed": parsed,
+                        "texts": texts,
+                        "_resource_id": rid,
+                        "_key": item["key"],
+                        "_status": item["status"],
+                    }
+                    for idx, (path, text_val) in enumerate(texts):
+                        if text_val and text_val.strip():
+                            sub_id = f"{field_id}__TEXT_{idx}"
+                            fields_for_ai.append({
+                                "id": sub_id,
+                                "value": text_val,
+                                "_resource_id": rid,
+                                "_key": item["key"],
+                                "_digest": item["digest"],
+                                "_status": item["status"],
+                                "_is_rich_text_part": True,
+                            })
+                continue
+
             fields_for_ai.append({
                 "id": field_id,
-                "value": item["english"],
+                "value": english,
                 "_resource_id": rid,
                 "_key": item["key"],
                 "_digest": item["digest"],
                 "_status": item["status"],
             })
 
-    print(f"  Fields to translate: {len(fields_for_ai)}")
+    plain_count = sum(1 for f in fields_for_ai if not f.get("_is_rich_text_part"))
+    rt_count = len(rich_text_fields)
+    rt_text_count = sum(1 for f in fields_for_ai if f.get("_is_rich_text_part"))
+    print(f"  Fields to translate: {plain_count} plain + {rt_count} rich_text ({rt_text_count} text nodes)")
 
     if dry_run:
         for f in fields_for_ai[:20]:
@@ -759,6 +844,23 @@ def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort
             time.sleep(1)
 
     print(f"  Translated: {len(t_map)} fields")
+
+    # Rebuild rich_text JSON with translated text nodes
+    for field_id, rt_info in rich_text_fields.items():
+        translations = {}
+        all_found = True
+        for idx, (path, text_val) in enumerate(rt_info["texts"]):
+            sub_id = f"{field_id}__TEXT_{idx}"
+            ar_text = t_map.get(sub_id)
+            if ar_text:
+                translations[tuple(path)] = ar_text
+            elif text_val and text_val.strip():
+                all_found = False
+        if translations:
+            rebuilt = _rebuild_rich_text(rt_info["parsed"], translations)
+            t_map[field_id] = rebuilt
+            if not all_found:
+                print(f"    WARNING: Partial rich_text rebuild for {field_id}")
 
     # Fetch digests and upload, grouped by resource
     uploaded = 0
@@ -797,16 +899,14 @@ def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort
                 if item["key"] == "handle":
                     continue
 
-                # Sanitize and validate rich_text JSON
-                if ar_value.strip().startswith("{") and '"type"' in ar_value:
-                    ar_value = sanitize_rich_text_json(ar_value)
-
                 # Validate JSON fields before uploading
                 if ar_value.strip().startswith(("{", "[")):
                     try:
-                        json.loads(ar_value)
+                        parsed = json.loads(ar_value)
+                        # Re-serialize to ensure clean JSON
+                        ar_value = json.dumps(parsed, ensure_ascii=False)
                     except json.JSONDecodeError:
-                        print(f"    WARNING: Skipping truncated JSON for {gid} {item['key']} ({len(ar_value)} chars)")
+                        print(f"    WARNING: Skipping invalid JSON for {gid} {item['key']} ({len(ar_value)} chars)")
                         errors += 1
                         continue
 
