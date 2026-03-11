@@ -144,6 +144,40 @@ def _has_arabic(text, min_ratio=0.3):
     return arabic / alpha >= min_ratio
 
 
+def _extract_text_from_json(json_str):
+    """Extract all text values from rich_text JSON."""
+    try:
+        data = json.loads(json_str)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    parts = []
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "text" and "value" in node:
+                parts.append(node["value"])
+            for child in node.get("children", []):
+                walk(child)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+    walk(data)
+    return " ".join(parts) if parts else None
+
+
+def _has_significant_english(text, threshold=0.15):
+    """Return True if text has significant English (>threshold ratio of Latin alpha chars)."""
+    if not text:
+        return False
+    # Strip INCI/scientific terms that are OK to keep in English
+    stripped = text.strip()
+    latin = len(re.findall(r"[a-zA-ZÀ-ÿ]", stripped))
+    arabic = len(re.findall(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", stripped))
+    total_alpha = latin + arabic
+    if total_alpha == 0:
+        return False
+    return latin / total_alpha > threshold
+
+
 def translate_fields(fields, developer_prompt, model="gpt-5-nano", reasoning_effort="minimal"):
     """Translate a list of {id, value} dicts using OpenAI."""
     import openai
@@ -462,13 +496,17 @@ def fix_product_metafields(client, developer_prompt, model, reasoning_effort="mi
         if info["key"] == "custom.key_benefits_heading":
             if existing and _has_arabic(existing) and existing != english:
                 continue  # already good
-        # For key_benefits_content: check if JSON is valid and has Arabic
+        # For key_benefits_content: check if JSON is valid, has Arabic,
+        # AND doesn't have significant English mixed in (e.g. untranslated benefit names)
         elif info["key"] == "custom.key_benefits_content":
             if existing and _has_arabic(existing):
-                # Check if JSON is valid
                 try:
                     json.loads(existing)
-                    continue  # valid JSON with Arabic — skip
+                    # Check for mixed English — extract text and see if English ratio is high
+                    extracted = _extract_text_from_json(existing)
+                    if extracted and not _has_significant_english(extracted):
+                        continue  # fully translated — skip
+                    # Has significant English mixed in — re-translate
                 except (json.JSONDecodeError, TypeError):
                     pass  # corrupted JSON — re-translate
 
