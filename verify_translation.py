@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Verify translated CSV: coverage, gaps, and AI spot-check.
+"""Verify translated CSV: coverage, gaps, quality, and generate to-do file.
 
 Checks:
   1. Coverage — every translatable field has Arabic content
-  2. Gaps — lists missing translations by type/field
-  3. Local checks — HTML integrity, truncation, Arabic presence
+  2. Gaps — fields missing translation entirely
+  3. Local checks — HTML integrity, truncation, Arabic presence, Spanish detection
   4. AI spot-check — GPT-5-nano (reasoning: minimal) flags quality issues
+  5. To-do file — actionable JSON consumed by translate_tara_ar.py --todo
 
 Usage:
     python verify_translation.py --input Arabic/Tara_Saudi_translations_Mar-10-2026.csv
@@ -86,6 +87,55 @@ def _is_keep_as_is(row):
 
 
 # =====================================================================
+# Language detection
+# =====================================================================
+
+# Spanish-specific characters and common words
+_SPANISH_CHARS = re.compile(r"[áéíóúñ¿¡ü]", re.IGNORECASE)
+_SPANISH_WORDS = re.compile(
+    r"\b(de|del|los|las|con|para|por|una|que|cabello|capilar|"
+    r"champú|tratamiento|colección|más|también|productos?|cuidado)\b",
+    re.IGNORECASE
+)
+
+
+def _detect_language(text):
+    """Detect if text is Arabic, English, Spanish, or mixed.
+
+    Returns: 'ar', 'en', 'es', or 'mixed'
+    """
+    # Strip HTML/CSS for detection
+    stripped = re.sub(r"<[^>]+>", " ", text)
+    stripped = re.sub(r"\{[^}]*\}", " ", stripped)
+    stripped = stripped.strip()
+    if not stripped:
+        return "en"  # structural content, treat as OK
+
+    arabic = len(re.findall(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", stripped))
+    latin = len(re.findall(r"[a-zA-ZÀ-ÿ]", stripped))
+    total_alpha = arabic + latin
+
+    if total_alpha == 0:
+        return "en"
+
+    if arabic / total_alpha >= 0.3:
+        return "ar"
+
+    # It's mostly Latin — is it Spanish or English?
+    spanish_chars = len(_SPANISH_CHARS.findall(stripped))
+    spanish_words = len(_SPANISH_WORDS.findall(stripped))
+
+    if spanish_chars >= 2 or spanish_words >= 2:
+        return "es"
+
+    return "en"
+
+
+def _has_arabic(text, min_ratio=0.3):
+    return _detect_language(text) == "ar"
+
+
+# =====================================================================
 # Local quality checks
 # =====================================================================
 
@@ -107,14 +157,6 @@ def check_html_integrity(default, translated):
 def check_untranslated(default, translated):
     if default == translated and len(default) > 3 and re.match(r"^[a-zA-Z\s]+$", default):
         return "identical to English"
-    return None
-
-
-def check_arabic_present(translated):
-    arabic = len(re.findall(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", translated))
-    alpha = len(re.findall(r"[a-zA-Z\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", translated))
-    if alpha > 0 and arabic / alpha < 0.3:
-        return f"low Arabic ratio ({arabic}/{alpha})"
     return None
 
 
@@ -197,12 +239,15 @@ def main():
         rows = list(reader)
     print(f"Read {len(rows)} rows from {args.input}\n")
 
-    # 2. Classify
+    # 2. Classify and build to-do list
     translated = []
     gaps = []
     keep_as_is_count = 0
     non_translatable_count = 0
     empty_count = 0
+
+    # To-do items
+    todos = []  # each: {action, field_id, type, id, field, default, translated, issues}
 
     for i, row in enumerate(rows):
         default = row.get("Default content", "").strip()
@@ -234,71 +279,145 @@ def main():
     print(f"  Empty (no source):    {empty_count}")
     print(f"{'='*60}\n")
 
-    # 3. Show gaps
+    # 3. Add gaps to to-do
+    for idx in gaps:
+        r = rows[idx]
+        field_id = f"{r['Type']}|{r['Identification']}|{r['Field']}"
+        todos.append({
+            "action": "translate",
+            "field_id": field_id,
+            "row": idx,
+            "type": r["Type"],
+            "id": r["Identification"],
+            "field": r["Field"],
+            "default": r["Default content"],
+            "issues": ["missing translation"],
+        })
+
     if gaps:
         print(f"GAPS — {len(gaps)} fields missing translation:\n")
         gap_by_type = Counter(rows[i]["Type"] for i in gaps)
         for t, c in gap_by_type.most_common():
             print(f"  {t}: {c}")
-
-        gap_by_field = Counter(rows[i]["Field"] for i in gaps)
-        print(f"\n  By field (top 15):")
-        for f, c in gap_by_field.most_common(15):
-            print(f"    {f}: {c}")
-
-        if args.verbose:
-            print(f"\n  All gaps:")
-            for idx in gaps:
-                r = rows[idx]
-                print(f"    [{r['Type']}] {r['Identification']} / {r['Field']}: "
-                      f"{r['Default content'][:60]}")
         print()
 
-    # 4. Local quality checks
+    # 4. Local quality checks + language detection
     print(f"Local checks on {len(translated)} translated fields...\n")
 
-    issues_by_type = Counter()
+    issues_by_category = Counter()
     all_issues = []
+    spanish_source_count = 0
+    untranslated_count = 0
 
     for idx in translated:
         row = rows[idx]
         default = row["Default content"].strip()
         trans = row["Translated content"].strip()
+        field_id = f"{row['Type']}|{row['Identification']}|{row['Field']}"
 
         row_issues = []
+        todo_action = None
 
+        # Detect source language
+        source_lang = _detect_language(default)
+
+        # Detect translation language
+        trans_lang = _detect_language(trans)
+
+        # Case 1: "Translated" content is still Spanish
+        if trans_lang == "es":
+            row_issues.append(f"Spanish in Arabic column")
+            issues_by_category["spanish_not_translated"] += 1
+            if source_lang == "es":
+                # Source is Spanish, translation is also Spanish = not translated at all
+                todo_action = "translate_es_to_ar"
+            else:
+                # Source is English but translation is Spanish (weird)
+                todo_action = "translate"
+
+        # Case 2: "Translated" content is English (not translated)
+        elif trans_lang == "en":
+            untrans = check_untranslated(default, trans)
+            if untrans or (default == trans):
+                row_issues.append("not translated (EN=AR)")
+                issues_by_category["identical_not_translated"] += 1
+                todo_action = "translate"
+            else:
+                # Different English text — check if it's actually a problem
+                ar_check = _detect_language(trans)
+                if ar_check != "ar":
+                    row_issues.append("English in Arabic column")
+                    issues_by_category["english_not_translated"] += 1
+                    todo_action = "translate"
+
+        # Case 3: Source is Spanish but translation is Arabic — might need
+        # English "Default content" fixed too
+        if source_lang == "es" and trans_lang == "ar":
+            spanish_source_count += 1
+            # The Arabic is OK but the "Default content" is Spanish
+            # Add a separate to-do to fix the English
+            todos.append({
+                "action": "fix_default_es_to_en",
+                "field_id": field_id,
+                "row": idx,
+                "type": row["Type"],
+                "id": row["Identification"],
+                "field": row["Field"],
+                "default": default,
+                "issues": ["default content is Spanish, needs English"],
+            })
+
+        # HTML integrity
         if "<" in default:
-            row_issues.extend(check_html_integrity(default, trans))
+            html_issues = check_html_integrity(default, trans)
+            if html_issues:
+                row_issues.extend(html_issues)
+                for h in html_issues:
+                    issues_by_category["html_" + h.split(":")[0].split("(")[0].strip()] += 1
 
-        untrans = check_untranslated(default, trans)
-        if untrans:
-            row_issues.append(untrans)
-
-        ar_check = check_arabic_present(trans)
-        if ar_check:
-            row_issues.append(ar_check)
-
+        # Truncation
         trunc = check_truncation(default, trans)
         if trunc:
             row_issues.append(trunc)
+            issues_by_category["truncated"] += 1
+            if not todo_action:
+                todo_action = "translate"  # re-translate truncated content
 
         if row_issues:
-            for issue in row_issues:
-                issues_by_type[issue.split("(")[0].strip()] += 1
             all_issues.append((idx, row_issues))
 
+        # Add to-do if action needed
+        if todo_action:
+            todos.append({
+                "action": todo_action,
+                "field_id": field_id,
+                "row": idx,
+                "type": row["Type"],
+                "id": row["Identification"],
+                "field": row["Field"],
+                "default": default,
+                "translated": trans,
+                "issues": row_issues,
+            })
+
+    # Print summary
     if all_issues:
-        print(f"  {len(all_issues)} rows with potential issues:\n")
-        for issue_type, count in issues_by_type.most_common():
-            print(f"    {issue_type}: {count}")
+        print(f"  {len(all_issues)} rows with issues:\n")
+        for cat, count in issues_by_category.most_common():
+            print(f"    {cat}: {count}")
+        if spanish_source_count:
+            print(f"\n    {spanish_source_count} rows have Spanish in 'Default content'")
+            print(f"    (Arabic OK, but English column needs fixing)")
 
         if args.verbose:
             print()
             for idx, issues in all_issues[:50]:
                 r = rows[idx]
-                print(f"    [{r['Type']}] {r['Field']}")
-                print(f"      EN: {r['Default content'][:80]}")
-                print(f"      AR: {r['Translated content'][:80]}")
+                src_lang = _detect_language(r["Default content"])
+                lang_tag = f" [{src_lang.upper()}]" if src_lang != "en" else ""
+                print(f"    [{r['Type']}] {r['Field']}{lang_tag}")
+                print(f"      SRC: {r['Default content'][:80]}")
+                print(f"      AR:  {r['Translated content'][:80]}")
                 for iss in issues:
                     print(f"      >> {iss}")
     else:
@@ -364,31 +483,37 @@ def main():
     else:
         print("\nSkipping AI spot-check (--no-ai)")
 
-    # 6. Verdict
+    # 6. Write to-do file
+    # Categorize to-dos by action
+    todo_by_action = Counter(t["action"] for t in todos)
+
+    todo_file = os.path.splitext(args.input)[0] + "_todo.json"
+    with open(todo_file, "w", encoding="utf-8") as f:
+        json.dump(todos, f, ensure_ascii=False, indent=2)
+
+    # 7. Verdict
     print(f"\n{'='*60}")
-    if not gaps and not all_issues:
+    if not todos:
         print("  RESULT: ALL GOOD — CSV is complete and clean")
-    elif not gaps:
-        print(f"  RESULT: COMPLETE but {len(all_issues)} quality warnings")
     else:
-        print(f"  RESULT: {len(gaps)} GAPS — re-run translate_tara_ar.py")
+        print(f"  RESULT: {len(todos)} items need fixing")
+        print()
+        for action, count in todo_by_action.most_common():
+            label = {
+                "translate": "Translate to Arabic (missing/bad)",
+                "translate_es_to_ar": "Translate Spanish → Arabic",
+                "fix_default_es_to_en": "Fix 'Default content': Spanish → English",
+            }.get(action, action)
+            print(f"    {label}: {count}")
     print(f"{'='*60}")
 
-    if gaps:
-        gaps_file = os.path.splitext(args.input)[0] + "_gaps.json"
-        gap_data = []
-        for idx in gaps:
-            r = rows[idx]
-            gap_data.append({
-                "type": r["Type"],
-                "id": r["Identification"],
-                "field": r["Field"],
-                "default": r["Default content"],
-            })
-        with open(gaps_file, "w", encoding="utf-8") as f:
-            json.dump(gap_data, f, ensure_ascii=False, indent=2)
-        print(f"\nGaps saved to {gaps_file}")
-        print(f"Fix: python translate_tara_ar.py --input {args.input}")
+    if todos:
+        print(f"\nTo-do file: {todo_file}")
+        print(f"\nFix commands:")
+        if any(t["action"] in ("translate", "translate_es_to_ar") for t in todos):
+            print(f"  python translate_tara_ar.py --input {args.input} --todo {todo_file}")
+        if any(t["action"] == "fix_default_es_to_en" for t in todos):
+            print(f"  python translate_tara_ar.py --input {args.input} --todo {todo_file} --fix-spanish")
 
 
 if __name__ == "__main__":
