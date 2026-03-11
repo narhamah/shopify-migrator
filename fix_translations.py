@@ -11,7 +11,7 @@ Handles:
 - Metaobject fields (ingredient names, FAQ, benefits, etc.)
 - Product metafields (key_benefits, how_to_use, etc.)
 - Theme translations (from CSV export)
-- Batch size limits (Shopify max 250 per mutation)
+- Batch size limits (Shopify max 100 per mutation)
 - JSON validation before upload (skips truncated/corrupted JSON)
 
 Usage:
@@ -181,8 +181,8 @@ def fetch_translatable_resources(client, gids, locale):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource, chunking to Shopify's 250 limit."""
-    MAX_PER_REQUEST = 250
+    """Upload translations for a single resource, chunking to Shopify's 100 limit."""
+    MAX_PER_REQUEST = 100
     total_uploaded = 0
     total_errors = 0
 
@@ -320,8 +320,10 @@ def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
                 if not shopify_field:
                     continue
 
-                # Validate JSON before uploading
-                if ar_value.strip().startswith(("{", "[")):
+                # Validate JSON before uploading — only for actual JSON
+                # (rich_text or arrays), not ICU/template strings like {count}
+                stripped_val = ar_value.strip()
+                if stripped_val.startswith('{"type"') or stripped_val.startswith("[{"):
                     try:
                         parsed = json.loads(ar_value)
                         ar_value = json.dumps(parsed, ensure_ascii=False)
@@ -536,8 +538,10 @@ def fix_product_metafields(client, engine, locale, dry_run=False):
         if not ar_value:
             continue
 
-        # Validate JSON
-        if ar_value.strip().startswith(("{", "[")):
+        # Validate JSON — only for actual JSON (rich_text or arrays),
+        # not ICU/template strings like {count}
+        stripped_val = ar_value.strip()
+        if stripped_val.startswith('{"type"') or stripped_val.startswith("[{"):
             try:
                 parsed = json.loads(ar_value)
                 ar_value = json.dumps(parsed, ensure_ascii=False)

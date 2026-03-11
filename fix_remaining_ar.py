@@ -321,8 +321,8 @@ def fetch_translatable_resources(client, gids):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource, chunking if needed (Shopify limit: 250)."""
-    MAX_PER_REQUEST = 250
+    """Upload translations for a single resource, chunking if needed (Shopify limit: 100)."""
+    MAX_PER_REQUEST = 100
     total_uploaded = 0
     total_errors = 0
 
@@ -900,7 +900,10 @@ def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort
                     continue
 
                 # Validate JSON fields before uploading
-                if ar_value.strip().startswith(("{", "[")):
+                # Only treat as JSON if it looks like Shopify rich_text ({"type":...)
+                # or a JSON array ([{...}]). Skip ICU/template strings like {count}.
+                stripped_val = ar_value.strip()
+                if stripped_val.startswith('{"type"') or stripped_val.startswith("[{"):
                     try:
                         parsed = json.loads(ar_value)
                         # Re-serialize to ensure clean JSON
