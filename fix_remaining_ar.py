@@ -535,6 +535,29 @@ def fix_product_metafields(client, developer_prompt, model, reasoning_effort="mi
     return uploaded, errors
 
 
+FETCH_THEME_DIGESTS_QUERY = """
+query($resourceId: ID!, $first: Int!, $after: String) {
+  translatableResource(resourceId: $resourceId) {
+    resourceId
+    translatableContent(first: $first, after: $after) {
+      edges {
+        node {
+          key
+          value
+          digest
+          locale
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+"""
+
+
 def fix_theme_translations(client, csv_path, dry_run=False):
     """Re-upload ONLINE_STORE_THEME translations from the CSV that may have failed."""
     print("\n=== RE-UPLOADING THEME TRANSLATIONS ===")
@@ -549,7 +572,8 @@ def fix_theme_translations(client, csv_path, dry_run=False):
         reader = csv.DictReader(f)
         rows = list(reader)
 
-    theme_rows = []
+    theme_fields = []  # {field, translated, theme_id}
+    theme_id = None
     for row in rows:
         if row.get("Type", "").strip() != "ONLINE_STORE_THEME":
             continue
@@ -559,87 +583,102 @@ def fix_theme_translations(client, csv_path, dry_run=False):
             continue
         if translated == default:
             continue
-        theme_rows.append(row)
-
-    print(f"  Theme translations in CSV: {len(theme_rows)}")
-
-    if not theme_rows:
-        return 0, 0
-
-    # Group by resource GID
-    resources = {}
-    for row in theme_rows:
         identification = row.get("Identification", "").strip().lstrip("'")
-        gid = f"gid://shopify/OnlineStoreThemeSettingValue/{identification}"
-        field = row.get("Field", "").strip()
-
-        if gid not in resources:
-            resources[gid] = []
-        resources[gid].append({
-            "field": field,
-            "translated": row.get("Translated content", "").strip(),
+        theme_id = identification
+        theme_fields.append({
+            "field": row.get("Field", "").strip(),
+            "translated": translated,
         })
 
-    print(f"  Theme resources: {len(resources)}")
+    print(f"  Theme translations in CSV: {len(theme_fields)}")
 
-    if dry_run:
-        for gid, fields in list(resources.items())[:5]:
-            print(f"    {gid}: {len(fields)} fields")
+    if not theme_fields or not theme_id:
         return 0, 0
 
-    # Fetch digests and upload
-    gid_list = list(resources.keys())
-    uploaded = 0
-    errors = 0
+    # The correct GID for theme translations
+    theme_gid = f"gid://shopify/OnlineStoreTheme/{theme_id}"
+    print(f"  Theme GID: {theme_gid}")
 
-    for i in range(0, len(gid_list), 10):
-        batch_gids = gid_list[i:i+10]
-        batch_num = i // 10 + 1
-        total_batches = (len(gid_list) + 9) // 10
-        print(f"  Batch {batch_num}/{total_batches}...")
+    if dry_run:
+        for f in theme_fields[:10]:
+            print(f"    {f['field'][:60]} → {f['translated'][:40]}")
+        if len(theme_fields) > 10:
+            print(f"    ... and {len(theme_fields) - 10} more")
+        return 0, 0
 
+    # Fetch ALL digests for this theme (paginated — themes have thousands of keys)
+    print("  Fetching theme digests (this may take a moment)...")
+    digest_map = {}
+    cursor = None
+    page = 0
+    while True:
+        page += 1
+        variables = {"resourceId": theme_gid, "first": 250}
+        if cursor:
+            variables["after"] = cursor
         try:
-            data = client._graphql(FETCH_DIGESTS_QUERY, {
-                "resourceIds": batch_gids,
-                "first": len(batch_gids),
-            })
+            data = client._graphql(FETCH_THEME_DIGESTS_QUERY, variables)
         except Exception as e:
-            print(f"    ERROR fetching digests: {e}")
-            continue
+            print(f"    ERROR fetching theme digests: {e}")
+            break
 
-        edges = data.get("translatableResourcesByIds", {}).get("edges", [])
-        digest_map = {}
+        resource = data.get("translatableResource")
+        if not resource:
+            print(f"    Theme not found: {theme_gid}")
+            break
+
+        edges = resource.get("translatableContent", {}).get("edges", [])
         for edge in edges:
             node = edge["node"]
-            rid = node["resourceId"]
-            digest_map[rid] = {
-                tc["key"]: tc["digest"] for tc in node["translatableContent"]
-            }
+            digest_map[node["key"]] = node["digest"]
 
-        for gid in batch_gids:
-            if gid not in digest_map:
-                continue
+        page_info = resource.get("translatableContent", {}).get("pageInfo", {})
+        if page_info.get("hasNextPage"):
+            cursor = page_info["endCursor"]
+            if page % 5 == 0:
+                print(f"    ... fetched {len(digest_map)} keys so far")
+        else:
+            break
+        time.sleep(0.3)
 
-            translations_input = []
-            for cf in resources[gid]:
-                digest = digest_map[gid].get(cf["field"])
-                if not digest:
-                    continue
-                translations_input.append({
-                    "locale": LOCALE,
-                    "key": cf["field"],
-                    "value": cf["translated"],
-                    "translatableContentDigest": digest,
-                })
+    print(f"  Total theme keys with digests: {len(digest_map)}")
 
-            if translations_input:
-                u, e = upload_translations(client, gid, translations_input)
-                uploaded += u
-                errors += e
+    # Match CSV fields to digests and upload in batches
+    uploaded = 0
+    errors = 0
+    matched = 0
+    unmatched = 0
 
-        time.sleep(0.5)
+    # Build translations in batches of 20 (Shopify limit per mutation)
+    batch = []
+    for f in theme_fields:
+        digest = digest_map.get(f["field"])
+        if not digest:
+            unmatched += 1
+            continue
+        matched += 1
+        batch.append({
+            "locale": LOCALE,
+            "key": f["field"],
+            "value": f["translated"],
+            "translatableContentDigest": digest,
+        })
 
-    print(f"\n  Theme: uploaded={uploaded}, errors={errors}")
+        if len(batch) >= 20:
+            u, e = upload_translations(client, theme_gid, batch)
+            uploaded += u
+            errors += e
+            batch = []
+            time.sleep(0.3)
+
+    # Upload remaining
+    if batch:
+        u, e = upload_translations(client, theme_gid, batch)
+        uploaded += u
+        errors += e
+
+    print(f"\n  Theme: matched={matched}, unmatched={unmatched}, "
+          f"uploaded={uploaded}, errors={errors}")
     return uploaded, errors
 
 

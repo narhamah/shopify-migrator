@@ -35,7 +35,7 @@ TYPE_TO_GID_PREFIX = {
     "COLLECTION": "gid://shopify/Collection/",
     "METAFIELD": "gid://shopify/Metafield/",
     "METAOBJECT": "gid://shopify/Metaobject/",
-    "ONLINE_STORE_THEME": "gid://shopify/OnlineStoreThemeSettingValue/",
+    "ONLINE_STORE_THEME": "gid://shopify/OnlineStoreTheme/",
     "PAGE": "gid://shopify/Page/",
     "DELIVERY_METHOD_DEFINITION": "gid://shopify/DeliveryMethodDefinition/",
     "COOKIE_BANNER": "gid://shopify/CookieBanner/",
