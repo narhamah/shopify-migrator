@@ -692,13 +692,126 @@ def fix_theme_translations(client, csv_path, dry_run=False):
     return uploaded, errors
 
 
+def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort, dry_run=False):
+    """Fix all problems identified by audit_translations.py."""
+    print(f"\n=== FIXING FROM AUDIT: {audit_file} ===")
+
+    with open(audit_file, "r", encoding="utf-8") as f:
+        problems = json.load(f)
+
+    print(f"  Total problems in audit: {len(problems)}")
+
+    # Group by resource_id for efficient batching
+    by_resource = {}
+    for p in problems:
+        rid = p["resource_id"]
+        if rid not in by_resource:
+            by_resource[rid] = []
+        by_resource[rid].append(p)
+
+    print(f"  Across {len(by_resource)} resources")
+
+    # Collect all fields that need translation
+    fields_for_ai = []
+    for rid, items in by_resource.items():
+        for item in items:
+            field_id = f"{item['resource_type']}|{rid}|{item['key']}"
+            fields_for_ai.append({
+                "id": field_id,
+                "value": item["english"],
+                "_resource_id": rid,
+                "_key": item["key"],
+                "_digest": item["digest"],
+                "_status": item["status"],
+            })
+
+    print(f"  Fields to translate: {len(fields_for_ai)}")
+
+    if dry_run:
+        for f in fields_for_ai[:20]:
+            print(f"    [{f['_status']:15s}] {f['_resource_id'][:50]}")
+            print(f"      {f['_key']}: {f['value'][:70]}")
+        if len(fields_for_ai) > 20:
+            print(f"    ... and {len(fields_for_ai) - 20} more")
+        return 0, 0
+
+    # Translate in batches (up to 100 fields at a time)
+    t_map = {}
+    batch_size = 80
+    for i in range(0, len(fields_for_ai), batch_size):
+        batch = fields_for_ai[i:i+batch_size]
+        ai_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
+        batch_map = translate_fields(ai_batch, developer_prompt, model, reasoning_effort)
+        t_map.update(batch_map)
+        if i + batch_size < len(fields_for_ai):
+            time.sleep(1)
+
+    print(f"  Translated: {len(t_map)} fields")
+
+    # Fetch digests and upload, grouped by resource
+    uploaded = 0
+    errors = 0
+    gid_list = list(by_resource.keys())
+
+    for batch_start in range(0, len(gid_list), 10):
+        batch_gids = gid_list[batch_start:batch_start + 10]
+        batch_num = batch_start // 10 + 1
+        total_batches = (len(gid_list) + 9) // 10
+
+        if batch_num % 10 == 1:
+            print(f"  Upload batch {batch_num}/{total_batches}...")
+
+        # Fetch current digests
+        digest_map = fetch_translatable_resources(client, batch_gids)
+
+        for gid in batch_gids:
+            if gid not in digest_map:
+                continue
+
+            dm = digest_map[gid]
+            translations_input = []
+
+            for item in by_resource[gid]:
+                field_id = f"{item['resource_type']}|{gid}|{item['key']}"
+                ar_value = t_map.get(field_id)
+                if not ar_value:
+                    continue
+
+                shopify_field = dm["content"].get(item["key"])
+                if not shopify_field:
+                    continue
+
+                # Sanitize rich_text JSON
+                if ar_value.strip().startswith("{") and '"type"' in ar_value:
+                    ar_value = sanitize_rich_text_json(ar_value)
+
+                translations_input.append({
+                    "locale": LOCALE,
+                    "key": item["key"],
+                    "value": ar_value,
+                    "translatableContentDigest": shopify_field["digest"],
+                })
+
+            if translations_input:
+                u, e = upload_translations(client, gid, translations_input)
+                uploaded += u
+                errors += e
+
+        time.sleep(0.3)
+
+    print(f"\n  Audit fix: uploaded={uploaded}, errors={errors}")
+    return uploaded, errors
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Fix remaining untranslated Arabic fields")
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview what would be fixed without making changes")
-    parser.add_argument("--only", choices=["metaobjects", "products", "theme"],
+    parser.add_argument("--only", choices=["metaobjects", "products", "theme", "audit"],
                         help="Fix only one category")
+    parser.add_argument("--audit", default=None,
+                        help="Fix from audit JSON file (from audit_translations.py --fix-json)")
     parser.add_argument("--model", default="gpt-5-nano",
                         help="OpenAI model for translation (default: gpt-5-nano)")
     parser.add_argument("--reasoning", default="minimal",
@@ -735,31 +848,45 @@ def main():
     total_uploaded = 0
     total_errors = 0
 
-    if args.only is None or args.only == "metaobjects":
-        u, e = fix_metaobjects(client, developer_prompt, args.model, args.reasoning, args.dry_run)
+    # Audit mode: fix from audit JSON
+    if args.audit or args.only == "audit":
+        audit_file = args.audit
+        if not audit_file:
+            audit_file = os.path.join(ARABIC_DIR, "audit_fix.json")
+        if not os.path.exists(audit_file):
+            print(f"ERROR: Audit file not found: {audit_file}")
+            print("Run: python audit_translations.py --fix-json audit_fix.json")
+            sys.exit(1)
+        u, e = fix_from_audit(client, developer_prompt, audit_file,
+                              args.model, args.reasoning, args.dry_run)
         total_uploaded += u
         total_errors += e
+    else:
+        if args.only is None or args.only == "metaobjects":
+            u, e = fix_metaobjects(client, developer_prompt, args.model, args.reasoning, args.dry_run)
+            total_uploaded += u
+            total_errors += e
 
-    if args.only is None or args.only == "products":
-        u, e = fix_product_metafields(client, developer_prompt, args.model, args.reasoning, args.dry_run)
-        total_uploaded += u
-        total_errors += e
+        if args.only is None or args.only == "products":
+            u, e = fix_product_metafields(client, developer_prompt, args.model, args.reasoning, args.dry_run)
+            total_uploaded += u
+            total_errors += e
 
-    if args.only is None or args.only == "theme":
-        csv_path = args.csv
-        if not csv_path:
-            # Try to find the clean CSV
-            candidates = [
-                os.path.join(ARABIC_DIR, "Tara_Saudi_translations_Mar-10-2026_clean.csv"),
-                os.path.join(ARABIC_DIR, "Tara_Saudi_translations_Mar-10-2026.csv"),
-            ]
-            for c in candidates:
-                if os.path.exists(c):
-                    csv_path = c
-                    break
-        u, e = fix_theme_translations(client, csv_path, args.dry_run)
-        total_uploaded += u
-        total_errors += e
+        if args.only is None or args.only == "theme":
+            csv_path = args.csv
+            if not csv_path:
+                # Try to find the clean CSV
+                candidates = [
+                    os.path.join(ARABIC_DIR, "Tara_Saudi_translations_Mar-10-2026_clean.csv"),
+                    os.path.join(ARABIC_DIR, "Tara_Saudi_translations_Mar-10-2026.csv"),
+                ]
+                for c in candidates:
+                    if os.path.exists(c):
+                        csv_path = c
+                        break
+            u, e = fix_theme_translations(client, csv_path, args.dry_run)
+            total_uploaded += u
+            total_errors += e
 
     print(f"\n{'='*60}")
     print(f"  TOTAL: uploaded={total_uploaded}, errors={total_errors}")
