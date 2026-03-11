@@ -536,22 +536,14 @@ def fix_product_metafields(client, developer_prompt, model, reasoning_effort="mi
 
 
 FETCH_THEME_DIGESTS_QUERY = """
-query($resourceId: ID!, $first: Int!, $after: String) {
+query($resourceId: ID!) {
   translatableResource(resourceId: $resourceId) {
     resourceId
-    translatableContent(first: $first, after: $after) {
-      edges {
-        node {
-          key
-          value
-          digest
-          locale
-        }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
+    translatableContent {
+      key
+      value
+      digest
+      locale
     }
   }
 }
@@ -606,40 +598,20 @@ def fix_theme_translations(client, csv_path, dry_run=False):
             print(f"    ... and {len(theme_fields) - 10} more")
         return 0, 0
 
-    # Fetch ALL digests for this theme (paginated — themes have thousands of keys)
-    print("  Fetching theme digests (this may take a moment)...")
+    # Fetch all digests for this theme
+    print("  Fetching theme digests...")
     digest_map = {}
-    cursor = None
-    page = 0
-    while True:
-        page += 1
-        variables = {"resourceId": theme_gid, "first": 250}
-        if cursor:
-            variables["after"] = cursor
-        try:
-            data = client._graphql(FETCH_THEME_DIGESTS_QUERY, variables)
-        except Exception as e:
-            print(f"    ERROR fetching theme digests: {e}")
-            break
-
+    try:
+        data = client._graphql(FETCH_THEME_DIGESTS_QUERY, {"resourceId": theme_gid})
         resource = data.get("translatableResource")
         if not resource:
             print(f"    Theme not found: {theme_gid}")
-            break
-
-        edges = resource.get("translatableContent", {}).get("edges", [])
-        for edge in edges:
-            node = edge["node"]
-            digest_map[node["key"]] = node["digest"]
-
-        page_info = resource.get("translatableContent", {}).get("pageInfo", {})
-        if page_info.get("hasNextPage"):
-            cursor = page_info["endCursor"]
-            if page % 5 == 0:
-                print(f"    ... fetched {len(digest_map)} keys so far")
-        else:
-            break
-        time.sleep(0.3)
+            return 0, 0
+        for tc in resource.get("translatableContent", []):
+            digest_map[tc["key"]] = tc["digest"]
+    except Exception as e:
+        print(f"    ERROR fetching theme digests: {e}")
+        return 0, 0
 
     print(f"  Total theme keys with digests: {len(digest_map)}")
 
