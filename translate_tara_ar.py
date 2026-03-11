@@ -99,12 +99,38 @@ def _is_keep_as_is(row):
     return False
 
 
+def _extract_rich_text(text):
+    """Extract plain text from Shopify rich_text JSON (recursive)."""
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    parts = []
+    def _walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "text" and "value" in node:
+                parts.append(node["value"])
+            for child in node.get("children", []):
+                _walk(child)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+    _walk(data)
+    return " ".join(parts) if parts else None
+
+
 def _has_arabic(text, min_ratio=0.3):
     """Check if text contains sufficient Arabic characters.
 
     Returns False for text that's mostly Latin/Spanish/English.
-    Ignores HTML tags, CSS, and JSON structure when counting.
+    Handles HTML, CSS, and Shopify rich_text JSON.
     """
+    # Try rich_text JSON first — extract actual text values
+    if text.startswith("{") and '"type"' in text:
+        extracted = _extract_rich_text(text)
+        if extracted and extracted.strip():
+            text = extracted
+
     # Strip HTML tags and CSS for ratio check
     stripped = re.sub(r"<[^>]+>", " ", text)
     stripped = re.sub(r"\{[^}]*\}", " ", stripped)  # CSS blocks
@@ -479,7 +505,10 @@ def main():
             elif field_id in our_translations and not args.reset:
                 from_previous_run.append((i, field_id))
             elif translated and not args.overwrite:
-                if args.fix and not _has_arabic(translated):
+                # Detect untranslated content: identical to default or no Arabic
+                is_fake = (translated == default and not _has_arabic(translated))
+                needs_fix = args.fix and not _has_arabic(translated)
+                if is_fake or needs_fix:
                     fix_bad_csv.append(i)
                     to_translate.append(i)
                 else:

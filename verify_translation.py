@@ -99,11 +99,37 @@ _SPANISH_WORDS = re.compile(
 )
 
 
+def _extract_rich_text(text):
+    """Extract plain text from Shopify rich_text JSON (recursive)."""
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    parts = []
+    def _walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "text" and "value" in node:
+                parts.append(node["value"])
+            for child in node.get("children", []):
+                _walk(child)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+    _walk(data)
+    return " ".join(parts) if parts else None
+
+
 def _detect_language(text):
     """Detect if text is Arabic, English, Spanish, or mixed.
 
     Returns: 'ar', 'en', 'es', or 'mixed'
     """
+    # Try rich_text JSON first — extract actual text values
+    if text.startswith("{") and '"type"' in text:
+        extracted = _extract_rich_text(text)
+        if extracted and extracted.strip():
+            text = extracted
+
     # Strip HTML/CSS for detection
     stripped = re.sub(r"<[^>]+>", " ", text)
     stripped = re.sub(r"\{[^}]*\}", " ", stripped)
