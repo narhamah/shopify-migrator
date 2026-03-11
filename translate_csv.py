@@ -325,7 +325,7 @@ def main():
         if not gid_type:
             continue
 
-        resource_id = row["Identification"]
+        resource_id = row["Identification"].strip().lstrip("'")
         gid = f"gid://shopify/{gid_type}/{resource_id}"
         field = row["Field"]
 
