@@ -492,8 +492,8 @@ def main():
                             # Replace literal newlines with escaped \\n in JSON
                             t["value"] = val.replace("\n", "\\n")
 
-                # Shopify limits translationsRegister to 250 items per call
-                BATCH_LIMIT = 250
+                # Shopify limits translationsRegister to 100 keys per mutation
+                BATCH_LIMIT = 100
                 for chunk_start in range(0, len(translations), BATCH_LIMIT):
                     chunk = translations[chunk_start:chunk_start + BATCH_LIMIT]
                     shopify.register_translations(gid, ARABIC_LOCALE, chunk)
