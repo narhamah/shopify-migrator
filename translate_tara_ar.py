@@ -338,8 +338,8 @@ def main():
                         help="Output CSV (default: Arabic/<input_filename>)")
     parser.add_argument("--model", default="gpt-5-nano",
                         help="OpenAI model (default: gpt-5-nano)")
-    parser.add_argument("--batch-size", type=int, default=30000,
-                        help="Max tokens per batch (default: 30000)")
+    parser.add_argument("--batch-size", type=int, default=4000,
+                        help="Max tokens per batch (default: 4000; keep low to avoid output truncation)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
     parser.add_argument("--max-batches", type=int, default=0,
