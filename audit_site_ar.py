@@ -184,6 +184,9 @@ def crawl_site(base_url, page, max_pages=100, screenshots_dir=None):
         # Screenshot
         if screenshots_dir:
             fname = short_path.strip("/").replace("/", "_") or "home"
+            # Truncate long filenames (Windows 260-char path limit)
+            if len(fname) > 100:
+                fname = fname[:100]
             page.screenshot(path=os.path.join(screenshots_dir, f"{fname}.png"),
                            full_page=True)
 
