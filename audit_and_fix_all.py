@@ -23,15 +23,17 @@ Mimics a human reviewing every page of the Arabic store:
 
 Usage:
     python audit_and_fix_all.py --dry-run              # Preview what needs fixing
-    python audit_and_fix_all.py                         # Full audit + fix
-    python audit_and_fix_all.py --skip-visual           # API-only audit + fix
+    python audit_and_fix_all.py                         # Full audit + fix → CSV
+    python audit_and_fix_all.py --skip-visual           # API-only audit + fix → CSV
     python audit_and_fix_all.py --visual-only           # Playwright check only (no fix)
     python audit_and_fix_all.py --verify                # Re-check previously fixed pages
     python audit_and_fix_all.py --type PRODUCT          # Audit one resource type
     python audit_and_fix_all.py --screenshots           # Save before/after screenshots
+    python audit_and_fix_all.py --upload                # Upload via API instead of CSV
 """
 
 import argparse
+import csv
 import json
 import os
 import re
@@ -680,88 +682,94 @@ def fetch_digests_batch(client, gids, locale):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource. Returns (uploaded, errors).
+    """Upload translations one key at a time to avoid rate limits.
 
-    Uses smaller chunks (20) with retry + exponential backoff for
-    "Too many translation keys" errors (Shopify rate-limits per resource).
+    Returns (uploaded, errors).
     """
-    MAX_PER_CALL = 20
     total_up = 0
     total_err = 0
 
-    for i in range(0, len(translations_input), MAX_PER_CALL):
-        chunk = translations_input[i:i + MAX_PER_CALL]
-        success = False
-
-        for attempt in range(5):  # up to 5 retries with exponential backoff
+    for idx, t in enumerate(translations_input):
+        for attempt in range(4):
             try:
                 data = client._graphql(REGISTER_TRANSLATIONS_MUTATION, {
                     "resourceId": gid,
-                    "translations": chunk,
+                    "translations": [t],
                 })
                 user_errors = data.get("translationsRegister", {}).get("userErrors", [])
 
                 if user_errors:
-                    # Check if it's a rate limit error (retryable)
                     rate_limited = any(
                         "too many" in (ue.get("message", "") or "").lower()
                         for ue in user_errors
                     )
-                    if rate_limited and attempt < 4:
-                        wait = 2 ** (attempt + 1)  # 2, 4, 8, 16, 32 seconds
-                        print(f"      Rate limited, waiting {wait}s "
-                              f"(attempt {attempt + 1}/5)...")
+                    if rate_limited and attempt < 3:
+                        wait = 2 ** (attempt + 1)
                         time.sleep(wait)
                         continue
-
-                    # Non-retryable errors — count only unique error messages
-                    seen_msgs = set()
                     for ue in user_errors:
-                        msg = ue.get("message", str(ue))
-                        if msg not in seen_msgs:
-                            print(f"      ERROR {gid}: {msg}")
-                            seen_msgs.add(msg)
-                    total_err += len(user_errors)
-                    total_up += max(0, len(chunk) - len(user_errors))
+                        print(f"      ERROR {t['key']}: {ue.get('message', ue)}")
+                    total_err += 1
                 else:
-                    total_up += len(chunk)
-
-                success = True
+                    total_up += 1
                 break
 
             except Exception as e:
-                if attempt < 4:
-                    wait = 2 ** (attempt + 1)
-                    print(f"      Exception, retrying in {wait}s: {e}")
-                    time.sleep(wait)
+                if attempt < 3:
+                    time.sleep(2 ** (attempt + 1))
                 else:
-                    print(f"      ERROR uploading {gid}: {e}")
-                    total_err += len(chunk)
-                    success = True  # give up, don't retry
+                    print(f"      ERROR {t['key']}: {e}")
+                    total_err += 1
                     break
 
-        if not success:
-            total_err += len(chunk)
-
-        # Delay between chunks (longer for theme resources which hit rate limits)
-        if i + MAX_PER_CALL < len(translations_input):
-            if "/OnlineStoreTheme/" in gid:
-                time.sleep(2)  # themes need more breathing room
-            else:
-                time.sleep(0.5)
+        # Brief pause every 10 keys
+        if (idx + 1) % 10 == 0:
+            time.sleep(0.5)
 
     return total_up, total_err
 
 
-def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False):
-    """Fix all identified problems by re-translating and uploading.
+def _gid_to_identification(gid):
+    """Convert a Shopify GID to CSV identification format.
 
-    Args:
-        problems: List from api_audit() with english_full and digest.
-        engine: TranslationEngine instance.
-        dry_run: If True, just preview what would be fixed.
+    gid://shopify/Product/123456 → '123456
+    """
+    parts = gid.rsplit("/", 1)
+    return f"'{parts[-1]}" if len(parts) == 2 else gid
 
-    Returns (uploaded, errors).
+
+def _gid_to_type(gid):
+    """Convert a Shopify GID to CSV Type column.
+
+    gid://shopify/Product/123 → PRODUCT
+    gid://shopify/OnlineStoreTheme/123 → ONLINE_STORE_THEME
+    gid://shopify/Metafield/123 → METAFIELD
+    """
+    parts = gid.split("/")
+    if len(parts) >= 4:
+        shopify_type = parts[3]
+        # Convert CamelCase to UPPER_SNAKE
+        result = re.sub(r"(?<=[a-z])(?=[A-Z])", "_", shopify_type).upper()
+        # Special cases
+        type_map = {
+            "ONLINE_STORE_THEME": "ONLINE_STORE_THEME",
+            "ONLINE_STORE_PAGE": "PAGE",
+            "ONLINE_STORE_ARTICLE": "ARTICLE",
+            "ONLINE_STORE_BLOG": "BLOG",
+            "META_OBJECT": "METAOBJECT",
+        }
+        return type_map.get(result, result)
+    return "UNKNOWN"
+
+
+def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False,
+                 upload=False, csv_out=None):
+    """Fix all identified problems by re-translating.
+
+    Default mode: outputs a Shopify-format CSV for manual upload.
+    With --upload: pushes directly via API.
+
+    Returns (fixed_count, errors).
     """
     # Filter to fixable problems (skip OUTDATED — those just need source update)
     fixable_statuses = {"MISSING", "IDENTICAL", "NOT_ARABIC", "MIXED_LANGUAGE", "CORRUPTED_JSON"}
@@ -788,18 +796,9 @@ def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False):
     for s, c in sorted(status_counts.items()):
         print(f"    {s}: {c}")
 
-    # Progress tracking
-    progress_file = os.path.join(OUTPUT_DIR, "audit_fix_progress.json")
-    done_ids = set()
-    if os.path.exists(progress_file):
-        with open(progress_file, "r") as f:
-            done_ids = set(json.load(f).get("uploaded", []))
-        if done_ids:
-            print(f"  Resuming: {len(done_ids)} fields already uploaded")
-
-    # Fetch full English from Shopify API (problems may have full text, but verify)
+    # Fetch full English from Shopify API
     gid_list = list(by_resource.keys())
-    print(f"\n  Fetching digests for {len(gid_list)} resources...")
+    print(f"\n  Fetching full content for {len(gid_list)} resources...")
     full_data = fetch_digests_batch(client, gid_list, locale)
     print(f"  Got data for {len(full_data)} resources")
 
@@ -810,8 +809,6 @@ def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False):
         dm = full_data.get(rid, {})
         for item in items:
             field_id = f"{item['resource_type']}|{rid}|{item['key']}"
-            if field_id in done_ids:
-                continue
 
             # Use full English from API when available
             english = item["english_full"]
@@ -827,7 +824,7 @@ def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False):
             field_to_problem[field_id] = item
 
     if not fields_for_ai:
-        print("  All fields already uploaded!")
+        print("  Nothing to translate!")
         return 0, 0
 
     print(f"\n  Fields to translate: {len(fields_for_ai)}")
@@ -852,79 +849,102 @@ def fix_problems(client, engine, problems, locale=ARABIC_LOCALE, dry_run=False):
     t_map = engine.translate_fields(fields_for_ai)
     print(f"  Translated: {len(t_map)} fields")
 
-    # Upload
-    uploaded = 0
+    # Build translated rows
+    csv_rows = []
     errors = 0
 
-    for batch_start in range(0, len(gid_list), 10):
-        batch_gids = gid_list[batch_start:batch_start + 10]
-        batch_num = batch_start // 10 + 1
-        total_batches = (len(gid_list) + 9) // 10
-
-        if batch_num % 5 == 1 or batch_num == total_batches:
-            print(f"  Uploading batch {batch_num}/{total_batches} "
-                  f"({uploaded} uploaded, {errors} errors)...")
-
-        for gid in batch_gids:
-            if gid not in full_data:
+    for rid, items in by_resource.items():
+        dm = full_data.get(rid, {})
+        for item in items:
+            field_id = f"{item['resource_type']}|{rid}|{item['key']}"
+            ar_value = t_map.get(field_id)
+            if not ar_value:
                 continue
-            dm = full_data[gid]
-            translations_input = []
-            field_ids_in_batch = []
 
-            for item in by_resource.get(gid, []):
-                field_id = f"{item['resource_type']}|{gid}|{item['key']}"
-                if field_id in done_ids:
-                    continue
+            # Get English from API for CSV
+            english = item["english_full"]
+            if dm and "content" in dm:
+                api_content = dm["content"].get(item["key"])
+                if api_content and api_content.get("value"):
+                    english = api_content["value"]
 
-                ar_value = t_map.get(field_id)
-                if not ar_value:
-                    continue
-
-                shopify_field = dm["content"].get(item["key"])
-                if not shopify_field:
-                    continue
-
-                # Validate JSON before uploading
-                stripped = ar_value.strip()
-                if stripped.startswith('{"type"') or stripped.startswith("[{"):
+            # Validate JSON
+            stripped = ar_value.strip()
+            if stripped.startswith('{"type"') or stripped.startswith("[{"):
+                try:
+                    parsed = json.loads(ar_value)
+                    ar_value = json.dumps(parsed, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    sanitized = sanitize(ar_value)
                     try:
-                        parsed = json.loads(ar_value)
-                        ar_value = json.dumps(parsed, ensure_ascii=False)
-                    except json.JSONDecodeError:
-                        # Try sanitize
-                        sanitized = sanitize(ar_value)
-                        try:
-                            json.loads(sanitized)
-                            ar_value = sanitized
-                        except (json.JSONDecodeError, TypeError):
-                            print(f"      WARNING: Skipping invalid JSON for "
-                                  f"{gid} {item['key']} ({len(ar_value)} chars)")
-                            errors += 1
-                            continue
+                        json.loads(sanitized)
+                        ar_value = sanitized
+                    except (json.JSONDecodeError, TypeError):
+                        print(f"      WARNING: Skipping invalid JSON for "
+                              f"{rid} {item['key']} ({len(ar_value)} chars)")
+                        errors += 1
+                        continue
 
-                translations_input.append({
-                    "locale": locale,
-                    "key": item["key"],
-                    "value": ar_value,
-                    "translatableContentDigest": shopify_field["digest"],
-                })
-                field_ids_in_batch.append(field_id)
+            csv_rows.append({
+                "gid": rid,
+                "type": _gid_to_type(rid),
+                "identification": _gid_to_identification(rid),
+                "field": item["key"],
+                "english": english,
+                "arabic": ar_value,
+                "digest": dm.get("content", {}).get(item["key"], {}).get("digest", ""),
+            })
 
-            if translations_input:
-                u, e = upload_translations(client, gid, translations_input)
-                uploaded += u
-                errors += e
-                if u > 0:
-                    done_ids.update(field_ids_in_batch)
-                    # Save progress
-                    os.makedirs(OUTPUT_DIR, exist_ok=True)
-                    with open(progress_file, "w") as f:
-                        json.dump({"uploaded": sorted(done_ids)}, f, indent=2)
+    print(f"\n  Prepared {len(csv_rows)} translated rows ({errors} skipped)")
 
+    # ---- CSV output (default) ----
+    if not upload:
+        csv_path = csv_out or os.path.join(OUTPUT_DIR, "audit_fix_translations.csv")
+        os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
+        with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "Type", "Identification", "Field", "Locale",
+                "Market", "Status", "Default content", "Translated content",
+            ])
+            for row in csv_rows:
+                writer.writerow([
+                    row["type"],
+                    row["identification"],
+                    row["field"],
+                    locale,
+                    "",  # Market
+                    "",  # Status
+                    row["english"],
+                    row["arabic"],
+                ])
+
+        print(f"\n  CSV written: {csv_path}")
+        print(f"  {len(csv_rows)} translations ready for Shopify upload")
+        print(f"\n  To upload: Shopify Admin → Settings → Languages → Arabic → Import")
+        return len(csv_rows), errors
+
+    # ---- API upload (with --upload flag) ----
+    print(f"\n  Uploading {len(csv_rows)} translations via API...")
+    uploaded = 0
+
+    # Group by GID for batched upload
+    upload_by_gid = {}
+    for row in csv_rows:
+        upload_by_gid.setdefault(row["gid"], []).append({
+            "locale": locale,
+            "key": row["field"],
+            "value": row["arabic"],
+            "translatableContentDigest": row["digest"],
+        })
+
+    for gid, translations_input in upload_by_gid.items():
+        u, e = upload_translations(client, gid, translations_input)
+        uploaded += u
+        errors += e
         time.sleep(0.3)
 
-    print(f"\n  Fix complete: uploaded={uploaded}, errors={errors}")
+    print(f"\n  Upload complete: uploaded={uploaded}, errors={errors}")
     return uploaded, errors
 
 
@@ -1031,6 +1051,10 @@ def main():
                         help="Reasoning effort (default: minimal)")
     parser.add_argument("--batch-size", type=int, default=80,
                         help="Fields per translation batch (default: 80)")
+    parser.add_argument("--csv-out", default=None,
+                        help="Output CSV path (default: Arabic/audit_fix_translations.csv)")
+    parser.add_argument("--upload", action="store_true",
+                        help="Upload via API instead of generating CSV")
     args = parser.parse_args()
 
     load_dotenv()
@@ -1048,7 +1072,8 @@ def main():
     print("  FULL TRANSLATION AUDIT & FIX")
     print(f"  Store: {args.base_url}")
     print(f"  Locale: {args.locale}")
-    print(f"  Mode: {'DRY RUN' if args.dry_run else 'LIVE'}")
+    mode = "DRY RUN" if args.dry_run else ("API UPLOAD" if args.upload else "CSV OUTPUT")
+    print(f"  Mode: {mode}")
     print("=" * 70)
 
     visual_issues = []
@@ -1182,6 +1207,8 @@ def main():
         client, engine, api_problems,
         locale=args.locale,
         dry_run=args.dry_run,
+        upload=args.upload,
+        csv_out=args.csv_out,
     )
 
     # ------------------------------------------------------------------
@@ -1214,11 +1241,17 @@ def main():
         print(f"  Visual issues:      {len(visual_issues)}")
     print(f"  API fields scanned: {api_stats['total']}")
     print(f"  Problems found:     {api_stats['total'] - api_stats['ok']}")
-    if not args.dry_run:
-        print(f"  Translations fixed: {uploaded}")
-        print(f"  Errors:             {errors}")
-    else:
+    if args.dry_run:
         print(f"  (DRY RUN — no changes made)")
+    elif args.upload:
+        print(f"  Translations uploaded: {uploaded}")
+        print(f"  Errors:               {errors}")
+    else:
+        csv_path = args.csv_out or os.path.join(OUTPUT_DIR, "audit_fix_translations.csv")
+        print(f"  CSV rows written:     {uploaded}")
+        print(f"  Skipped (bad JSON):   {errors}")
+        print(f"  Output:               {csv_path}")
+        print(f"\n  Upload: Shopify Admin → Settings → Languages → Arabic → Import")
     print(f"{'=' * 70}")
 
 
