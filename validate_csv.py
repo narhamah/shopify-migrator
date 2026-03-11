@@ -5,32 +5,32 @@ Uses Claude Haiku 4.5 to verify each English↔Arabic pair actually corresponds
 (catches row shifts where translations slid up/down). Also strips rows that
 contain non-translatable data (URLs, IDs, config JSON, images, etc.).
 
-Five-layer validation:
+Validation pipeline:
 1. Rule-based: remove untranslatable rows (URLs, IDs, images, config)
 2. Script analysis: detect missing Arabic, untranslated copies, length anomalies
 3. Duplicate detection: flag identical Arabic for different English sources
-4. Heuristic: detect systematic row shifts (N+1/N-1 cross-matching)
-5. AI (Haiku 4.5): two-pass verification with confidence scoring
-   - Pass 1: batch check all pairs, collect mismatches with confidence
-   - Pass 2: re-verify low/medium confidence mismatches with more context
+4. Heuristic: detect systematic row shifts (N±1..N±5 cross-matching)
+5. AI (Haiku 4.5): resource-grouped two-pass verification
+   - Pass 1: batch check with confidence + content-category hints
+   - Pass 2: re-verify uncertain mismatches with neighboring-row context
+   - Pass 3 (optional): back-translate suspicious pairs for final verdict
 
 Usage:
     python validate_csv.py --input Arabic/translations.csv
     python validate_csv.py --input Arabic/translations.csv --dry-run
     python validate_csv.py --input Arabic/translations.csv --skip-ai
-    python validate_csv.py --input Arabic/translations.csv --batch-size 50
-    python validate_csv.py --input Arabic/translations.csv --no-recheck
+    python validate_csv.py --input Arabic/translations.csv --workers 4
 """
 
 import argparse
 import csv
 import json
-import math
 import os
 import re
 import sys
 import time
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import anthropic
 from dotenv import load_dotenv
@@ -38,98 +38,79 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 MODEL = "claude-haiku-4-5-20251001"
-
-# Approximate Haiku 4.5 pricing (input/output per 1M tokens)
 HAIKU_INPUT_COST = 0.80   # $/1M input tokens
 HAIKU_OUTPUT_COST = 4.00  # $/1M output tokens
 
 # ---------------------------------------------------------------------------
-# Untranslatable detection (rule-based, no API needed)
+# Rule-based untranslatable detection
 # ---------------------------------------------------------------------------
 
-SKIP_FIELD_PATTERNS = [
-    r"\.image$", r"\.image_\d", r"\.image_\d_mobile", r"\.icon:",
-    r"\.link$", r"_url$", r"\.logo", r"\.favicon",
-    r"google_maps", r"form_id", r"portal_id", r"anchor_id",
-    r"worker_url", r"default_lat", r"default_lng",
-    r"max_height", r"max_width", r"\.video$", r"\.video_url",
-    r"\.color$", r"\.color_", r"color_scheme",
-    r"\.opacity", r"\.padding", r"\.margin",
-    r"font_size", r"border_radius",
+SKIP_FIELD_PATTERNS = re.compile("|".join([
+    r"\.image(_\d(_mobile)?)?$", r"\.icon:", r"\.link$", r"_url$",
+    r"\.logo", r"\.favicon", r"google_maps", r"form_id",
+    r"portal_id", r"anchor_id", r"worker_url",
+    r"default_la[tn]", r"default_lng", r"max_(height|width)",
+    r"\.video(_url)?$", r"\.color(_|$)", r"color_scheme",
+    r"\.(opacity|padding|margin)$", r"font_size", r"border_radius",
+]))
+
+_UNTRANS_VALUE_PATTERNS = [
+    (re.compile(r"^(shopify://|https?://|/|gid://)"), None),
+    (re.compile(r"^-?\d+\.?\d*$"), None),
+    (re.compile(r"^#?[0-9a-fA-F]{3,}$"), None),
+    (re.compile(r"^\d+(\.\d+)?(px|rem|em|%|vh|vw|s|ms)$"), None),
 ]
 
-
-def is_untranslatable_field(field):
-    """Return True if this field key should not be translated."""
-    for pat in SKIP_FIELD_PATTERNS:
-        if re.search(pat, field):
-            return True
-    return False
+_BOOL_VALUES = frozenset(("true", "false", "yes", "no", "none", "null"))
 
 
-def is_untranslatable_value(value):
-    """Return True if this value is not translatable text."""
-    if not value or not value.strip():
-        return True
-    v = value.strip()
-    # URLs, paths, GIDs
-    if v.startswith(("shopify://", "http://", "https://", "/", "gid://")):
-        return True
-    # Pure numbers (including decimals, negatives)
-    if re.match(r"^-?\d+\.?\d*$", v):
-        return True
-    # Hex IDs / color codes
-    if re.match(r"^#?[0-9a-fA-F]{6,}$", v):
-        return True
-    # Short hex (3-char colors)
-    if re.match(r"^#[0-9a-fA-F]{3}$", v):
-        return True
+def is_untranslatable(field, value):
+    """Return (should_remove, reason) for a field+value pair."""
+    v = (value or "").strip()
+    if not v:
+        return True, "empty"
+    if SKIP_FIELD_PATTERNS.search(field):
+        return True, "field_pattern"
+    if v.lower() in _BOOL_VALUES:
+        return True, "untranslatable_value"
+    for pat, _ in _UNTRANS_VALUE_PATTERNS:
+        if pat.match(v):
+            return True, "untranslatable_value"
     # JSON arrays of GIDs/IDs
     if v.startswith("[") and v.endswith("]"):
         try:
             parsed = json.loads(v)
             if isinstance(parsed, list) and all(
-                isinstance(x, str) and (x.startswith("gid://") or re.match(r"^\d+$", x))
+                isinstance(x, str) and (x.startswith("gid://") or x.isdigit())
                 for x in parsed
             ):
-                return True
+                return True, "untranslatable_value"
         except (json.JSONDecodeError, TypeError):
             pass
     # Config JSON
-    if v.startswith("{") and ('"reviewCount"' in v or '"formId"' in v):
-        return True
-    # Pure CSS/style blocks with no visible text
-    if v.strip().startswith("<style>") and "</style>" in v and len(v) > 200:
-        no_style = re.sub(r"<style>.*?</style>", "", v, flags=re.DOTALL)
-        no_tags = re.sub(r"<[^>]+>", " ", no_style).strip()
-        if not no_tags:
-            return True
-    # Boolean-like values
-    if v.lower() in ("true", "false", "yes", "no", "none", "null"):
-        return True
-    # CSS values (px, rem, em, %, vh, vw)
-    if re.match(r"^\d+(\.\d+)?(px|rem|em|%|vh|vw|s|ms)$", v):
-        return True
-    return False
-
-
-def is_untranslatable_row(row):
-    """Check if a row should be removed entirely."""
-    field = row.get("Field", "")
-    default = row.get("Default content", "").strip()
-
-    if not default:
-        return True, "empty"
-    if is_untranslatable_field(field):
-        return True, "field_pattern"
-    if is_untranslatable_value(default):
+    if v.startswith("{") and any(k in v for k in ('"reviewCount"', '"formId"')):
         return True, "untranslatable_value"
+    # Pure CSS with no visible text
+    if "<style>" in v.lower() and "</style>" in v.lower() and len(v) > 200:
+        stripped = re.sub(r"<style>.*?</style>", "", v, flags=re.DOTALL | re.IGNORECASE)
+        if not re.sub(r"<[^>]+>", " ", stripped).strip():
+            return True, "untranslatable_value"
     return False, ""
 
 
 # ---------------------------------------------------------------------------
-# Text extraction
+# Text extraction & caching
 # ---------------------------------------------------------------------------
+
+_STRIP_TAGS_RE = re.compile(r"<[^>]+>")
+_STYLE_RE = re.compile(r"<style[^>]*>.*?</style>", re.DOTALL | re.IGNORECASE)
+_SCRIPT_RE = re.compile(r"<script[^>]*>.*?</script>", re.DOTALL | re.IGNORECASE)
+_WHITESPACE_RE = re.compile(r"\s+")
+_ENTITY_MAP = {"&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">"}
+_ENTITY_NUM_RE = re.compile(r"&#\d+;")
+_ARABIC_RE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
+_LATIN_RE = re.compile(r"[a-zA-Z]")
+
 
 def extract_visible_text(html_or_text, max_chars=300):
     """Extract visible text from HTML/rich_text for comparison."""
@@ -157,532 +138,539 @@ def extract_visible_text(html_or_text, max_chars=300):
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # Strip CSS blocks first, then HTML tags
-    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
-    # Clean up whitespace and entities
-    text = re.sub(r"&nbsp;", " ", text)
-    text = re.sub(r"&amp;", "&", text)
-    text = re.sub(r"&lt;", "<", text)
-    text = re.sub(r"&gt;", ">", text)
-    text = re.sub(r"&#\d+;", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
+    text = _STYLE_RE.sub("", text)
+    text = _SCRIPT_RE.sub("", text)
+    text = _STRIP_TAGS_RE.sub(" ", text)
+    for entity, repl in _ENTITY_MAP.items():
+        text = text.replace(entity, repl)
+    text = _ENTITY_NUM_RE.sub(" ", text)
+    text = _WHITESPACE_RE.sub(" ", text).strip()
     return text[:max_chars]
 
 
-# ---------------------------------------------------------------------------
-# Script analysis helpers
-# ---------------------------------------------------------------------------
+class RowCache:
+    """Cache extracted text per row to avoid redundant extraction."""
 
-_ARABIC_RE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
-_LATIN_RE = re.compile(r"[a-zA-Z]")
+    def __init__(self, rows):
+        self.rows = rows
+        self._eng = {}
+        self._ar = {}
+
+    def eng(self, i, max_chars=300):
+        key = (i, max_chars)
+        if key not in self._eng:
+            self._eng[key] = extract_visible_text(
+                self.rows[i].get("Default content", ""), max_chars)
+        return self._eng[key]
+
+    def ar(self, i, max_chars=300):
+        key = (i, max_chars)
+        if key not in self._ar:
+            self._ar[key] = extract_visible_text(
+                self.rows[i].get("Translated content", ""), max_chars)
+        return self._ar[key]
+
+    def field(self, i):
+        return self.rows[i].get("Field", "")
+
+    def resource_key(self, i):
+        r = self.rows[i]
+        return (r.get("Type", ""), r.get("Identification", ""))
 
 
-def arabic_char_ratio(text):
-    """Return fraction of alphabetic characters that are Arabic."""
+def arabic_ratio(text):
+    """Fraction of alphabetic chars that are Arabic (0.0–1.0)."""
     if not text:
         return 0.0
-    arabic = len(_ARABIC_RE.findall(text))
-    latin = len(_LATIN_RE.findall(text))
-    total = arabic + latin
-    if total == 0:
-        return 0.0
-    return arabic / total
+    ar = len(_ARABIC_RE.findall(text))
+    la = len(_LATIN_RE.findall(text))
+    return ar / (ar + la) if (ar + la) else 0.0
 
 
-def text_length_ratio(eng_text, ar_text):
-    """Return the length ratio between Arabic and English visible text.
-
-    Arabic text is typically 0.6x–1.5x the English length (in chars).
-    Extreme ratios suggest misalignment.
-    """
-    eng_len = len(eng_text.strip())
-    ar_len = len(ar_text.strip())
-    if eng_len == 0:
-        return float("inf") if ar_len > 0 else 1.0
-    return ar_len / eng_len
-
-
-def is_field_type_heading(field):
-    """Check if field name suggests a short heading/title."""
-    heading_patterns = [
-        r"\.title$", r"\.heading$", r"\.label$", r"\.name$",
-        r"\.button_label$", r"\.button_text$", r"\.cta_text$",
-        r"\.tab_", r"\.menu_",
-    ]
-    return any(re.search(p, field) for p in heading_patterns)
+def classify_content(field, text):
+    """Classify field into content category for AI hints."""
+    fl = field.lower()
+    if any(p in fl for p in (".title", ".heading", ".label", ".name",
+                              "button_label", "button_text", "cta_text",
+                              ".tab_", ".menu_")):
+        return "heading"
+    if any(p in fl for p in (".body", ".description", ".content",
+                              ".rich_text", ".paragraph", ".details")):
+        return "body"
+    # Check text content for ingredients (comma-separated Latin words)
+    if text and re.match(r"^[A-Z][a-z]+(\s[A-Z][a-z]+)*(,\s*[A-Z])", text):
+        return "ingredients"
+    return "text"
 
 
-def is_field_type_body(field):
-    """Check if field name suggests body/description content."""
-    body_patterns = [
-        r"\.body$", r"\.description$", r"\.content$", r"\.text$",
-        r"\.rich_text$", r"\.paragraph$", r"\.details$",
-    ]
-    return any(re.search(p, field) for p in body_patterns)
+def build_mismatch(cache, idx, reason, source, severity="medium", confidence=None):
+    """Build a standardized mismatch dict."""
+    row = cache.rows[idx]
+    m = {
+        "row_index": idx,
+        "type": row.get("Type", ""),
+        "identification": row.get("Identification", ""),
+        "field": cache.field(idx),
+        "english": cache.eng(idx, 120),
+        "arabic": cache.ar(idx, 120),
+        "reason": reason,
+        "source": source,
+    }
+    if confidence:
+        m["confidence"] = confidence
+    else:
+        m["severity"] = severity
+    return m
 
 
 # ---------------------------------------------------------------------------
-# Script & structural heuristics (layer 2 - no API cost)
+# Layer 2: Script & structural heuristics
 # ---------------------------------------------------------------------------
 
-def detect_script_issues(rows):
-    """Detect translation issues using script analysis.
-
-    Returns dict of {row_index: {"reason": str, "severity": str}}
-    """
+def detect_script_issues(cache):
+    """Detect issues via script analysis. Returns dict of {idx: mismatch}."""
     issues = {}
-
-    for i, row in enumerate(rows):
-        default = row.get("Default content", "").strip()
-        translated = row.get("Translated content", "").strip()
-        field = row.get("Field", "")
-
-        if not default or not translated:
+    for i in range(len(cache.rows)):
+        eng = cache.eng(i)
+        ar = cache.ar(i)
+        field = cache.field(i)
+        if not eng or not ar:
             continue
 
-        eng_text = extract_visible_text(default)
-        ar_text = extract_visible_text(translated)
-
-        if not eng_text or not ar_text:
+        # Untranslated: Arabic identical to English (>2 words)
+        if eng == ar and len(eng) > 5 and len(eng.split()) > 2:
+            issues[i] = build_mismatch(cache, i,
+                "untranslated: Arabic identical to English",
+                "script_analysis", "high")
             continue
 
-        # 1) Translation is identical to English (not actually translated)
-        if eng_text == ar_text and len(eng_text) > 5:
-            # Exception: brand names, INCI ingredients, single words that might be the same
-            if len(eng_text.split()) > 2:
-                issues[i] = {
-                    "reason": "untranslated: Arabic identical to English",
-                    "severity": "high",
-                }
+        # No Arabic script at all (allow INCI / genus-species)
+        ar_r = arabic_ratio(ar)
+        if ar_r == 0.0 and len(ar) > 10:
+            if not re.match(r"^[A-Z][a-z]+ [A-Z][a-z]+", ar):
+                issues[i] = build_mismatch(cache, i,
+                    "no Arabic script in translation",
+                    "script_analysis", "high")
                 continue
 
-        # 2) "Arabic" translation has no Arabic characters at all
-        ar_ratio = arabic_char_ratio(ar_text)
-        if ar_ratio == 0.0 and len(ar_text) > 10:
-            # Allow pure-Latin scientific names, INCI lists
-            if not re.match(r"^[A-Z][a-z]+ [A-Z][a-z]+", ar_text):  # Genus species
-                issues[i] = {
-                    "reason": f"no Arabic script in translation (all Latin)",
-                    "severity": "high",
-                }
-                continue
-
-        # 3) Length ratio anomaly
-        ratio = text_length_ratio(eng_text, ar_text)
-        eng_words = len(eng_text.split())
-
-        # Short heading (1-4 words) mapped to long paragraph
-        if is_field_type_heading(field) and eng_words <= 4 and len(ar_text) > 200:
-            issues[i] = {
-                "reason": f"heading field has paragraph-length translation ({len(ar_text)} chars)",
-                "severity": "medium",
-            }
+        # Very low Arabic ratio in substantial text (likely mixed up)
+        if ar_r < 0.15 and len(ar) > 50 and len(_ARABIC_RE.findall(ar)) < 5:
+            issues[i] = build_mismatch(cache, i,
+                f"only {ar_r:.0%} Arabic chars in translation",
+                "script_analysis", "medium")
             continue
 
-        # Extreme length ratio (only flag if enough text to be meaningful)
-        if len(eng_text) > 20 and len(ar_text) > 20:
+        # Length anomalies
+        eng_len, ar_len = len(eng), len(ar)
+        if eng_len > 20 and ar_len > 20:
+            ratio = ar_len / eng_len
             if ratio > 5.0:
-                issues[i] = {
-                    "reason": f"Arabic is {ratio:.1f}x longer than English",
-                    "severity": "medium",
-                }
+                issues[i] = build_mismatch(cache, i,
+                    f"Arabic is {ratio:.1f}x longer than English",
+                    "script_analysis", "medium")
             elif ratio < 0.1:
-                issues[i] = {
-                    "reason": f"Arabic is {ratio:.1f}x shorter than English",
-                    "severity": "medium",
-                }
+                issues[i] = build_mismatch(cache, i,
+                    f"Arabic is {ratio:.1f}x shorter than English",
+                    "script_analysis", "medium")
+        elif classify_content(field, eng) == "heading" and len(eng.split()) <= 4 and ar_len > 200:
+            issues[i] = build_mismatch(cache, i,
+                f"heading has paragraph-length translation ({ar_len} chars)",
+                "script_analysis", "medium")
 
     return issues
 
 
 # ---------------------------------------------------------------------------
-# Duplicate translation detection (layer 3 - no API cost)
+# Layer 3: Duplicate translation detection
 # ---------------------------------------------------------------------------
 
-def detect_duplicate_translations(rows):
-    """Find cases where identical Arabic text maps to very different English text.
-
-    This catches copy-paste errors or systematic fill-down mistakes.
-    Returns dict of {row_index: {"reason": str, "severity": str}}
-    """
+def detect_duplicates(cache):
+    """Flag identical Arabic for substantially different English. Returns {idx: mismatch}."""
     issues = {}
-
-    # Group rows by normalized Arabic translation
     ar_to_rows = defaultdict(list)
-    for i, row in enumerate(rows):
-        translated = row.get("Translated content", "").strip()
-        if not translated:
-            continue
-        ar_text = extract_visible_text(translated, 500)
-        # Only consider substantial translations (>20 chars)
-        if len(ar_text) > 20:
-            ar_to_rows[ar_text].append(i)
+
+    for i in range(len(cache.rows)):
+        ar = cache.ar(i, 500)
+        if len(ar) > 20:
+            ar_to_rows[ar].append(i)
 
     for ar_text, indices in ar_to_rows.items():
         if len(indices) < 2:
             continue
-
-        # Get the English texts for these rows
-        eng_texts = []
-        for idx in indices:
-            eng = extract_visible_text(rows[idx].get("Default content", ""), 200)
-            eng_texts.append(eng)
-
-        # Check if the English texts are substantially different
-        # Use word overlap to measure similarity
+        eng_words = [set(cache.eng(i, 200).lower().split()) for i in indices]
+        flagged = set()
         for a in range(len(indices)):
             for b in range(a + 1, len(indices)):
-                words_a = set(eng_texts[a].lower().split())
-                words_b = set(eng_texts[b].lower().split())
-                if not words_a or not words_b:
+                wa, wb = eng_words[a], eng_words[b]
+                if len(wa) < 3 or len(wb) < 3:
                     continue
-                overlap = len(words_a & words_b) / max(len(words_a), len(words_b))
-                # If English texts share less than 30% words but have identical Arabic
-                if overlap < 0.3 and len(words_a) >= 3 and len(words_b) >= 3:
-                    for idx in [indices[a], indices[b]]:
-                        if idx not in issues:
-                            issues[idx] = {
-                                "reason": "duplicate Arabic for different English sources",
-                                "severity": "medium",
-                            }
+                overlap = len(wa & wb) / max(len(wa), len(wb))
+                if overlap < 0.3:
+                    flagged.update((indices[a], indices[b]))
+        for idx in flagged:
+            if idx not in issues:
+                issues[idx] = build_mismatch(cache, idx,
+                    "duplicate Arabic for different English",
+                    "duplicate", "medium")
 
     return issues
 
 
 # ---------------------------------------------------------------------------
-# Heuristic shift detection (layer 4)
+# Layer 4: Multi-offset heuristic shift detection
 # ---------------------------------------------------------------------------
 
-def detect_sequential_shifts(rows):
-    """Detect systematic row shifts by cross-matching adjacent rows.
+MAX_SHIFT_OFFSET = 5
 
-    If row N's Arabic matches row N+1's English better than row N's English,
-    that indicates a shift. Returns set of row indices that are shifted.
-    """
+
+def detect_shifts(cache):
+    """Detect row shifts by cross-matching within ±5 offsets per resource.
+    Returns set of shifted row indices."""
     shifted = set()
+    by_resource = defaultdict(list)
 
-    indexed = []
-    for i, row in enumerate(rows):
-        eng = extract_visible_text(row.get("Default content", ""), 150)
-        ara = extract_visible_text(row.get("Translated content", ""), 150)
-        if eng and ara and len(eng) >= 10 and len(ara) >= 5:
-            indexed.append((i, eng, ara))
+    for i in range(len(cache.rows)):
+        eng = cache.eng(i, 150)
+        ar = cache.ar(i, 150)
+        if eng and ar and len(eng) >= 10 and len(ar) >= 5:
+            by_resource[cache.resource_key(i)].append(i)
 
-    if len(indexed) < 3:
-        return shifted
-
-    # Group by resource type + ID to only compare within same resource
-    by_resource = {}
-    for idx, (i, eng, ara) in enumerate(indexed):
-        row = rows[i]
-        key = (row.get("Type", ""), row.get("Identification", ""))
-        if key not in by_resource:
-            by_resource[key] = []
-        by_resource[key].append((i, eng, ara, idx))
-
-    for key, group in by_resource.items():
-        if len(group) < 2:
+    for key, indices in by_resource.items():
+        if len(indices) < 2:
             continue
 
-        for pos in range(len(group)):
-            i, eng, ara, _ = group[pos]
-            eng_words = set(eng.lower().split())
-            ara_latin = set(re.findall(r"[a-zA-Z]+", ara.lower()))
+        for pos, i in enumerate(indices):
+            eng_words = set(cache.eng(i, 150).lower().split())
+            if len(eng_words) < 3:
+                continue
+            ar_latin = set(re.findall(r"[a-zA-Z]{2,}", cache.ar(i, 150).lower()))
+            if not ar_latin:
+                continue
+            overlap_self = len(ar_latin & eng_words)
 
-            # Check: does this row's Arabic match the NEXT row's English?
-            if pos + 1 < len(group):
-                _, next_eng, _, _ = group[pos + 1]
-                next_words = set(next_eng.lower().split())
-
-                if len(eng_words) >= 3 and len(next_words) >= 3:
-                    overlap_current = len(ara_latin & eng_words)
-                    overlap_next = len(ara_latin & next_words)
-                    if overlap_next > overlap_current and overlap_next >= 3:
-                        shifted.add(i)
-
-            # Check: does this row's Arabic match the PREVIOUS row's English?
-            if pos > 0:
-                _, prev_eng, _, _ = group[pos - 1]
-                prev_words = set(prev_eng.lower().split())
-
-                if len(eng_words) >= 3 and len(prev_words) >= 3:
-                    overlap_current = len(ara_latin & eng_words)
-                    overlap_prev = len(ara_latin & prev_words)
-                    if overlap_prev > overlap_current and overlap_prev >= 3:
-                        shifted.add(i)
+            for delta in range(-MAX_SHIFT_OFFSET, MAX_SHIFT_OFFSET + 1):
+                if delta == 0:
+                    continue
+                other_pos = pos + delta
+                if not (0 <= other_pos < len(indices)):
+                    continue
+                j = indices[other_pos]
+                other_words = set(cache.eng(j, 150).lower().split())
+                if len(other_words) < 3:
+                    continue
+                overlap_other = len(ar_latin & other_words)
+                if overlap_other > overlap_self and overlap_other >= 3:
+                    shifted.add(i)
+                    break  # one match is enough
 
     return shifted
 
 
 # ---------------------------------------------------------------------------
-# AI-based alignment validation (Claude Haiku 4.5)
+# AI validation: resource-grouped, two-pass + back-translation
 # ---------------------------------------------------------------------------
 
 FEW_SHOT_EXAMPLES = """Examples:
 
-CORRECT (OK) pairs:
+OK pairs:
 - EN: "Award-Winning Haircare: Botanical Extracts + Advanced Science"
   AR: "عناية بالشعر حاصلة على جوائز: مستخلصات نباتية + علم متقدم"
-  → OK, confidence: high (same meaning, same structure)
-
-- EN: "Activated Charcoal Face Wash"
-  AR: "غسول الوجه بالفحم المنشط"
-  → OK, confidence: high (same product name)
-
-- EN: "Free Of"
-  AR: "خالٍ من"
-  → OK, confidence: high (heading translation)
-
-- EN: "Aqua, Glycerin, Cetearyl Alcohol, Butyrospermum Parkii"
-  AR: "Aqua, Glycerin, Cetearyl Alcohol, Butyrospermum Parkii"
-  → OK, confidence: high (INCI list — kept in Latin is correct)
-
+  → OK (same meaning)
+- EN: "Activated Charcoal Face Wash" / AR: "غسول الوجه بالفحم المنشط" → OK
+- EN: "Free Of" / AR: "خالٍ من" → OK
+- EN: "Aqua, Glycerin, Cetearyl Alcohol" / AR: "Aqua, Glycerin, Cetearyl Alcohol" → OK (INCI kept in Latin)
 - EN: "Our gentle formula cleanses without stripping natural oils"
-  AR: "تركيبتنا اللطيفة تنظف دون إزالة الزيوت الطبيعية"
-  → OK, confidence: high (accurate translation, cosmetics context)
+  AR: "تركيبتنا اللطيفة تنظف دون إزالة الزيوت الطبيعية" → OK
 
-MISMATCHED pairs (row shift):
+MISMATCH pairs (row shift):
 - EN: "Hydrating Face Cream with Hyaluronic Acid"
-  AR: "شامبو مقوي للشعر بالكيراتين"
-  → MISMATCH, confidence: high (Arabic says "keratin hair shampoo" — different product)
-
+  AR: "شامبو مقوي للشعر بالكيراتين" → MISMATCH (hair shampoo ≠ face cream)
 - EN: "Key Benefits"
-  AR: "ينظف البشرة بعمق ويزيل الشوائب والزيوت الزائدة"
-  → MISMATCH, confidence: high (Arabic is a product description, not a heading)
-
+  AR: "ينظف البشرة بعمق ويزيل الشوائب والزيوت الزائدة" → MISMATCH (heading got body text)
 - EN: "How to Use"
-  AR: "زبدة الشيا العضوية تغذي وترطب البشرة الجافة"
-  → MISMATCH, confidence: high (Arabic describes shea butter benefits, not usage)
-
-- EN: "Rose Water Toner helps balance skin pH and tighten pores"
-  AR: "كريم الليل بالريتينول يجدد البشرة أثناء النوم"
-  → MISMATCH, confidence: high (Arabic says "retinol night cream" — completely different product)
+  AR: "زبدة الشيا العضوية تغذي وترطب البشرة الجافة" → MISMATCH (usage heading got ingredient desc)
+- EN: "Rose Water Toner helps balance skin pH"
+  AR: "كريم الليل بالريتينول يجدد البشرة" → MISMATCH (toner ≠ night cream)
 """
 
 
-def estimate_cost(num_pairs, batch_size, recheck_ratio=0.1):
-    """Estimate API cost for validation including potential recheck pass."""
-    num_batches = (num_pairs + batch_size - 1) // batch_size
-    # Pass 1: ~60 tokens per pair input + ~600 tokens system/few-shot per batch
-    input_tokens = num_pairs * 60 + num_batches * 800
-    output_tokens = num_pairs * 8
-
-    # Pass 2 recheck: ~10% of pairs, more context
-    recheck_pairs = int(num_pairs * recheck_ratio)
-    recheck_batches = max(1, (recheck_pairs + 15) // 15)
-    input_tokens += recheck_pairs * 120 + recheck_batches * 800
-    output_tokens += recheck_pairs * 15
-
-    cost = (input_tokens / 1_000_000 * HAIKU_INPUT_COST +
-            output_tokens / 1_000_000 * HAIKU_OUTPUT_COST)
-    return cost, num_batches
+def estimate_cost(num_pairs, batch_size):
+    """Estimate total API cost including recheck pass."""
+    batches = (num_pairs + batch_size - 1) // batch_size
+    inp = num_pairs * 60 + batches * 800
+    out = num_pairs * 8
+    # Recheck ~10%
+    rc = int(num_pairs * 0.1)
+    rc_b = max(1, (rc + 15) // 15)
+    inp += rc * 120 + rc_b * 800
+    out += rc * 15
+    return (inp / 1e6 * HAIKU_INPUT_COST + out / 1e6 * HAIKU_OUTPUT_COST), batches
 
 
-def validate_batch(client, pairs, fields=None):
-    """Send a batch of (english, arabic) pairs to Haiku for alignment check.
+def _parse_json_response(text):
+    """Extract JSON array from model response, handling code fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        end = -1 if lines[-1].strip() == "```" else len(lines)
+        text = "\n".join(lines[1:end]).strip()
+    result = json.loads(text)
+    return result if isinstance(result, list) else []
 
-    Returns list of {"i": int, "ok": false, "confidence": str, "reason": str}.
-    """
-    lines = []
-    for i, (eng, ara) in enumerate(pairs):
-        field_hint = f" [{fields[i]}]" if fields and i < len(fields) else ""
-        lines.append(f"{i}.{field_hint} EN: {eng}")
-        lines.append(f"   AR: {ara}")
 
-    prompt = (
-        "You are a translation QA checker for Tara, a skincare/haircare brand. "
-        "Check if each Arabic translation correctly corresponds to its English source.\n\n"
-        "Flag as MISMATCH ONLY if:\n"
-        "- Arabic is about a COMPLETELY DIFFERENT topic/product (row shift)\n"
-        "- Arabic is clearly a translation of a different English text\n"
-        "- A short heading (1-3 words) received a long paragraph as translation\n"
-        "- Content categories don't match (e.g., ingredient list vs. usage instructions)\n\n"
-        "Flag as OK if:\n"
-        "- Arabic is a reasonable translation (even if imperfect or paraphrased)\n"
-        "- Same topic/product, even with different wording or emphasis\n"
-        "- INCI/scientific names kept in English within Arabic — this is CORRECT\n"
-        "- Minor omissions, additions, or style differences are fine\n"
-        "- Brand name 'Tara'/'تارا' appearing in both is fine\n"
-        "- HTML entities or formatting differences are fine\n\n"
-        + FEW_SHOT_EXAMPLES +
-        "\nFor each pair, assess confidence: \"high\" (clearly mismatch), \"medium\" (likely mismatch), \"low\" (uncertain).\n\n"
-        "Respond ONLY with a JSON array of mismatches:\n"
-        '[{\"i\": <number>, \"ok\": false, \"confidence\": \"high\"|\"medium\"|\"low\", \"reason\": \"brief reason\"}]\n'
-        "If ALL pairs are OK, return exactly: []\n"
-        "Do NOT include OK pairs. Only flag clear mismatches.\n\n"
-        "Pairs to check:\n" + "\n".join(lines)
-    )
-
-    for attempt in range(3):
+def _call_haiku(client, prompt, retries=3):
+    """Call Haiku with retries, return parsed JSON list."""
+    for attempt in range(retries):
         try:
-            response = client.messages.create(
-                model=MODEL,
-                max_tokens=4096,
+            resp = client.messages.create(
+                model=MODEL, max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-
-            text = response.content[0].text.strip()
-            # Strip markdown code fences
-            if text.startswith("```"):
-                lines_r = text.split("\n")
-                if lines_r[-1].strip() == "```":
-                    text = "\n".join(lines_r[1:-1])
-                else:
-                    text = "\n".join(lines_r[1:])
-                text = text.strip()
-
-            results = json.loads(text)
-            if not isinstance(results, list):
-                results = []
-            return results
-
-        except json.JSONDecodeError as e:
-            if attempt < 2:
-                print(f" retry({e})", end="", flush=True)
+            return _parse_json_response(resp.content[0].text)
+        except json.JSONDecodeError:
+            if attempt < retries - 1:
+                print(f" json-retry", end="", flush=True)
                 time.sleep(1)
-            else:
-                print(f" ERROR parsing", end="", flush=True)
-                return []
         except Exception as e:
-            if attempt < 2:
-                print(f" retry({e})", end="", flush=True)
+            if attempt < retries - 1:
+                print(f" err-retry", end="", flush=True)
                 time.sleep(2 ** attempt)
             else:
                 print(f" ERROR({e})", end="", flush=True)
-                return []
-
     return []
 
 
-def recheck_mismatches(client, mismatches, translatable_rows):
-    """Re-verify uncertain mismatches with surrounding context.
+def _build_pass1_prompt(pairs, fields, categories):
+    """Build the primary validation prompt with content-category hints."""
+    lines = []
+    for i, (eng, ara) in enumerate(pairs):
+        cat = categories[i] if categories else ""
+        fld = fields[i] if fields else ""
+        hint = f" [{cat}:{fld}]" if cat and fld else (f" [{fld}]" if fld else "")
+        lines.append(f"{i}.{hint} EN: {eng}")
+        lines.append(f"   AR: {ara}")
 
-    Takes mismatches with medium/low confidence and rechecks them
-    by providing 1-2 neighboring rows as context.
-    """
-    to_recheck = [
-        m for m in mismatches
-        if m.get("confidence", "high") in ("medium", "low")
-    ]
+    return (
+        "You are a translation QA checker for Tara, a skincare/haircare brand. "
+        "Check each Arabic↔English pair.\n\n"
+        "Content categories in brackets: heading (short title/label), body (description/paragraph), "
+        "ingredients (INCI list), text (other).\n\n"
+        "MISMATCH only if:\n"
+        "- Arabic is about a COMPLETELY different topic/product (row shift)\n"
+        "- Arabic is a translation of a different English text\n"
+        "- A heading got a body-length translation or vice versa\n"
+        "- Content categories clearly don't match (ingredients ↔ usage instructions)\n\n"
+        "OK if:\n"
+        "- Reasonable translation, even imperfect/paraphrased\n"
+        "- Same topic, different wording\n"
+        "- INCI names kept in Latin within Arabic = CORRECT\n"
+        "- Brand name Tara/تارا in both = fine\n"
+        "- Minor omissions, additions, formatting diffs = fine\n\n"
+        + FEW_SHOT_EXAMPLES +
+        "\nConfidence: high (clearly wrong), medium (likely wrong), low (uncertain).\n"
+        "Return JSON array of MISMATCHES ONLY:\n"
+        '[{"i":<n>,"ok":false,"confidence":"high"|"medium"|"low","reason":"brief"}]\n'
+        "All OK → return []\n\n"
+        "Pairs:\n" + "\n".join(lines)
+    )
 
-    if not to_recheck:
-        return mismatches
 
-    print(f"\n  Pass 2: Re-checking {len(to_recheck)} uncertain mismatches with context...")
+def _build_recheck_prompt(items, cache):
+    """Build context-enriched recheck prompt."""
+    lines = []
+    for bi, m in enumerate(items):
+        idx = m["row_index"]
+        eng = cache.eng(idx, 400)
+        ara = cache.ar(idx, 400)
+        field = cache.field(idx)
 
-    confirmed = []
-    cleared = 0
-    batch_size = 15  # smaller batches for context-rich rechecks
+        ctx = []
+        rk = cache.resource_key(idx)
+        for delta in (-2, -1, 1, 2):
+            ci = idx + delta
+            if 0 <= ci < len(cache.rows) and cache.resource_key(ci) == rk:
+                ce, ca = cache.eng(ci, 100), cache.ar(ci, 100)
+                if ce and ca:
+                    d = "PREV" if delta < 0 else "NEXT"
+                    ctx.append(f"     ({d}{abs(delta)}) EN: {ce} → AR: {ca}")
 
-    for batch_start in range(0, len(to_recheck), batch_size):
-        batch = to_recheck[batch_start:batch_start + batch_size]
-        batch_num = batch_start // batch_size + 1
-        total_batches = (len(to_recheck) + batch_size - 1) // batch_size
+        lines.append(f"{bi}. [{field}] EN: {eng}")
+        lines.append(f"   AR: {ara}")
+        lines.append(f"   (Flagged: {m.get('reason', '?')})")
+        lines.extend(ctx)
+        lines.append("")
 
-        # Build context-enriched pairs
-        lines = []
-        for bi, m in enumerate(batch):
-            row_idx = m["row_index"]
-            row = translatable_rows[row_idx]
-            eng = extract_visible_text(row.get("Default content", ""), 400)
-            ara = extract_visible_text(row.get("Translated content", ""), 400)
-            field = row.get("Field", "")
+    return (
+        "Recheck these uncertain translation flags. Context rows are provided.\n"
+        "Be LENIENT — only confirm MISMATCH if clearly wrong product/topic.\n"
+        "Creative/liberal translations covering the same topic = OK.\n\n"
+        "For each pair respond:\n"
+        '- Confirmed: {"i":<n>,"ok":false,"reason":"..."}\n'
+        '- False alarm: {"i":<n>,"ok":true}\n'
+        "Include ALL pairs.\n\n" + "\n".join(lines)
+    )
 
-            # Add context: 1 row before and 1 row after (same resource)
-            context_lines = []
-            resource_key = (row.get("Type", ""), row.get("Identification", ""))
-            for delta in [-1, 1]:
-                ctx_idx = row_idx + delta
-                if 0 <= ctx_idx < len(translatable_rows):
-                    ctx_row = translatable_rows[ctx_idx]
-                    ctx_key = (ctx_row.get("Type", ""), ctx_row.get("Identification", ""))
-                    if ctx_key == resource_key:
-                        ctx_eng = extract_visible_text(ctx_row.get("Default content", ""), 100)
-                        ctx_ara = extract_visible_text(ctx_row.get("Translated content", ""), 100)
-                        direction = "PREV" if delta == -1 else "NEXT"
-                        if ctx_eng and ctx_ara:
-                            context_lines.append(
-                                f"     ({direction} row) EN: {ctx_eng} → AR: {ctx_ara}"
-                            )
 
-            lines.append(f"{bi}. [{field}] EN: {eng}")
-            lines.append(f"   AR: {ara}")
-            lines.append(f"   (First-pass reason: {m.get('reason', 'unknown')})")
-            for cl in context_lines:
-                lines.append(cl)
-            lines.append("")
+def _build_backtranslate_prompt(items, cache):
+    """Build back-translation prompt for final-resort verification."""
+    lines = []
+    for bi, m in enumerate(items):
+        idx = m["row_index"]
+        ara = cache.ar(idx, 400)
+        lines.append(f"{bi}. AR: {ara}")
 
-        prompt = (
-            "You are rechecking potential translation mismatches that were flagged with "
-            "UNCERTAIN confidence. For each pair, look at the context (neighboring rows) "
-            "and determine if this is truly a mismatch or a false alarm.\n\n"
-            "Be MORE LENIENT in this pass — only confirm as MISMATCH if you're quite sure.\n"
-            "Consider: maybe the translation is just creative/liberal, or covers the same "
-            "topic from a different angle. Context from neighboring rows can help.\n\n"
-            "Respond with a JSON array. For each pair:\n"
-            '- Confirmed mismatch: {\"i\": <n>, \"ok\": false, \"reason\": \"...\"}\n'
-            '- False alarm (actually OK): {\"i\": <n>, \"ok\": true}\n'
-            "Include ALL pairs in the response.\n\n"
-            "Pairs to recheck:\n" + "\n".join(lines)
-        )
+    return (
+        "Translate each Arabic text below back to English. "
+        "Keep it literal — preserve the topic, product names, and key details.\n"
+        "Return a JSON array: [{\"i\": <n>, \"en\": \"back-translation\"}]\n\n"
+        + "\n".join(lines)
+    )
 
-        print(f"    Recheck batch {batch_num}/{total_batches}...", end="", flush=True)
 
-        for attempt in range(3):
-            try:
-                response = client.messages.create(
-                    model=MODEL,
-                    max_tokens=4096,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                text = response.content[0].text.strip()
-                if text.startswith("```"):
-                    text_lines = text.split("\n")
-                    if text_lines[-1].strip() == "```":
-                        text = "\n".join(text_lines[1:-1])
+def run_ai_validation(client, cache, batch_size, no_recheck, workers):
+    """Run the full AI validation pipeline. Returns list of confirmed mismatches."""
+    # Collect pairs
+    pairs, indices, fields, categories = [], [], [], []
+    for i in range(len(cache.rows)):
+        eng = cache.eng(i)
+        ar = cache.ar(i)
+        raw_default = cache.rows[i].get("Default content", "").strip()
+        raw_translated = cache.rows[i].get("Translated content", "").strip()
+        if not raw_default or not raw_translated or raw_default == raw_translated:
+            continue
+        if len(eng) < 3 or len(ar) < 2:
+            continue
+        pairs.append((eng, ar))
+        indices.append(i)
+        fields.append(cache.field(i))
+        categories.append(classify_content(cache.field(i), eng))
+
+    n = len(pairs)
+    print(f"  Pairs to validate: {n}")
+    if n == 0:
+        return []
+
+    est_cost, est_batches = estimate_cost(n, batch_size)
+    print(f"  Estimated: {est_batches} batches, ~${est_cost:.3f}")
+
+    # --- Pass 1: parallel batch validation ---
+    print(f"  Pass 1: batch validation ({workers} workers)...")
+
+    batches = []
+    for start in range(0, n, batch_size):
+        end = min(start + batch_size, n)
+        batches.append({
+            "pairs": pairs[start:end],
+            "indices": indices[start:end],
+            "fields": fields[start:end],
+            "categories": categories[start:end],
+            "num": start // batch_size + 1,
+        })
+
+    ai_mismatches = []
+
+    def process_batch(b):
+        prompt = _build_pass1_prompt(b["pairs"], b["fields"], b["categories"])
+        results = _call_haiku(client, prompt)
+        found = []
+        for r in results:
+            idx_in_batch = r.get("i", -1)
+            if 0 <= idx_in_batch < len(b["indices"]) and not r.get("ok", True):
+                row_idx = b["indices"][idx_in_batch]
+                m = build_mismatch(cache, row_idx,
+                    r.get("reason", ""), "ai",
+                    confidence=r.get("confidence", "medium"))
+                found.append(m)
+        return b["num"], found
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(process_batch, b): b["num"] for b in batches}
+        for future in as_completed(futures):
+            bnum, found = future.result()
+            ai_mismatches.extend(found)
+            status = f" {len(found)} flagged" if found else " OK"
+            print(f"    Batch {bnum}/{est_batches}...{status}")
+
+    print(f"  Pass 1: {len(ai_mismatches)} flagged")
+
+    if not ai_mismatches:
+        return []
+
+    # --- Pass 2: recheck uncertain with context ---
+    if not no_recheck:
+        uncertain = [m for m in ai_mismatches if m.get("confidence") in ("medium", "low")]
+        high_conf = [m for m in ai_mismatches if m.get("confidence") == "high"]
+
+        if uncertain:
+            print(f"\n  Pass 2: rechecking {len(uncertain)} uncertain with context...")
+            confirmed = []
+            cleared = 0
+            rc_size = 15
+
+            for start in range(0, len(uncertain), rc_size):
+                batch = uncertain[start:start + rc_size]
+                bnum = start // rc_size + 1
+                total_b = (len(uncertain) + rc_size - 1) // rc_size
+                print(f"    Recheck {bnum}/{total_b}...", end="", flush=True)
+
+                prompt = _build_recheck_prompt(batch, cache)
+                results = _call_haiku(client, prompt)
+                rmap = {r.get("i", -1): r for r in results if isinstance(r, dict)}
+
+                bc, bclr = 0, 0
+                for bi, m in enumerate(batch):
+                    r = rmap.get(bi)
+                    if r and r.get("ok", False):
+                        bclr += 1
+                        cleared += 1
                     else:
-                        text = "\n".join(text_lines[1:])
-                    text = text.strip()
+                        updated = dict(m)
+                        if r and r.get("reason"):
+                            updated["reason"] = r["reason"]
+                        updated["confidence"] = "confirmed"
+                        confirmed.append(updated)
+                        bc += 1
 
-                results = json.loads(text)
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(1)
-                    results = []
-                else:
-                    results = []
+                print(f" {bc} confirmed, {bclr} cleared")
+                time.sleep(0.2)
 
-        batch_cleared = 0
-        confirmed_in_batch = 0
-        result_map = {r.get("i", -1): r for r in results if isinstance(r, dict)}
+            ai_mismatches = high_conf + confirmed
+            print(f"  Pass 2: {cleared} false alarms removed")
 
-        for bi, m in enumerate(batch):
-            r = result_map.get(bi)
-            if r and r.get("ok", False):
-                # False alarm — don't add to confirmed
-                batch_cleared += 1
-                cleared += 1
-            else:
-                # Confirmed mismatch or no response (keep flagged)
-                updated = dict(m)
-                if r and r.get("reason"):
-                    updated["reason"] = r["reason"]
-                updated["confidence"] = "confirmed"
-                confirmed.append(updated)
-                confirmed_in_batch += 1
+            # --- Pass 3: back-translate remaining uncertain for final check ---
+            still_uncertain = [m for m in confirmed if m.get("confidence") == "confirmed"]
+            if still_uncertain and len(still_uncertain) <= 30:
+                print(f"\n  Pass 3: back-translating {len(still_uncertain)} for verification...")
+                prompt = _build_backtranslate_prompt(still_uncertain, cache)
+                bt_results = _call_haiku(client, prompt)
+                bt_map = {r.get("i", -1): r.get("en", "") for r in bt_results if isinstance(r, dict)}
 
-        print(f" {confirmed_in_batch} confirmed, {batch_cleared} cleared")
-        time.sleep(0.3)
+                rescued = 0
+                final_confirmed = []
+                for bi, m in enumerate(still_uncertain):
+                    bt_en = bt_map.get(bi, "")
+                    orig_en = cache.eng(m["row_index"], 300)
+                    if bt_en:
+                        # Check if back-translation topic matches original
+                        orig_words = set(orig_en.lower().split())
+                        bt_words = set(bt_en.lower().split())
+                        if orig_words and bt_words:
+                            overlap = len(orig_words & bt_words) / max(len(orig_words), len(bt_words))
+                            if overlap > 0.3:
+                                # Back-translation matches → false alarm
+                                rescued += 1
+                                continue
+                    final_confirmed.append(m)
 
-    # Combine: high-confidence (kept from pass 1) + confirmed from pass 2
-    high_confidence = [m for m in mismatches if m.get("confidence") == "high"]
-    final = high_confidence + confirmed
+                if rescued:
+                    print(f"  Pass 3: rescued {rescued} false alarms via back-translation")
+                    # Rebuild: high_conf + final_confirmed
+                    ai_mismatches = high_conf + final_confirmed
+        else:
+            print(f"\n  All {len(ai_mismatches)} are high-confidence, skipping recheck")
 
-    print(f"  Recheck result: {cleared} false alarms removed, {len(confirmed)} confirmed")
-    return final
+    print(f"  Final AI mismatches: {len(ai_mismatches)}")
+    return ai_mismatches
 
 
 # ---------------------------------------------------------------------------
@@ -698,13 +686,15 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="Report issues without writing output")
     parser.add_argument("--batch-size", type=int, default=50,
-                        help="Pairs per AI validation batch (default: 50)")
+                        help="Pairs per AI batch (default: 50)")
+    parser.add_argument("--workers", type=int, default=3,
+                        help="Parallel API workers (default: 3)")
     parser.add_argument("--skip-ai", action="store_true",
-                        help="Only remove untranslatable rows, skip AI alignment check")
+                        help="Skip AI alignment check")
     parser.add_argument("--skip-heuristic", action="store_true",
                         help="Skip heuristic shift detection")
     parser.add_argument("--no-recheck", action="store_true",
-                        help="Skip the second-pass recheck of uncertain mismatches")
+                        help="Skip pass 2+3 recheck of uncertain mismatches")
     args = parser.parse_args()
 
     if not args.output:
@@ -720,272 +710,103 @@ def main():
         rows = list(reader)
     print(f"Read {len(rows)} rows from {args.input}\n")
 
-    # -----------------------------------------------------------------------
-    # Step 1: Remove untranslatable rows
-    # -----------------------------------------------------------------------
+    # --- Step 1: Remove untranslatable rows ---
     print("Step 1: Removing untranslatable rows...")
-    translatable_rows = []
-    removed_reasons = {}
-
+    translatable = []
+    removed = Counter()
     for row in rows:
-        should_remove, reason = is_untranslatable_row(row)
-        if should_remove:
-            removed_reasons[reason] = removed_reasons.get(reason, 0) + 1
+        skip, reason = is_untranslatable(row.get("Field", ""), row.get("Default content", ""))
+        if skip:
+            removed[reason] += 1
         else:
-            translatable_rows.append(row)
+            translatable.append(row)
 
-    total_removed = len(rows) - len(translatable_rows)
-    print(f"  Removed: {total_removed} untranslatable rows")
-    for reason, count in sorted(removed_reasons.items(), key=lambda x: -x[1]):
+    total_removed = len(rows) - len(translatable)
+    print(f"  Removed: {total_removed}")
+    for reason, count in removed.most_common():
         print(f"    {reason}: {count}")
-    print(f"  Remaining: {len(translatable_rows)} translatable rows")
+    print(f"  Remaining: {len(translatable)}")
 
-    # -----------------------------------------------------------------------
-    # Step 2: Script & structural analysis
-    # -----------------------------------------------------------------------
+    cache = RowCache(translatable)
+
+    # --- Step 2: Script analysis ---
     print(f"\nStep 2: Script & structural analysis...")
-    script_issues = detect_script_issues(translatable_rows)
-    if script_issues:
-        high_issues = sum(1 for v in script_issues.values() if v["severity"] == "high")
-        med_issues = sum(1 for v in script_issues.values() if v["severity"] == "medium")
-        print(f"  Found: {len(script_issues)} issues ({high_issues} high, {med_issues} medium)")
-        # Show a few examples
-        shown = 0
-        for idx, info in sorted(script_issues.items()):
-            if shown >= 5:
-                break
-            row = translatable_rows[idx]
-            eng = extract_visible_text(row.get("Default content", ""), 60)
-            ara = extract_visible_text(row.get("Translated content", ""), 60)
-            print(f"    [{info['severity']}] {info['reason']}")
-            print(f"      EN: {eng}")
-            print(f"      AR: {ara}")
-            shown += 1
-        if len(script_issues) > 5:
-            print(f"    ... and {len(script_issues) - 5} more")
-    else:
-        print(f"  No script/structural issues found")
+    script_issues = detect_script_issues(cache)
+    _print_issues(script_issues, cache, 5)
 
-    # -----------------------------------------------------------------------
-    # Step 3: Duplicate translation detection
-    # -----------------------------------------------------------------------
+    # --- Step 3: Duplicate detection ---
     print(f"\nStep 3: Duplicate translation detection...")
-    dup_issues = detect_duplicate_translations(translatable_rows)
-    if dup_issues:
-        print(f"  Found: {len(dup_issues)} rows with duplicate Arabic for different English")
-        shown = 0
-        for idx, info in sorted(dup_issues.items()):
-            if shown >= 3:
-                break
-            row = translatable_rows[idx]
-            eng = extract_visible_text(row.get("Default content", ""), 60)
-            ara = extract_visible_text(row.get("Translated content", ""), 60)
-            print(f"    EN: {eng}")
-            print(f"    AR: {ara}")
-            shown += 1
-        if len(dup_issues) > 3:
-            print(f"    ... and {len(dup_issues) - 3} more")
-    else:
-        print(f"  No duplicate translations found")
+    dup_issues = detect_duplicates(cache)
+    _print_issues(dup_issues, cache, 3)
 
-    # -----------------------------------------------------------------------
-    # Step 4: Heuristic shift detection
-    # -----------------------------------------------------------------------
+    # --- Step 4: Heuristic shift detection ---
     heuristic_shifts = set()
     if not args.skip_heuristic:
-        print(f"\nStep 4: Heuristic shift detection...")
-        heuristic_shifts = detect_sequential_shifts(translatable_rows)
+        print(f"\nStep 4: Heuristic shift detection (±{MAX_SHIFT_OFFSET} offsets)...")
+        heuristic_shifts = detect_shifts(cache)
         if heuristic_shifts:
-            print(f"  Potential shifts: {len(heuristic_shifts)} rows")
-            for idx in sorted(list(heuristic_shifts))[:5]:
-                row = translatable_rows[idx]
-                eng = extract_visible_text(row.get("Default content", ""), 60)
-                ara = extract_visible_text(row.get("Translated content", ""), 60)
-                print(f"    [{row.get('Type', '')}] {row.get('Field', '')}")
-                print(f"      EN: {eng}")
-                print(f"      AR: {ara}")
+            print(f"  Potential shifts: {len(heuristic_shifts)}")
+            for idx in sorted(heuristic_shifts)[:5]:
+                print(f"    [{cache.rows[idx].get('Type','')}] {cache.field(idx)}")
+                print(f"      EN: {cache.eng(idx, 60)}")
+                print(f"      AR: {cache.ar(idx, 60)}")
             if len(heuristic_shifts) > 5:
                 print(f"    ... and {len(heuristic_shifts) - 5} more")
         else:
-            print(f"  No systematic shifts detected")
+            print(f"  No shifts detected")
 
-    # -----------------------------------------------------------------------
-    # Step 5: AI alignment check (two-pass)
-    # -----------------------------------------------------------------------
+    # --- Step 5: AI validation ---
     ai_mismatches = []
-
-    if args.skip_ai:
-        print("\nSkipping AI alignment check (--skip-ai)")
-    else:
-        print(f"\nStep 5: AI alignment check with {MODEL}...")
-
+    if not args.skip_ai:
+        print(f"\nStep 5: AI alignment check ({MODEL})...")
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
-            print("  ERROR: Set ANTHROPIC_API_KEY in .env")
-            print("  Use --skip-ai to skip alignment check")
+            print("  ERROR: Set ANTHROPIC_API_KEY in .env (or use --skip-ai)")
             sys.exit(1)
-
         client = anthropic.Anthropic(api_key=api_key)
+        ai_mismatches = run_ai_validation(
+            client, cache, args.batch_size, args.no_recheck, args.workers)
+    else:
+        print("\nSkipping AI alignment check (--skip-ai)")
 
-        # Collect rows that have both English and Arabic
-        pairs_to_check = []
-        pair_indices = []
-        pair_fields = []
-
-        for i, row in enumerate(translatable_rows):
-            default = row.get("Default content", "").strip()
-            translated = row.get("Translated content", "").strip()
-            if not default or not translated:
-                continue
-            if default == translated:
-                continue
-
-            eng_text = extract_visible_text(default)
-            ar_text = extract_visible_text(translated)
-
-            if len(eng_text) < 3 or len(ar_text) < 2:
-                continue
-
-            pairs_to_check.append((eng_text, ar_text))
-            pair_indices.append(i)
-            pair_fields.append(row.get("Field", ""))
-
-        print(f"  Pairs to validate: {len(pairs_to_check)}")
-
-        est_cost, est_batches = estimate_cost(len(pairs_to_check), args.batch_size)
-        print(f"  Estimated: {est_batches} batches, ~${est_cost:.3f}")
-        print(f"  Pass 1: batch validation...")
-
-        total_checked = 0
-
-        for batch_start in range(0, len(pairs_to_check), args.batch_size):
-            batch_pairs = pairs_to_check[batch_start:batch_start + args.batch_size]
-            batch_indices = pair_indices[batch_start:batch_start + args.batch_size]
-            batch_fields = pair_fields[batch_start:batch_start + args.batch_size]
-            batch_num = batch_start // args.batch_size + 1
-
-            print(f"    Batch {batch_num}/{est_batches}...", end="", flush=True)
-            results = validate_batch(client, batch_pairs, fields=batch_fields)
-            total_checked += len(batch_pairs)
-
-            mismatch_count = 0
-            for r in results:
-                idx_in_batch = r.get("i", -1)
-                if 0 <= idx_in_batch < len(batch_indices) and not r.get("ok", True):
-                    row_idx = batch_indices[idx_in_batch]
-                    row = translatable_rows[row_idx]
-                    confidence = r.get("confidence", "medium")
-                    ai_mismatches.append({
-                        "row_index": row_idx,
-                        "type": row.get("Type", ""),
-                        "identification": row.get("Identification", ""),
-                        "field": row.get("Field", ""),
-                        "english": extract_visible_text(row.get("Default content", ""), 150),
-                        "arabic": extract_visible_text(row.get("Translated content", ""), 150),
-                        "reason": r.get("reason", ""),
-                        "confidence": confidence,
-                        "source": "ai",
-                    })
-                    mismatch_count += 1
-
-            print(f" {mismatch_count} flagged" if mismatch_count else " OK")
-            time.sleep(0.3)
-
-        print(f"\n  Pass 1 complete: {total_checked} checked, {len(ai_mismatches)} flagged")
-
-        # Pass 2: recheck uncertain mismatches
-        if not args.no_recheck and ai_mismatches:
-            uncertain = sum(1 for m in ai_mismatches if m.get("confidence") in ("medium", "low"))
-            if uncertain > 0:
-                ai_mismatches = recheck_mismatches(client, ai_mismatches, translatable_rows)
-            else:
-                print(f"\n  All {len(ai_mismatches)} mismatches are high-confidence, skipping recheck")
-
-        print(f"  Final AI mismatches: {len(ai_mismatches)}")
-
-    # -----------------------------------------------------------------------
-    # Merge all findings
-    # -----------------------------------------------------------------------
-    all_flagged = {}  # row_index → mismatch info (deduplicated, highest severity wins)
-
-    # Priority: AI (most reliable) > script issues > heuristic > duplicates
-    for idx, info in dup_issues.items():
-        all_flagged[idx] = {
-            "row_index": idx,
-            "type": translatable_rows[idx].get("Type", ""),
-            "identification": translatable_rows[idx].get("Identification", ""),
-            "field": translatable_rows[idx].get("Field", ""),
-            "english": extract_visible_text(translatable_rows[idx].get("Default content", ""), 120),
-            "arabic": extract_visible_text(translatable_rows[idx].get("Translated content", ""), 120),
-            "reason": info["reason"],
-            "source": "duplicate",
-            "severity": info["severity"],
-        }
-
+    # --- Merge all findings (AI > script > heuristic > duplicates) ---
+    all_flagged = {}
+    for idx, m in dup_issues.items():
+        all_flagged[idx] = m
     for idx in heuristic_shifts:
         if idx not in all_flagged:
-            row = translatable_rows[idx]
-            all_flagged[idx] = {
-                "row_index": idx,
-                "type": row.get("Type", ""),
-                "identification": row.get("Identification", ""),
-                "field": row.get("Field", ""),
-                "english": extract_visible_text(row.get("Default content", ""), 120),
-                "arabic": extract_visible_text(row.get("Translated content", ""), 120),
-                "reason": "heuristic: adjacent row cross-match",
-                "source": "heuristic",
-                "severity": "medium",
-            }
-
-    for idx, info in script_issues.items():
-        if idx not in all_flagged or info["severity"] == "high":
-            all_flagged[idx] = {
-                "row_index": idx,
-                "type": translatable_rows[idx].get("Type", ""),
-                "identification": translatable_rows[idx].get("Identification", ""),
-                "field": translatable_rows[idx].get("Field", ""),
-                "english": extract_visible_text(translatable_rows[idx].get("Default content", ""), 120),
-                "arabic": extract_visible_text(translatable_rows[idx].get("Translated content", ""), 120),
-                "reason": info["reason"],
-                "source": "script_analysis",
-                "severity": info["severity"],
-            }
-
+            all_flagged[idx] = build_mismatch(cache, idx,
+                "heuristic: adjacent row cross-match", "heuristic")
+    for idx, m in script_issues.items():
+        if idx not in all_flagged or m.get("severity") == "high":
+            all_flagged[idx] = m
     for m in ai_mismatches:
-        idx = m["row_index"]
-        all_flagged[idx] = m  # AI overrides others
+        all_flagged[m["row_index"]] = m
 
     mismatches = sorted(all_flagged.values(), key=lambda m: m["row_index"])
 
-    # -----------------------------------------------------------------------
-    # Report and output
-    # -----------------------------------------------------------------------
+    # --- Report ---
     print(f"\n{'=' * 60}")
     print(f"  VALIDATION REPORT")
     print(f"{'=' * 60}")
-    print(f"  Input rows:           {len(rows)}")
-    print(f"  Untranslatable:       {total_removed} (removed)")
-    print(f"  Translatable:         {len(translatable_rows)}")
-    print(f"  ─── Detections by layer ───")
-    print(f"  Script/structural:    {len(script_issues)}")
-    print(f"  Duplicate Arabic:     {len(dup_issues)}")
-    print(f"  Heuristic shifts:     {len(heuristic_shifts)}")
-    print(f"  AI mismatches:        {len(ai_mismatches)}")
-    print(f"  ─── After dedup ───")
-    print(f"  Total flagged:        {len(mismatches)}")
-
-    # Breakdown by source
-    source_counts = Counter(m.get("source", "?") for m in mismatches)
-    for source, count in source_counts.most_common():
-        print(f"    {source}: {count}")
+    print(f"  Input rows:         {len(rows)}")
+    print(f"  Untranslatable:     {total_removed} (removed)")
+    print(f"  Translatable:       {len(translatable)}")
+    print(f"  ── By layer ──")
+    print(f"  Script/structural:  {len(script_issues)}")
+    print(f"  Duplicate Arabic:   {len(dup_issues)}")
+    print(f"  Heuristic shifts:   {len(heuristic_shifts)}")
+    print(f"  AI mismatches:      {len(ai_mismatches)}")
+    print(f"  ── Merged ──")
+    print(f"  Total flagged:      {len(mismatches)}")
+    for src, cnt in Counter(m.get("source", "?") for m in mismatches).most_common():
+        print(f"    {src}: {cnt}")
 
     if mismatches:
         print(f"\n  Flagged rows:")
-        mismatch_set = {m["row_index"] for m in mismatches}
         for m in mismatches[:30]:
-            source_tag = f"[{m.get('source', '?')}]"
-            conf = f" ({m.get('confidence', m.get('severity', '?'))})" if m.get('confidence') or m.get('severity') else ""
-            print(f"    {source_tag}{conf} [{m['type']}] {m['field']}")
+            conf = m.get("confidence", m.get("severity", ""))
+            print(f"    [{m['source']}] ({conf}) [{m['type']}] {m['field']}")
             print(f"      EN: {m['english'][:80]}")
             print(f"      AR: {m['arabic'][:80]}")
             if m.get("reason"):
@@ -993,36 +814,46 @@ def main():
         if len(mismatches) > 30:
             print(f"    ... and {len(mismatches) - 30} more")
 
-        # Clear mismatched translations
+        mismatch_set = {m["row_index"] for m in mismatches}
         for idx in mismatch_set:
-            translatable_rows[idx]["Translated content"] = ""
-
+            translatable[idx]["Translated content"] = ""
         print(f"\n  Cleared {len(mismatch_set)} mismatched translations")
 
-        # Save report
         report_path = os.path.splitext(args.output)[0] + "_mismatches.json"
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(mismatches, f, ensure_ascii=False, indent=2)
-        print(f"  Mismatch report: {report_path}")
+        print(f"  Report: {report_path}")
 
     if args.dry_run:
-        print(f"\n  DRY RUN — no output file written")
+        print(f"\n  DRY RUN — no output written")
     else:
         with open(args.output, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerows(translatable_rows)
+            writer.writerows(translatable)
         print(f"\n  Output: {args.output}")
 
-    # Summary
-    has_translation = sum(
-        1 for r in translatable_rows
-        if r.get("Translated content", "").strip()
-    )
-    needs_translation = len(translatable_rows) - has_translation
-    print(f"\n  With translation:   {has_translation}")
-    print(f"  Needs translation:  {needs_translation}")
+    has = sum(1 for r in translatable if r.get("Translated content", "").strip())
+    print(f"\n  With translation:   {has}")
+    print(f"  Needs translation:  {len(translatable) - has}")
     print(f"{'=' * 60}")
+
+
+def _print_issues(issues, cache, limit):
+    """Print a summary of detected issues."""
+    if not issues:
+        print(f"  None found")
+        return
+    by_sev = Counter(m.get("severity", "?") for m in issues.values())
+    parts = ", ".join(f"{c} {s}" for s, c in by_sev.most_common())
+    print(f"  Found: {len(issues)} ({parts})")
+    for idx in sorted(issues)[:limit]:
+        m = issues[idx]
+        print(f"    [{m.get('severity', '?')}] {m['reason']}")
+        print(f"      EN: {m['english'][:70]}")
+        print(f"      AR: {m['arabic'][:70]}")
+    if len(issues) > limit:
+        print(f"    ... and {len(issues) - limit} more")
 
 
 if __name__ == "__main__":
