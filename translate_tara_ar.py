@@ -304,6 +304,8 @@ def main():
                         help="Show what would be translated without API calls")
     parser.add_argument("--max-batches", type=int, default=0,
                         help="Stop after N batches (0 = unlimited, for testing)")
+    parser.add_argument("--agents", type=int, default=1,
+                        help="Number of parallel workers (default: 1)")
     parser.add_argument("--start-batch", type=int, default=0,
                         help="Skip to batch N (0-indexed, for parallel runs)")
     parser.add_argument("--progress-suffix", default="",
@@ -605,27 +607,51 @@ def main():
     # ----------------------------------------------------------------
     # 8. Translate batches → Arabic
     # ----------------------------------------------------------------
-    total_tokens = 0
-    start_time = time.time()
-
+    # Filter batches based on --start-batch / --max-batches
+    work_items = []
     for i, batch in enumerate(batches):
         if i < args.start_batch:
             continue
         if args.max_batches and (i - args.start_batch) >= args.max_batches:
-            print(f"\n--max-batches {args.max_batches} reached, stopping early.")
             break
+        work_items.append((i, batch))
 
+    total_tokens = 0
+    start_time = time.time()
+    progress_lock = __import__("threading").Lock()
+
+    def _translate_one(item):
+        idx, batch = item
         api_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
         t_map, tokens = translate_batch_responses_api(
             client, args.model, api_batch, developer_prompt,
-            i + 1, len(batches), reasoning_effort=args.reasoning,
+            idx + 1, len(batches), reasoning_effort=args.reasoning,
         )
-        our_translations.update(t_map)
-        total_tokens += tokens
+        # Thread-safe progress update
+        with progress_lock:
+            our_translations.update(t_map)
+            with open(progress_file, "w", encoding="utf-8") as pf:
+                json.dump(our_translations, pf, ensure_ascii=False)
+        return t_map, tokens
 
-        # Save progress after every batch
-        with open(progress_file, "w", encoding="utf-8") as f:
-            json.dump(our_translations, f, ensure_ascii=False)
+    n_agents = min(args.agents, len(work_items)) if work_items else 1
+
+    if n_agents > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        print(f"Running {len(work_items)} batches with {n_agents} parallel agents...")
+        with ThreadPoolExecutor(max_workers=n_agents) as pool:
+            futures = {pool.submit(_translate_one, item): item for item in work_items}
+            for future in as_completed(futures):
+                try:
+                    t_map, tokens = future.result()
+                    total_tokens += tokens
+                except Exception as e:
+                    idx, _ = futures[future]
+                    print(f"    Batch {idx+1} failed: {e}")
+    else:
+        for item in work_items:
+            t_map, tokens = _translate_one(item)
+            total_tokens += tokens
 
     elapsed = time.time() - start_time
     print(f"\nTranslation complete: {total_tokens:,} tokens in {elapsed:.1f}s")
