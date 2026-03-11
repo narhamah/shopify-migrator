@@ -230,8 +230,8 @@ def _has_significant_english(text, threshold=0.15):
     return latin / total_alpha > threshold
 
 
-def translate_fields(fields, developer_prompt, model="gpt-5-nano", reasoning_effort="minimal"):
-    """Translate a list of {id, value} dicts using OpenAI."""
+def _call_translate_api(fields, developer_prompt, model, reasoning_effort):
+    """Single API call to translate fields. Returns (t_map, tokens_used)."""
     import openai
     client = openai.OpenAI()
 
@@ -247,51 +247,79 @@ def translate_fields(fields, developer_prompt, model="gpt-5-nano", reasoning_eff
         f"<TOON>\n{toon_input}\n</TOON>"
     )
 
-    print(f"    Translating {len(fields)} fields ({model}, reasoning={reasoning_effort})...")
-    for attempt in range(3):
+    kwargs = {
+        "model": model,
+        "instructions": developer_prompt,
+        "input": user_message,
+    }
+    if model.startswith("o") or "nano" in model:
+        kwargs["reasoning"] = {"effort": reasoning_effort}
+    response = client.responses.create(**kwargs)
+
+    result = ""
+    for item in response.output:
+        if item.type == "message":
+            for content in item.content:
+                if content.type == "output_text":
+                    result += content.text
+
+    result = result.strip()
+    if result.startswith("```"):
+        lines = result.split("\n")
+        if lines[-1].strip() == "```":
+            result = "\n".join(lines[1:-1])
+        else:
+            result = "\n".join(lines[1:])
+    result = re.sub(r"</?TOON>", "", result).strip()
+
+    translated = from_toon(result)
+    t_map = {}
+    for entry in translated:
+        t_map[entry["id"]] = entry["value"]
+
+    tokens = response.usage.input_tokens + response.usage.output_tokens
+    return t_map, tokens
+
+
+def translate_fields(fields, developer_prompt, model="gpt-5-nano", reasoning_effort="minimal"):
+    """Translate a list of {id, value} dicts using OpenAI.
+
+    Retries missing fields up to 2 times to handle partial API responses.
+    """
+    all_translated = {}
+    remaining = list(fields)
+    max_rounds = 3
+
+    for round_num in range(max_rounds):
+        if not remaining:
+            break
+
+        print(f"    Translating {len(remaining)} fields ({model}, reasoning={reasoning_effort})...")
+
         try:
-            kwargs = {
-                "model": model,
-                "instructions": developer_prompt,
-                "input": user_message,
-            }
-            if model.startswith("o") or "nano" in model:
-                kwargs["reasoning"] = {"effort": reasoning_effort}
-            response = client.responses.create(**kwargs)
-
-            result = ""
-            for item in response.output:
-                if item.type == "message":
-                    for content in item.content:
-                        if content.type == "output_text":
-                            result += content.text
-
-            result = result.strip()
-            if result.startswith("```"):
-                lines = result.split("\n")
-                if lines[-1].strip() == "```":
-                    result = "\n".join(lines[1:-1])
-                else:
-                    result = "\n".join(lines[1:])
-            result = re.sub(r"</?TOON>", "", result).strip()
-
-            translated = from_toon(result)
-            t_map = {}
-            for entry in translated:
-                t_map[entry["id"]] = entry["value"]
-
-            input_ids = {f["id"] for f in fields}
-            matched = len(input_ids & set(t_map.keys()))
-            print(f"    Got {matched}/{len(fields)} translations "
-                  f"({response.usage.input_tokens + response.usage.output_tokens} tokens)")
-            return t_map
-
+            t_map, tokens = _call_translate_api(remaining, developer_prompt, model, reasoning_effort)
         except Exception as e:
-            print(f"    Error (attempt {attempt+1}): {e}")
-            if attempt < 2:
-                time.sleep(2 ** (attempt + 1))
+            print(f"    Error (round {round_num + 1}): {e}")
+            if round_num < max_rounds - 1:
+                time.sleep(2 ** (round_num + 1))
+            continue
 
-    return {}
+        all_translated.update(t_map)
+        matched = len(set(f["id"] for f in remaining) & set(t_map.keys()))
+        print(f"    Got {matched}/{len(remaining)} translations ({tokens} tokens)")
+
+        # Check for missing fields and retry them
+        missing = [f for f in remaining if f["id"] not in t_map]
+        if not missing:
+            break
+        if round_num < max_rounds - 1:
+            print(f"    Retrying {len(missing)} missing fields...")
+            remaining = missing
+            time.sleep(2)
+        else:
+            print(f"    WARNING: {len(missing)} fields not translated after {max_rounds} rounds")
+
+    return all_translated
 
 
 def fetch_translatable_resources(client, gids):
@@ -321,8 +349,12 @@ def fetch_translatable_resources(client, gids):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource, chunking if needed (Shopify limit: ~70)."""
-    MAX_PER_REQUEST = 50
+    """Upload translations for a single resource, chunking if needed.
+
+    Theme resources have a stricter limit (~20 keys) than other resources (~50).
+    """
+    is_theme = "OnlineStoreTheme" in gid
+    MAX_PER_REQUEST = 20 if is_theme else 50
     total_uploaded = 0
     total_errors = 0
 
