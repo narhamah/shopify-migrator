@@ -164,12 +164,15 @@ def translate_fields(fields, developer_prompt, model="gpt-4o-mini"):
     print(f"    Translating {len(fields)} fields...")
     for attempt in range(3):
         try:
-            response = client.responses.create(
-                model=model,
-                instructions=developer_prompt,
-                input=user_message,
-                reasoning={"effort": "medium"},
-            )
+            # Only add reasoning for models that support it
+            kwargs = {
+                "model": model,
+                "instructions": developer_prompt,
+                "input": user_message,
+            }
+            if model.startswith("o") or "nano" in model:
+                kwargs["reasoning"] = {"effort": "medium"}
+            response = client.responses.create(**kwargs)
 
             result = ""
             for item in response.output:
