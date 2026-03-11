@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from tara_migrate.translation.toon import from_toon, to_toon  # noqa: E402
+from tara_migrate.translation.toon import DELIM, from_toon, to_toon  # noqa: E402
 
 ARABIC_DIR = os.path.join(os.path.dirname(__file__), "Arabic")
 PROMPT_FILE = os.path.join(ARABIC_DIR, "tara_cached_developer_prompt.txt")
@@ -46,8 +46,6 @@ def _is_non_translatable(row):
     field = row.get("Field", "")
 
     if not default:
-        return True
-    if field == "handle":
         return True
     if default.startswith(("shopify://", "http://", "https://", "/", "gid://")):
         return True
@@ -101,12 +99,38 @@ def _is_keep_as_is(row):
     return False
 
 
+def _extract_rich_text(text):
+    """Extract plain text from Shopify rich_text JSON (recursive)."""
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    parts = []
+    def _walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "text" and "value" in node:
+                parts.append(node["value"])
+            for child in node.get("children", []):
+                _walk(child)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+    _walk(data)
+    return " ".join(parts) if parts else None
+
+
 def _has_arabic(text, min_ratio=0.3):
     """Check if text contains sufficient Arabic characters.
 
     Returns False for text that's mostly Latin/Spanish/English.
-    Ignores HTML tags, CSS, and JSON structure when counting.
+    Handles HTML, CSS, and Shopify rich_text JSON.
     """
+    # Try rich_text JSON first — extract actual text values
+    if text.startswith("{") and '"type"' in text:
+        extracted = _extract_rich_text(text)
+        if extracted and extracted.strip():
+            text = extracted
+
     # Strip HTML tags and CSS for ratio check
     stripped = re.sub(r"<[^>]+>", " ", text)
     stripped = re.sub(r"\{[^}]*\}", " ", stripped)  # CSS blocks
@@ -195,6 +219,31 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
                 reasoning={"effort": reasoning_effort},
             )
 
+            # Check for refusal before parsing
+            for item in response.output:
+                if item.type == "message":
+                    for content in item.content:
+                        if getattr(content, "type", "") == "refusal":
+                            refusal_text = getattr(content, "refusal", str(content))
+                            print(f"    REFUSAL (attempt {attempt+1}): {refusal_text}")
+                            # Dump the input that triggered refusal
+                            debug_file = os.path.join(ARABIC_DIR, f".debug_refusal_batch_{batch_num}.txt")
+                            with open(debug_file, "w", encoding="utf-8") as df:
+                                df.write(f"=== REFUSAL (attempt {attempt+1}) ===\n")
+                                df.write(f"{refusal_text}\n\n")
+                                df.write(f"=== INPUT TOON ({len(fields)} fields) ===\n")
+                                df.write(toon_input[:5000])
+                            print(f"    Refusal debug dumped to {debug_file}")
+                            if attempt < 3:
+                                print("    Retrying...")
+                                time.sleep(2)
+                                break
+                    else:
+                        continue
+                    break  # break outer loop if refusal found
+            else:
+                pass  # no refusal found, continue normally
+
             # Extract text output from the response
             result = ""
             for item in response.output:
@@ -204,6 +253,21 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
                             result += content.text
 
             result = result.strip()
+
+            # Detect text-based refusal (model says sorry instead of TOON)
+            if result and not DELIM in result and ("sorry" in result.lower() or "can't process" in result.lower()):
+                print(f"    TEXT REFUSAL (attempt {attempt+1}): {result[:200]}")
+                debug_file = os.path.join(ARABIC_DIR, f".debug_refusal_batch_{batch_num}.txt")
+                with open(debug_file, "w", encoding="utf-8") as df:
+                    df.write(f"=== TEXT REFUSAL (attempt {attempt+1}) ===\n")
+                    df.write(f"{result}\n\n")
+                    df.write(f"=== INPUT TOON ({len(fields)} fields, first 5000 chars) ===\n")
+                    df.write(toon_input[:5000])
+                print(f"    Refusal debug dumped to {debug_file}")
+                if attempt < 3:
+                    time.sleep(2)
+                    continue
+                return {}, 0
 
             # Strip markdown code fences if model wraps output
             if result.startswith("```"):
@@ -220,6 +284,19 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
 
             if len(translated) != len(fields):
                 print(f"    WARNING: Expected {len(fields)} fields, got {len(translated)}.")
+                # Debug: dump raw response to file for inspection
+                debug_file = os.path.join(ARABIC_DIR, f".debug_batch_{batch_num}.txt")
+                with open(debug_file, "w", encoding="utf-8") as df:
+                    df.write(f"=== RAW RESPONSE (attempt {attempt+1}) ===\n")
+                    df.write(result)
+                    df.write(f"\n\n=== PARSED {len(translated)} entries ===\n")
+                    for e in translated:
+                        df.write(f"  {e['id'][:60]}  →  {e['value'][:80]}\n")
+                    df.write(f"\n=== EXPECTED {len(fields)} IDS ===\n")
+                    for f_item in fields:
+                        df.write(f"  {f_item['id']}\n")
+                print(f"    Debug dumped to {debug_file}")
+
                 if len(translated) >= len(fields) * 0.9:
                     print(f"    Accepting partial result ({len(translated)}/{len(fields)})")
                 elif attempt < 3:
@@ -237,10 +314,13 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
             output_ids = set(t_map.keys())
             extra = output_ids - input_ids
             missing = input_ids - output_ids
-            for eid in extra:
-                del t_map[eid]
+            if extra:
+                print(f"    DEBUG: {len(extra)} extra IDs (hallucinated): {list(extra)[:3]}")
+                for eid in extra:
+                    del t_map[eid]
             if missing:
                 print(f"    WARNING: {len(missing)} untranslated fields")
+                print(f"    DEBUG: missing IDs: {list(missing)[:5]}")
 
             # Usage stats
             usage = response.usage
@@ -284,10 +364,18 @@ def main():
                         help="Output CSV (default: Arabic/<input_filename>)")
     parser.add_argument("--model", default="gpt-5-nano",
                         help="OpenAI model (default: gpt-5-nano)")
-    parser.add_argument("--batch-size", type=int, default=6000,
-                        help="Max tokens per batch (default: 6000)")
+    parser.add_argument("--batch-size", type=int, default=4000,
+                        help="Max tokens per batch (default: 4000; keep low to avoid output truncation)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
+    parser.add_argument("--max-batches", type=int, default=0,
+                        help="Stop after N batches (0 = unlimited, for testing)")
+    parser.add_argument("--agents", type=int, default=1,
+                        help="Number of parallel workers (default: 1)")
+    parser.add_argument("--start-batch", type=int, default=0,
+                        help="Skip to batch N (0-indexed, for parallel runs)")
+    parser.add_argument("--progress-suffix", default="",
+                        help="Suffix for progress file (e.g. '_b0' for parallel runs)")
     parser.add_argument("--reasoning", default="medium",
                         choices=["minimal", "low", "medium", "high"],
                         help="Reasoning effort (default: medium)")
@@ -322,7 +410,7 @@ def main():
     # ----------------------------------------------------------------
     # 2. Load progress file (tracks what THIS SCRIPT translated)
     # ----------------------------------------------------------------
-    progress_file = os.path.join(ARABIC_DIR, ".tara_ar_progress.json")
+    progress_file = os.path.join(ARABIC_DIR, f".tara_ar_progress{args.progress_suffix}.json")
 
     if args.reset and os.path.exists(progress_file):
         os.remove(progress_file)
@@ -362,7 +450,7 @@ def main():
     from_csv = []           # Already translated in the original CSV
     from_previous_run = []  # Translated by us in a previous run
     keep_as_is = []         # URLs, images, config — copy as-is
-    skip = []               # Empty, handles, non-translatable
+    skip = []               # Empty, non-translatable
     fix_bad_csv = []        # --fix: CSV has translation but it's not Arabic
 
     # Build row index by field_id for --todo lookups
@@ -417,7 +505,10 @@ def main():
             elif field_id in our_translations and not args.reset:
                 from_previous_run.append((i, field_id))
             elif translated and not args.overwrite:
-                if args.fix and not _has_arabic(translated):
+                # Detect untranslated content: identical to default or no Arabic
+                is_fake = (translated == default and not _has_arabic(translated))
+                needs_fix = args.fix and not _has_arabic(translated)
+                if is_fake or needs_fix:
                     fix_bad_csv.append(i)
                     to_translate.append(i)
                 else:
@@ -585,21 +676,51 @@ def main():
     # ----------------------------------------------------------------
     # 8. Translate batches → Arabic
     # ----------------------------------------------------------------
+    # Filter batches based on --start-batch / --max-batches
+    work_items = []
+    for i, batch in enumerate(batches):
+        if i < args.start_batch:
+            continue
+        if args.max_batches and (i - args.start_batch) >= args.max_batches:
+            break
+        work_items.append((i, batch))
+
     total_tokens = 0
     start_time = time.time()
+    progress_lock = __import__("threading").Lock()
 
-    for i, batch in enumerate(batches):
+    def _translate_one(item):
+        idx, batch = item
         api_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
         t_map, tokens = translate_batch_responses_api(
             client, args.model, api_batch, developer_prompt,
-            i + 1, len(batches), reasoning_effort=args.reasoning,
+            idx + 1, len(batches), reasoning_effort=args.reasoning,
         )
-        our_translations.update(t_map)
-        total_tokens += tokens
+        # Thread-safe progress update
+        with progress_lock:
+            our_translations.update(t_map)
+            with open(progress_file, "w", encoding="utf-8") as pf:
+                json.dump(our_translations, pf, ensure_ascii=False)
+        return t_map, tokens
 
-        # Save progress after every batch
-        with open(progress_file, "w", encoding="utf-8") as f:
-            json.dump(our_translations, f, ensure_ascii=False)
+    n_agents = min(args.agents, len(work_items)) if work_items else 1
+
+    if n_agents > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        print(f"Running {len(work_items)} batches with {n_agents} parallel agents...")
+        with ThreadPoolExecutor(max_workers=n_agents) as pool:
+            futures = {pool.submit(_translate_one, item): item for item in work_items}
+            for future in as_completed(futures):
+                try:
+                    t_map, tokens = future.result()
+                    total_tokens += tokens
+                except Exception as e:
+                    idx, _ = futures[future]
+                    print(f"    Batch {idx+1} failed: {e}")
+    else:
+        for item in work_items:
+            t_map, tokens = _translate_one(item)
+            total_tokens += tokens
 
     elapsed = time.time() - start_time
     print(f"\nTranslation complete: {total_tokens:,} tokens in {elapsed:.1f}s")
@@ -633,7 +754,7 @@ def main():
         1 for r in rows
         if r.get("Default content", "").strip()
         and not r.get("Translated content", "").strip()
-        and r.get("Field") != "handle"
+        and not _is_non_translatable(r)
     )
     print(f"\nFinal: {final_translated}/{len(rows)} rows have Arabic content")
     print(f"  From original CSV:    {len(from_csv)}")
