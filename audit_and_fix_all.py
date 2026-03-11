@@ -680,31 +680,75 @@ def fetch_digests_batch(client, gids, locale):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource. Returns (uploaded, errors)."""
-    MAX_PER_CALL = 50
+    """Upload translations for a single resource. Returns (uploaded, errors).
+
+    Uses smaller chunks (20) with retry + exponential backoff for
+    "Too many translation keys" errors (Shopify rate-limits per resource).
+    """
+    MAX_PER_CALL = 20
     total_up = 0
     total_err = 0
 
     for i in range(0, len(translations_input), MAX_PER_CALL):
         chunk = translations_input[i:i + MAX_PER_CALL]
-        try:
-            data = client._graphql(REGISTER_TRANSLATIONS_MUTATION, {
-                "resourceId": gid,
-                "translations": chunk,
-            })
-            user_errors = data.get("translationsRegister", {}).get("userErrors", [])
-            if user_errors:
-                for ue in user_errors:
-                    print(f"      ERROR {gid}: {ue.get('message', ue)}")
-                total_err += len(user_errors)
-                total_up += len(chunk) - len(user_errors)
-            else:
-                total_up += len(chunk)
-        except Exception as e:
-            print(f"      ERROR uploading {gid}: {e}")
+        success = False
+
+        for attempt in range(5):  # up to 5 retries with exponential backoff
+            try:
+                data = client._graphql(REGISTER_TRANSLATIONS_MUTATION, {
+                    "resourceId": gid,
+                    "translations": chunk,
+                })
+                user_errors = data.get("translationsRegister", {}).get("userErrors", [])
+
+                if user_errors:
+                    # Check if it's a rate limit error (retryable)
+                    rate_limited = any(
+                        "too many" in (ue.get("message", "") or "").lower()
+                        for ue in user_errors
+                    )
+                    if rate_limited and attempt < 4:
+                        wait = 2 ** (attempt + 1)  # 2, 4, 8, 16, 32 seconds
+                        print(f"      Rate limited, waiting {wait}s "
+                              f"(attempt {attempt + 1}/5)...")
+                        time.sleep(wait)
+                        continue
+
+                    # Non-retryable errors — count only unique error messages
+                    seen_msgs = set()
+                    for ue in user_errors:
+                        msg = ue.get("message", str(ue))
+                        if msg not in seen_msgs:
+                            print(f"      ERROR {gid}: {msg}")
+                            seen_msgs.add(msg)
+                    total_err += len(user_errors)
+                    total_up += max(0, len(chunk) - len(user_errors))
+                else:
+                    total_up += len(chunk)
+
+                success = True
+                break
+
+            except Exception as e:
+                if attempt < 4:
+                    wait = 2 ** (attempt + 1)
+                    print(f"      Exception, retrying in {wait}s: {e}")
+                    time.sleep(wait)
+                else:
+                    print(f"      ERROR uploading {gid}: {e}")
+                    total_err += len(chunk)
+                    success = True  # give up, don't retry
+                    break
+
+        if not success:
             total_err += len(chunk)
+
+        # Delay between chunks (longer for theme resources which hit rate limits)
         if i + MAX_PER_CALL < len(translations_input):
-            time.sleep(0.3)
+            if "/OnlineStoreTheme/" in gid:
+                time.sleep(2)  # themes need more breathing room
+            else:
+                time.sleep(0.5)
 
     return total_up, total_err
 
