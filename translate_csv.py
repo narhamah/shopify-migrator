@@ -59,6 +59,59 @@ CSV_TYPE_TO_GID = {
 
 ARABIC_LOCALE = "ar"
 
+# Resource types that can't be used directly with translatableResource —
+# their translations must be registered on the parent resource instead.
+NEEDS_PARENT_RESOLUTION = {"METAFIELD", "MEDIA_IMAGE"}
+
+# Resource types that aren't translatable via the Translations API
+SKIP_TYPES = {"FILTER", "COOKIE_BANNER"}
+
+
+def _resolve_metafield_owners(shopify, metafield_gids):
+    """Batch-resolve Metafield GIDs to their parent resource GID + translation key.
+
+    Returns dict: metafield_gid -> {"parent_gid": ..., "translation_key": "namespace.key"}
+    """
+    result = {}
+    # Process in batches of 50 (GraphQL nodes query limit is 250, but keep it reasonable)
+    for batch_start in range(0, len(metafield_gids), 50):
+        batch = metafield_gids[batch_start:batch_start + 50]
+        query = """
+        query GetMetafieldOwners($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on Metafield {
+              id
+              namespace
+              key
+              owner {
+                ... on Product { id }
+                ... on Collection { id }
+                ... on Page { id }
+                ... on Article { id }
+                ... on Blog { id }
+                ... on Shop { id }
+                ... on Metaobject { id }
+              }
+            }
+          }
+        }
+        """
+        data = shopify._graphql(query, {"ids": batch})
+        for node in (data.get("nodes") or []):
+            if not node:
+                continue
+            mf_id = node.get("id")
+            owner = node.get("owner")
+            ns = node.get("namespace", "")
+            key = node.get("key", "")
+            if mf_id and owner and owner.get("id"):
+                result[mf_id] = {
+                    "parent_gid": owner["id"],
+                    "translation_key": f"{ns}.{key}",
+                }
+    return result
+
+
 
 def _should_translate(row):
     """Determine if a CSV row needs translation.
@@ -314,6 +367,9 @@ def main():
 
     # Group translated rows by resource GID for efficient batch registration
     by_gid = {}
+    metafield_gids_needed = set()
+    skipped_types = {}
+
     for row in rows:
         translated = row.get("Translated content", "").strip()
         default = row.get("Default content", "").strip()
@@ -321,6 +377,12 @@ def main():
             continue
 
         csv_type = row["Type"]
+
+        # Skip types that aren't translatable via the API
+        if csv_type in SKIP_TYPES:
+            skipped_types[csv_type] = skipped_types.get(csv_type, 0) + 1
+            continue
+
         gid_type = CSV_TYPE_TO_GID.get(csv_type)
         if not gid_type:
             continue
@@ -329,11 +391,53 @@ def main():
         gid = f"gid://shopify/{gid_type}/{resource_id}"
         field = row["Field"]
 
+        if csv_type == "METAFIELD":
+            metafield_gids_needed.add(gid)
+
         by_gid.setdefault(gid, []).append({
             "field": field,
             "value": translated,
             "default": default,
         })
+
+    # Resolve Metafield GIDs to parent resources
+    if metafield_gids_needed:
+        print(f"  Resolving {len(metafield_gids_needed)} metafield owners...")
+        mf_owners = _resolve_metafield_owners(shopify, list(metafield_gids_needed))
+        print(f"  Resolved {len(mf_owners)}/{len(metafield_gids_needed)} metafield owners")
+
+        # Remap metafield entries to their parent resource
+        remapped = 0
+        unresolved = 0
+        for mf_gid in list(metafield_gids_needed):
+            if mf_gid not in by_gid:
+                continue
+            fields_list = by_gid.pop(mf_gid)
+            owner_info = mf_owners.get(mf_gid)
+            if not owner_info:
+                unresolved += 1
+                continue
+            parent_gid = owner_info["parent_gid"]
+            translation_key = owner_info["translation_key"]
+            # Remap: the CSV field "value" becomes the metafield's namespace.key on the parent
+            for f in fields_list:
+                f["field"] = translation_key
+            by_gid.setdefault(parent_gid, []).extend(fields_list)
+            remapped += 1
+        if unresolved:
+            print(f"  WARNING: {unresolved} metafields could not be resolved to parent")
+        print(f"  Remapped {remapped} metafields to parent resources")
+
+    # Remove MediaImage entries — these need parent resolution which is hard to do
+    media_gids = [gid for gid in by_gid if "/MediaImage/" in gid]
+    if media_gids:
+        for gid in media_gids:
+            del by_gid[gid]
+        print(f"  Skipped {len(media_gids)} MediaImage resources (import via CSV for these)")
+
+    if skipped_types:
+        for t, count in skipped_types.items():
+            print(f"  Skipped {count} {t} fields (not translatable via API)")
 
     print(f"  {len(by_gid)} resources to update")
 
