@@ -386,15 +386,20 @@ def main():
             if action == "fix_default_es_to_en" and args.fix_spanish:
                 to_fix_spanish.append(idx)
             elif action in ("translate", "translate_es_to_ar"):
-                # Purge from progress so it gets re-done
+                # Skip if progress already has good Arabic for this field
+                if fid in our_translations and _has_arabic(our_translations[fid]):
+                    from_previous_run.append((idx, fid))
+                    continue
+                # Purge bad translation from progress
                 if fid in our_translations:
                     del our_translations[fid]
                 to_translate.append(idx)
 
         print(f"\n--todo mode: {len(todo_items)} items from {args.todo}")
-        print(f"  To translate (→ Arabic):    {len(to_translate)}")
+        print(f"  Already good (in progress):  {len(from_previous_run)}")
+        print(f"  To translate (→ Arabic):     {len(to_translate)}")
         if to_fix_spanish:
-            print(f"  Fix Spanish → English:      {len(to_fix_spanish)}")
+            print(f"  Fix Spanish → English:       {len(to_fix_spanish)}")
 
     else:
         # Normal mode: classify all rows
