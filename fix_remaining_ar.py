@@ -367,6 +367,13 @@ def upload_translations(client, gid, translations_input):
             })
             user_errors = result.get("translationsRegister", {}).get("userErrors", [])
             if user_errors:
+                # Check if we hit the theme translation key cap
+                if any("Too many translation keys" in ue.get("message", "") for ue in user_errors):
+                    cap_errors = sum(1 for ue in user_errors if "Too many translation keys" in ue.get("message", ""))
+                    print(f"    SKIPPED {gid}: theme translation key cap reached ({cap_errors} keys over limit)")
+                    total_errors += len(user_errors)
+                    # Stop sending more chunks — the cap won't change
+                    return total_uploaded, total_errors
                 for ue in user_errors:
                     print(f"    ERROR {gid}: {ue['field']}: {ue['message']}")
                 total_uploaded += len(chunk) - len(user_errors)
@@ -976,9 +983,10 @@ def fix_from_audit(client, developer_prompt, audit_file, model, reasoning_effort
                 # or a JSON array ([{...}]). Skip ICU/template strings like {count}.
                 stripped_val = ar_value.strip()
                 if stripped_val.startswith('{"type"') or stripped_val.startswith("[{"):
+                    # Try sanitizing first (fixes newlines, control chars from AI)
+                    ar_value = sanitize_rich_text_json(ar_value)
                     try:
                         parsed = json.loads(ar_value)
-                        # Re-serialize to ensure clean JSON
                         ar_value = json.dumps(parsed, ensure_ascii=False)
                     except json.JSONDecodeError:
                         print(f"    WARNING: Skipping invalid JSON for {gid} {item['key']} ({len(ar_value)} chars)")
