@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from tara_migrate.client.shopify_client import ShopifyClient
+from tara_migrate.core.utils import sanitize_rich_text_json
 
 LOCALE = "ar"
 
@@ -350,10 +351,15 @@ def main():
                         misaligned += 1
                         continue
 
+                # Sanitize rich_text JSON (fix newlines/control chars from translation)
+                translated_value = cf["translated"]
+                if translated_value.strip().startswith("{") and '"type"' in translated_value:
+                    translated_value = sanitize_rich_text_json(translated_value)
+
                 translations_input.append({
                     "locale": LOCALE,
                     "key": field_key,
-                    "value": cf["translated"],
+                    "value": translated_value,
                     "translatableContentDigest": shopify_field["digest"],
                 })
 
