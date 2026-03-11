@@ -218,6 +218,19 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
 
             if len(translated) != len(fields):
                 print(f"    WARNING: Expected {len(fields)} fields, got {len(translated)}.")
+                # Debug: dump raw response to file for inspection
+                debug_file = os.path.join(ARABIC_DIR, f".debug_batch_{batch_num}.txt")
+                with open(debug_file, "w", encoding="utf-8") as df:
+                    df.write(f"=== RAW RESPONSE (attempt {attempt+1}) ===\n")
+                    df.write(result)
+                    df.write(f"\n\n=== PARSED {len(translated)} entries ===\n")
+                    for e in translated:
+                        df.write(f"  {e['id'][:60]}  →  {e['value'][:80]}\n")
+                    df.write(f"\n=== EXPECTED {len(fields)} IDS ===\n")
+                    for f_item in fields:
+                        df.write(f"  {f_item['id']}\n")
+                print(f"    Debug dumped to {debug_file}")
+
                 if len(translated) >= len(fields) * 0.9:
                     print(f"    Accepting partial result ({len(translated)}/{len(fields)})")
                 elif attempt < 3:
@@ -235,10 +248,13 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
             output_ids = set(t_map.keys())
             extra = output_ids - input_ids
             missing = input_ids - output_ids
-            for eid in extra:
-                del t_map[eid]
+            if extra:
+                print(f"    DEBUG: {len(extra)} extra IDs (hallucinated): {list(extra)[:3]}")
+                for eid in extra:
+                    del t_map[eid]
             if missing:
                 print(f"    WARNING: {len(missing)} untranslated fields")
+                print(f"    DEBUG: missing IDs: {list(missing)[:5]}")
 
             # Usage stats
             usage = response.usage
