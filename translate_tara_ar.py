@@ -362,7 +362,7 @@ def main():
     from_csv = []           # Already translated in the original CSV
     from_previous_run = []  # Translated by us in a previous run
     keep_as_is = []         # URLs, images, config — copy as-is
-    skip = []               # Empty, handles, non-translatable
+    skip = []               # Empty, non-translatable
     fix_bad_csv = []        # --fix: CSV has translation but it's not Arabic
 
     # Build row index by field_id for --todo lookups
@@ -637,7 +637,7 @@ def main():
         1 for r in rows
         if r.get("Default content", "").strip()
         and not r.get("Translated content", "").strip()
-        and r.get("Field") != "handle"
+        and not _is_non_translatable(r)
     )
     print(f"\nFinal: {final_translated}/{len(rows)} rows have Arabic content")
     print(f"  From original CSV:    {len(from_csv)}")
