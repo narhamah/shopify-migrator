@@ -419,20 +419,26 @@ def _parse_json_response(text):
 
 
 def _call_haiku(client, prompt, retries=3):
-    """Call Haiku with retries, return parsed JSON list."""
+    """Call Haiku with retries and rate limiting, return parsed JSON list."""
     for attempt in range(retries):
         try:
             resp = client.messages.create(
                 model=MODEL, max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return _parse_json_response(resp.content[0].text)
+            result = _parse_json_response(resp.content[0].text)
+            time.sleep(1)  # rate limit: ~1 req/sec per worker
+            return result
         except json.JSONDecodeError:
             if attempt < retries - 1:
                 print(f" json-retry", end="", flush=True)
-                time.sleep(1)
+                time.sleep(2 ** attempt)
         except Exception as e:
-            if attempt < retries - 1:
+            if "rate" in str(e).lower() or "429" in str(e):
+                wait = 2 ** (attempt + 2)  # longer wait for rate limits
+                print(f" rate-limited({wait}s)", end="", flush=True)
+                time.sleep(wait)
+            elif attempt < retries - 1:
                 print(f" err-retry", end="", flush=True)
                 time.sleep(2 ** attempt)
             else:
