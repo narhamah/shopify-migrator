@@ -66,6 +66,13 @@ def _is_non_translatable(row):
         except (json.JSONDecodeError, TypeError):
             pass
 
+    # Pure Liquid template expressions — no human-readable text to translate.
+    # e.g. "{{ closest.product.title }}", "<h1>{{ article.title }}</h1>",
+    #      "{{ block.repeater.question.value }}", "{{ x | metafield_tag }}"
+    stripped = re.sub(r"<[^>]+>", "", default).strip()
+    if stripped and re.match(r"^(\{\{[^}]+\}\}\s*[:;,]?\s*)+$", stripped):
+        return True
+
     return False
 
 
