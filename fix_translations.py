@@ -303,17 +303,37 @@ def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
         print("  Nothing to fix — all fields already uploaded!")
         return 0, 0
 
-    # Build translation input — engine handles rich_text decomposition
+    # Fetch digests first — we need full English values from Shopify
+    # (audit JSON truncates to 200 chars which breaks rich_text re-translation)
+    uploaded = 0
+    errors = 0
+    gid_list = list(by_resource.keys())
+
+    print(f"  Fetching full content for {len(gid_list)} resources...")
+    full_digest_map = {}
+    for batch_start in range(0, len(gid_list), 10):
+        batch_gids = gid_list[batch_start:batch_start + 10]
+        dm = fetch_translatable_resources(client, batch_gids, locale)
+        full_digest_map.update(dm)
+    print(f"  Fetched digests for {len(full_digest_map)} resources")
+
+    # Build translation input using FULL English values from API
     fields_for_ai = []
     for rid, items in by_resource.items():
+        dm = full_digest_map.get(rid, {})
         for item in items:
-            # Skip handle fields (cause "already taken" conflicts)
             if item["key"] == "handle":
                 continue
             field_id = f"{item['resource_type']}|{rid}|{item['key']}"
+            # Use full English from API when available (audit truncates to 200 chars)
+            english = item["english"]
+            if dm and "content" in dm:
+                api_content = dm["content"].get(item["key"])
+                if api_content and api_content.get("value"):
+                    english = api_content["value"]
             fields_for_ai.append({
                 "id": field_id,
-                "value": item["english"],
+                "value": english,
             })
 
     print(f"  Fields to translate: {len(fields_for_ai)}")
@@ -321,20 +341,22 @@ def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
     if dry_run:
         for f in fields_for_ai[:20]:
             print(f"    {f['id'][:70]}")
-            print(f"      {f['value'][:70]}")
+            en_preview = f['value'][:70]
+            if f['value'].startswith("{") and '"type"' in f['value']:
+                from tara_migrate.core.rich_text import extract_text as _et
+                extracted = _et(f['value'])
+                if extracted:
+                    en_preview = f"[rich_text {len(f['value'])}ch] {extracted[:55]}"
+            print(f"      {en_preview}")
         if len(fields_for_ai) > 20:
             print(f"    ... and {len(fields_for_ai) - 20} more")
         return 0, 0
 
-    # Translate (engine handles rich_text JSON safely)
+    # Translate (engine handles rich_text JSON safely: decompose → translate nodes → rebuild)
     t_map = engine.translate_fields(fields_for_ai)
     print(f"  Translated: {len(t_map)} fields")
 
-    # Fetch digests and upload, grouped by resource
-    uploaded = 0
-    errors = 0
-    gid_list = list(by_resource.keys())
-
+    # Upload, grouped by resource
     for batch_start in range(0, len(gid_list), 10):
         batch_gids = gid_list[batch_start:batch_start + 10]
         batch_num = batch_start // 10 + 1
@@ -343,12 +365,10 @@ def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
         if batch_num % 10 == 1:
             print(f"  Upload batch {batch_num}/{total_batches}...")
 
-        digest_map = fetch_translatable_resources(client, batch_gids, locale)
-
         for gid in batch_gids:
-            if gid not in digest_map:
+            if gid not in full_digest_map:
                 continue
-            dm = digest_map[gid]
+            dm = full_digest_map[gid]
             translations_input = []
             field_ids_in_batch = []
 
@@ -389,7 +409,6 @@ def fix_from_audit(client, engine, locale, audit_file, dry_run=False):
                 u, e = upload_translations(client, gid, translations_input)
                 uploaded += u
                 errors += e
-                # Mark successfully uploaded fields in progress
                 if u > 0:
                     done_ids.update(field_ids_in_batch)
                     _save_progress(audit_file, done_ids)

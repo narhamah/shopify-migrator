@@ -237,17 +237,31 @@ def detect_script_issues(cache):
         if not eng or not ar:
             continue
 
-        # Untranslated: Arabic identical to English (>2 words)
-        if eng == ar and len(eng) > 5 and len(eng.split()) > 2:
-            issues[i] = build_mismatch(cache, i,
-                "untranslated: Arabic identical to English",
-                "script_analysis", "high")
-            continue
+        # Untranslated: Arabic identical to English
+        # Skip things that SHOULD stay identical:
+        #   - Liquid variables: {{ ... }}
+        #   - INCI / trademark names (contain ™®© or parenthesized chemical names)
+        #   - Single technical words that are also brand/INCI (e.g. "Biotin")
+        if eng == ar and len(eng) > 2:
+            is_liquid = bool(re.match(r"^\{\{.*\}\}$", eng.strip()))
+            is_inci = bool(re.search(r"[™®©]", eng)) or bool(
+                re.match(r"^[A-Z][a-z]+\s*\(.*\)$", eng))  # "Name (Chemical-Name)"
+            # Single words: only skip if they look like INCI/brand (capitalized, no spaces)
+            words = eng.split()
+            if len(words) == 1:
+                is_inci = is_inci or not eng[0].isupper() or len(eng) <= 3
+            if not is_liquid and not is_inci:
+                issues[i] = build_mismatch(cache, i,
+                    "untranslated: Arabic identical to English",
+                    "script_analysis", "high")
+                continue
 
-        # No Arabic script at all (allow INCI / genus-species)
+        # No Arabic script at all (allow INCI / genus-species / trademark terms)
         ar_r = arabic_ratio(ar)
         if ar_r == 0.0 and len(ar) > 10:
-            if not re.match(r"^[A-Z][a-z]+ [A-Z][a-z]+", ar):
+            is_inci = bool(re.search(r"[™®©]", ar)) or bool(
+                re.match(r"^[A-Z][a-z]+\s*\(.*\)$", ar))  # "Name (Chemical)"
+            if not is_inci and not re.match(r"^[A-Z][a-z]+ [A-Z][a-z]+", ar):
                 issues[i] = build_mismatch(cache, i,
                     "no Arabic script in translation",
                     "script_analysis", "high")
@@ -259,6 +273,17 @@ def detect_script_issues(cache):
                 f"only {ar_r:.0%} Arabic chars in translation",
                 "script_analysis", "medium")
             continue
+
+        # Corrupted rich_text JSON: raw JSON keys leaking into visible text
+        raw_ar = cache.rows[i].get("Translated content", "")
+        if raw_ar.strip().startswith("{") and '"type"' in raw_ar:
+            try:
+                json.loads(raw_ar)
+            except json.JSONDecodeError:
+                issues[i] = build_mismatch(cache, i,
+                    "corrupted rich_text JSON (invalid JSON structure)",
+                    "script_analysis", "high")
+                continue
 
         # Length anomalies
         eng_len, ar_len = len(eng), len(ar)
@@ -419,20 +444,26 @@ def _parse_json_response(text):
 
 
 def _call_haiku(client, prompt, retries=3):
-    """Call Haiku with retries, return parsed JSON list."""
+    """Call Haiku with retries and rate limiting, return parsed JSON list."""
     for attempt in range(retries):
         try:
             resp = client.messages.create(
                 model=MODEL, max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return _parse_json_response(resp.content[0].text)
+            result = _parse_json_response(resp.content[0].text)
+            time.sleep(1)  # rate limit: ~1 req/sec per worker
+            return result
         except json.JSONDecodeError:
             if attempt < retries - 1:
                 print(f" json-retry", end="", flush=True)
-                time.sleep(1)
+                time.sleep(2 ** attempt)
         except Exception as e:
-            if attempt < retries - 1:
+            if "rate" in str(e).lower() or "429" in str(e):
+                wait = 2 ** (attempt + 2)  # longer wait for rate limits
+                print(f" rate-limited({wait}s)", end="", flush=True)
+                time.sleep(wait)
+            elif attempt < retries - 1:
                 print(f" err-retry", end="", flush=True)
                 time.sleep(2 ** attempt)
             else:

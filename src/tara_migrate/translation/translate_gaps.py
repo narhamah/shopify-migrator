@@ -37,6 +37,7 @@ from tara_migrate.translation.field_extractors import (  # noqa: F401
     extract_product_fields,
 )
 from tara_migrate.translation.toon import _toon_escape, _toon_unescape, from_toon, to_toon  # noqa: F401
+from tara_migrate.core.language import replace_range_names_ar, TARA_RANGE_NAMES_AR
 from tara_migrate.translation.translator import TARA_TONE_AR, TARA_TONE_EN
 
 # Max fields per TOON batch — large batches = fewer API calls
@@ -101,6 +102,90 @@ def _regenerate_metaobject_handles(metaobjects, skip_ids=None):
         type_data["objects"] = unique_objs
         if before != len(unique_objs):
             print(f"    {mo_type}: deduplicated {before} → {len(unique_objs)} entries")
+
+
+def post_process_arabic_range_names(products, collections, pages, articles, metaobjects, blogs=None):
+    """Replace English TARA collection/range names with Arabic equivalents.
+
+    Runs after translation to fix product names the AI left in English
+    (e.g. 'Date + Multivitamin' → 'التمر + فيتامينات متعددة').
+    """
+    count = 0
+
+    def _fix(text):
+        nonlocal count
+        if not text:
+            return text
+        fixed = replace_range_names_ar(text)
+        if fixed != text:
+            count += 1
+        return fixed
+
+    def _fix_rich_text(val):
+        """Fix range names inside rich text JSON."""
+        nonlocal count
+        if not val:
+            return val
+        try:
+            import json
+            data = json.loads(val)
+
+            def fix_nodes(nodes):
+                for node in nodes:
+                    if node.get("type") == "text" and node.get("value"):
+                        node["value"] = _fix(node["value"])
+                    if node.get("children"):
+                        fix_nodes(node["children"])
+
+            if isinstance(data, dict) and data.get("children"):
+                fix_nodes(data["children"])
+            return json.dumps(data, ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError):
+            return _fix(val)
+
+    for p in products:
+        p["title"] = _fix(p.get("title", ""))
+        p["body_html"] = _fix(p.get("body_html", ""))
+        for mf in p.get("metafields", []):
+            mf_type = mf.get("type", "")
+            if mf_type == "rich_text_field":
+                mf["value"] = _fix_rich_text(mf.get("value", ""))
+            elif mf_type in TEXT_METAFIELD_TYPES:
+                mf["value"] = _fix(mf.get("value", ""))
+
+    for c in collections:
+        c["title"] = _fix(c.get("title", ""))
+        c["body_html"] = _fix(c.get("body_html", ""))
+
+    for pg in pages:
+        pg["title"] = _fix(pg.get("title", ""))
+        pg["body_html"] = _fix(pg.get("body_html", ""))
+
+    for a in articles:
+        a["title"] = _fix(a.get("title", ""))
+        a["body_html"] = _fix(a.get("body_html", ""))
+        for mf in a.get("metafields", []):
+            mf_type = mf.get("type", "")
+            if mf_type == "rich_text_field":
+                mf["value"] = _fix_rich_text(mf.get("value", ""))
+            elif mf_type in TEXT_METAFIELD_TYPES:
+                mf["value"] = _fix(mf.get("value", ""))
+
+    if isinstance(metaobjects, dict):
+        for mo_type, type_data in metaobjects.items():
+            for obj in type_data.get("objects", []):
+                for field in obj.get("fields", []):
+                    ftype = field.get("type", "")
+                    if ftype == "rich_text_field":
+                        field["value"] = _fix_rich_text(field.get("value", ""))
+                    elif ftype in TEXT_METAFIELD_TYPES:
+                        field["value"] = _fix(field.get("value", ""))
+
+    for b in (blogs or []):
+        b["title"] = _fix(b.get("title", ""))
+
+    if count:
+        print(f"  Post-processed {count} fields: replaced English range names with Arabic")
 
 
 def apply_translations(translations, products, collections, pages, articles, metaobjects, blogs=None):
@@ -281,7 +366,8 @@ Each line is: id|value
 
 TRANSLATION RULES:
 - Keep "TARA" unchanged — never translate the brand name
-- Keep product-specific names unchanged (e.g., "Kansa Wand", "Gua Sha")
+- Keep tool names unchanged: "Kansa Wand", "Gua Sha", "Scalp Massager"
+- DO translate collection/range names into the target language. For Arabic: "Date+ Multivitamin" → "التمر + فيتامينات متعددة", "Black Garlic+ Ceramides" → "الثوم الأسود + سيراميدات", "Onion+ Peptides" → "البصل + ببتيدات", "Strawberry+ NMF" → "الفراولة + عوامل الترطيب الطبيعية", "Rosemary+ Peptides" → "إكليل الجبل + ببتيدات", "Sage+ Multivitamin" → "الميرمية + فيتامينات متعددة", "Detox" → "ديتوكس"
 - Keep ingredient scientific names (INCI names) unchanged
 - Preserve ALL HTML tags and attributes exactly
 - Preserve Shopify Liquid tags ({{{{ }}}}, {{% %}}) unchanged
@@ -870,6 +956,13 @@ def translate_with_gaps(
     # Uses source-handle-based field IDs to find translations and applies
     # them onto the correct scraped products.
     apply_metafields_to_scraped(matched_pairs, all_translations)
+
+    # For Arabic: post-process to replace English range/collection names
+    if target_lang == "Arabic":
+        post_process_arabic_range_names(
+            output_products, output_collections, output_pages,
+            output_articles, output_metaobjects, blogs=output_blogs,
+        )
 
     # ---- Save output ----
     save_json(output_products, os.path.join(output_dir, "products.json"))
