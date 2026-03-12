@@ -19,13 +19,13 @@ Prerequisites:
     playwright install chromium
 
 Usage:
-    python visual_audit_report.py                                   # Full audit
-    python visual_audit_report.py --max-pages 20                    # Quick scan
-    python visual_audit_report.py --screenshots                     # Save screenshots
-    python visual_audit_report.py --english-only                    # Skip Arabic checks
-    python visual_audit_report.py --arabic-only                     # Skip English checks
-    python visual_audit_report.py --base-url https://sa.taraformula.com
-    python visual_audit_report.py --output my_audit.xlsx
+    python visual_audit_report.py --output data/audit.xlsx                     # Full audit (all pages, all checks)
+    python visual_audit_report.py --output data/audit.xlsx --max-pages 20      # Quick scan (20 pages per locale)
+    python visual_audit_report.py --output C:/Users/me/Desktop/audit.xlsx      # Custom output path
+    python visual_audit_report.py --output data/audit.xlsx --no-screenshots    # Skip screenshots
+    python visual_audit_report.py --output data/audit.xlsx --no-check-links    # Skip link checks (faster)
+    python visual_audit_report.py --output data/audit.xlsx --english-only      # Skip Arabic checks
+    python visual_audit_report.py --output data/audit.xlsx --arabic-only       # Skip English checks
 """
 
 import argparse
@@ -912,7 +912,8 @@ def crawl_and_audit(base_url, locale, page, max_pages=100,
         page_count += 1
         short_path = parsed.path
 
-        print(f"  [{page_count:3d}/{max_pages}] {short_path}")
+        label = f"{page_count}" if max_pages > 99999 else f"{page_count}/{max_pages}"
+        print(f"  [{label}] {short_path}")
 
         result = audit_page(page, url, locale, console_errors, screenshots_dir)
         if isinstance(result, list):
@@ -1201,32 +1202,36 @@ def main():
         description="Comprehensive visual audit of TARA Saudi Shopify store → Excel report")
     parser.add_argument("--base-url", default="https://sa.taraformula.com",
                         help="Base URL of the store")
-    parser.add_argument("--max-pages", type=int, default=100,
-                        help="Max pages to crawl per locale (default: 100)")
-    parser.add_argument("--output", default=None,
-                        help="Output Excel file (default: data/visual_audit_YYYY-MM-DD.xlsx)")
-    parser.add_argument("--screenshots", action="store_true",
-                        help="Save full-page screenshots")
+    parser.add_argument("--max-pages", type=int, default=0,
+                        help="Max pages to crawl per locale (0 = unlimited, default: unlimited)")
+    parser.add_argument("--output", required=True,
+                        help="Output Excel file path (e.g. data/audit_report.xlsx)")
+    parser.add_argument("--no-screenshots", action="store_true",
+                        help="Skip saving full-page screenshots (screenshots ON by default)")
     parser.add_argument("--headed", action="store_true",
                         help="Run with visible browser")
     parser.add_argument("--english-only", action="store_true",
                         help="Only audit English pages")
     parser.add_argument("--arabic-only", action="store_true",
                         help="Only audit Arabic pages")
-    parser.add_argument("--check-links", action="store_true",
-                        help="Also check for broken links (slower)")
-    parser.add_argument("--mobile", action="store_true",
-                        help="Also run mobile viewport checks")
+    parser.add_argument("--no-check-links", action="store_true",
+                        help="Skip broken link checking (link checks ON by default)")
+    parser.add_argument("--no-mobile", action="store_true",
+                        help="Skip mobile viewport checks (mobile checks ON by default)")
     parser.add_argument("--json-out", default=None,
                         help="Also save raw JSON results")
     args = parser.parse_args()
 
     load_dotenv()
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
-    if not args.output:
-        os.makedirs("data", exist_ok=True)
-        args.output = f"data/visual_audit_{timestamp}.xlsx"
+    # Ensure output directory exists
+    output_dir = os.path.dirname(args.output)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    # 0 = unlimited — use a very high number
+    if args.max_pages <= 0:
+        args.max_pages = 999999
 
     try:
         from playwright.sync_api import sync_playwright
@@ -1266,8 +1271,10 @@ def main():
             page = context.new_page()
 
             screenshots_dir = None
-            if args.screenshots:
-                screenshots_dir = os.path.join("data", f"screenshots_{locale}")
+            if not args.no_screenshots:
+                # Store screenshots next to the output file
+                output_base = os.path.splitext(args.output)[0]
+                screenshots_dir = f"{output_base}_screenshots_{locale}"
                 os.makedirs(screenshots_dir, exist_ok=True)
 
             start_url = f"{args.base_url.rstrip('/')}{prefix}"
@@ -1277,8 +1284,8 @@ def main():
                 screenshots_dir=screenshots_dir,
             )
 
-            # Optional: check broken links
-            if args.check_links and links:
+            # Check broken links (on by default)
+            if not args.no_check_links and links:
                 print(f"\n  Checking {len(links)} links for broken responses...")
                 domain = urlparse(args.base_url).netloc
                 link_issues = check_links_batch(page, links, domain)
@@ -1298,14 +1305,14 @@ def main():
             print(f"    Critical: {by_sev['critical']}  High: {by_sev['high']}  "
                   f"Medium: {by_sev['medium']}  Low: {by_sev['low']}")
 
-        # Optional: mobile audit
-        if args.mobile:
+        # Mobile audit (on by default)
+        if not args.no_mobile:
             print(f"\n{'─' * 70}")
             print("  MOBILE VIEWPORT AUDIT")
             print(f"{'─' * 70}")
             for locale, prefix in locales:
                 start_url = f"{args.base_url.rstrip('/')}{prefix}"
-                mobile_issues = audit_mobile(start_url, locale, browser, max_pages=10)
+                mobile_issues = audit_mobile(start_url, locale, browser, max_pages=20)
                 all_issues.extend(mobile_issues)
                 print(f"  {locale.upper()}: {len(mobile_issues)} mobile overflow issues")
 
