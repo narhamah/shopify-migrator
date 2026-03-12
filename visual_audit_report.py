@@ -41,7 +41,10 @@ from urllib.parse import urlparse, urljoin
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-from tara_migrate.core.language import is_arabic_visible_text, count_chars, ARABIC_REGEX
+from tara_migrate.core.language import (
+    is_arabic_visible_text, count_chars, ARABIC_REGEX,
+    find_untranslated_range_names,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constants
@@ -432,6 +435,22 @@ def check_untranslated_text(texts, locale, url):
                     "position": f"({t['x']}, {t['y']})",
                     "detail": "English/Latin text on Arabic page",
                 })
+            else:
+                # Text passes Arabic ratio check, but may contain embedded
+                # English range/collection names that should be translated
+                range_hits = find_untranslated_range_names(text)
+                for en_name, ar_name in range_hits:
+                    issues.append({
+                        "category": "Untranslated Text",
+                        "severity": "high",
+                        "url": url,
+                        "page_type": _classify_page(url),
+                        "element": f"<{t['tag']}>",
+                        "css_classes": t.get("classes", ""),
+                        "text": text[:300],
+                        "position": f"({t['x']}, {t['y']})",
+                        "detail": f"English range name '{en_name}' in Arabic text — should be '{ar_name}'",
+                    })
         else:
             # On English pages: flag Spanish text
             if _is_spanish(text):

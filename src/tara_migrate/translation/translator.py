@@ -27,7 +27,8 @@ SYSTEM_PROMPT = f"""You are a professional translator for TARA, a luxury scalp-c
 
 TRANSLATION RULES:
 - Keep "TARA" unchanged — never translate the brand name
-- Keep product-specific names unchanged (e.g., "Kansa Wand", "Gua Sha")
+- Keep tool names unchanged: "Kansa Wand", "Gua Sha", "Scalp Massager"
+- DO translate collection/range names into Arabic: "Date+ Multivitamin" → "التمر + فيتامينات متعددة", "Black Garlic+ Ceramides" → "الثوم الأسود + سيراميدات", "Onion+ Peptides" → "البصل + ببتيدات", "Strawberry+ NMF" → "الفراولة + عوامل الترطيب الطبيعية", "Rosemary+ Peptides" → "إكليل الجبل + ببتيدات", "Sage+ Multivitamin" → "الميرمية + فيتامينات متعددة", "Detox" → "ديتوكس", "Scalp Serums" → "سيرومات فروة الرأس", "Best Sellers" → "الأكثر مبيعاً"
 - Keep ingredient scientific names (INCI names) unchanged
 - Preserve all HTML tags and their attributes exactly as they are
 - Preserve Shopify Liquid tags ({{{{ }}}}, {{% %}}) unchanged
