@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from tara_migrate.client import ShopifyClient
+from tara_migrate.core.rich_text import is_rich_text_json, extract_text_nodes, rebuild, sanitize
 from tara_migrate.translation.translate_gaps import (
     adaptive_batch,
     translate_batch,
@@ -287,16 +288,45 @@ def main():
     from openai import OpenAI
     client = OpenAI(api_key=api_key)
 
-    # Build TOON-compatible field list
+    # Build TOON-compatible field list, handling rich_text separately
     fields = []
+    rich_text_map = {}  # field_id -> {original_json, text_nodes: [(path, text)]}
+
     for idx in to_translate:
         r = rows[idx]
         field_id = f"{r['Type']}|{r['Identification']}|{r['Field']}"
-        fields.append({
-            "id": field_id,
-            "value": r["Default content"],
-            "_row_idx": idx,
-        })
+        value = r["Default content"]
+
+        if is_rich_text_json(value):
+            # Extract text nodes — translate them individually, rebuild JSON after
+            text_nodes, parsed = extract_text_nodes(value)
+            if text_nodes:
+                rich_text_map[field_id] = {
+                    "parsed": parsed,
+                    "row_idx": idx,
+                    "nodes": [],
+                }
+                for ni, (path, text) in enumerate(text_nodes):
+                    if text.strip():
+                        node_field_id = f"{field_id}::node{ni}"
+                        fields.append({
+                            "id": node_field_id,
+                            "value": text,
+                            "_row_idx": idx,
+                            "_rich_text_parent": field_id,
+                            "_rich_text_path": tuple(path),
+                        })
+                        rich_text_map[field_id]["nodes"].append(
+                            (node_field_id, tuple(path)))
+            else:
+                # No text nodes — keep as-is
+                rows[idx]["Translated content"] = value
+        else:
+            fields.append({
+                "id": field_id,
+                "value": value,
+                "_row_idx": idx,
+            })
 
     # Batch and translate
     batches = adaptive_batch(fields, max_tokens=8000)
@@ -306,7 +336,7 @@ def main():
     total_tokens = 0
 
     for i, batch in enumerate(batches):
-        # Strip internal _row_idx before sending to API
+        # Strip internal keys before sending to API
         api_batch = [{"id": f["id"], "value": f["value"]} for f in batch]
         t_map, tokens = translate_batch(
             client, args.model, api_batch,
@@ -318,7 +348,26 @@ def main():
 
     # Apply translations back to rows
     translated_count = 0
+
+    # First: rebuild rich_text fields from translated text nodes
+    for parent_id, rt_info in rich_text_map.items():
+        translations_for_rebuild = {}
+        all_found = True
+        for node_field_id, path in rt_info["nodes"]:
+            if node_field_id in all_translations:
+                translations_for_rebuild[path] = all_translations[node_field_id]
+            else:
+                all_found = False
+        if translations_for_rebuild:
+            rebuilt = rebuild(rt_info["parsed"], translations_for_rebuild)
+            rebuilt = sanitize(rebuilt)
+            rows[rt_info["row_idx"]]["Translated content"] = rebuilt
+            translated_count += 1
+
+    # Then: apply plain text translations
     for field in fields:
+        if "_rich_text_parent" in field:
+            continue  # already handled above
         field_id = field["id"]
         row_idx = field["_row_idx"]
         if field_id in all_translations:

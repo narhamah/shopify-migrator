@@ -270,6 +270,17 @@ def detect_script_issues(cache):
                 "script_analysis", "medium")
             continue
 
+        # Corrupted rich_text JSON: raw JSON keys leaking into visible text
+        raw_ar = cache.rows[i].get("Translated content", "")
+        if raw_ar.strip().startswith("{") and '"type"' in raw_ar:
+            try:
+                json.loads(raw_ar)
+            except json.JSONDecodeError:
+                issues[i] = build_mismatch(cache, i,
+                    "corrupted rich_text JSON (invalid JSON structure)",
+                    "script_analysis", "high")
+                continue
+
         # Length anomalies
         eng_len, ar_len = len(eng), len(ar)
         if eng_len > 20 and ar_len > 20:
