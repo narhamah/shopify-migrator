@@ -392,7 +392,7 @@ def translate_field(client, model, field, system_prompt, field_num, total_fields
         f"{toon_input}"
     )
 
-    REASONING_MODELS = {"o3", "o3-mini", "o4-mini", "gpt-5-mini", "gpt-5"}
+    REASONING_MODELS = {"o3", "o3-mini", "o4-mini", "gpt-5-mini", "gpt-5", "gpt-5-nano"}
     is_reasoning = any(model.startswith(rm) for rm in REASONING_MODELS)
 
     for attempt in range(4):

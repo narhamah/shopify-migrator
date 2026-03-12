@@ -461,19 +461,29 @@ def main():
 
     if args.todo:
         # --todo mode: only process items from the to-do file
+        # Accepts both formats:
+        #   - verify_translation.py _todo.json:       {"field_id": "TYPE|ID|FIELD", "action": "translate"}
+        #   - validate_csv.py _mismatches.json:       {"type": "PRODUCT", "identification": "123", "field": "title", "reason": "..."}
         with open(args.todo, "r", encoding="utf-8") as f:
             todo_items = json.load(f)
 
         for item in todo_items:
-            fid = item["field_id"]
-            action = item["action"]
+            # Normalize: build field_id from either format
+            if "field_id" in item:
+                fid = item["field_id"]
+            elif "type" in item and "identification" in item and "field" in item:
+                fid = f"{item['type']}|{item['identification']}|{item['field']}"
+            else:
+                continue
+
+            action = item.get("action", "translate")  # default to translate for mismatches
             idx = row_by_field_id.get(fid)
             if idx is None:
                 continue
 
             if action == "fix_default_es_to_en" and args.fix_spanish:
                 to_fix_spanish.append(idx)
-            elif action in ("translate", "translate_es_to_ar"):
+            else:
                 # Skip if progress already has good Arabic for this field
                 if fid in our_translations and _has_arabic(our_translations[fid]):
                     from_previous_run.append((idx, fid))
