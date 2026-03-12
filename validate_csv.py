@@ -237,15 +237,19 @@ def detect_script_issues(cache):
         if not eng or not ar:
             continue
 
-        # Untranslated: Arabic identical to English (>2 words)
-        # But skip things that SHOULD stay identical:
+        # Untranslated: Arabic identical to English
+        # Skip things that SHOULD stay identical:
         #   - Liquid variables: {{ ... }}
-        #   - INCI / trademark names (mostly Latin + symbols like ™®)
-        #   - Pure technical/scientific terms
-        if eng == ar and len(eng) > 5 and len(eng.split()) > 2:
-            is_liquid = re.match(r"^\{\{.*\}\}$", eng.strip())
+        #   - INCI / trademark names (contain ™®© or parenthesized chemical names)
+        #   - Single technical words that are also brand/INCI (e.g. "Biotin")
+        if eng == ar and len(eng) > 2:
+            is_liquid = bool(re.match(r"^\{\{.*\}\}$", eng.strip()))
             is_inci = bool(re.search(r"[™®©]", eng)) or bool(
-                re.match(r"^[A-Za-z0-9™®©\s()\-,\.]+$", eng))
+                re.match(r"^[A-Z][a-z]+\s*\(.*\)$", eng))  # "Name (Chemical-Name)"
+            # Single words: only skip if they look like INCI/brand (capitalized, no spaces)
+            words = eng.split()
+            if len(words) == 1:
+                is_inci = is_inci or not eng[0].isupper() or len(eng) <= 3
             if not is_liquid and not is_inci:
                 issues[i] = build_mismatch(cache, i,
                     "untranslated: Arabic identical to English",
@@ -256,7 +260,7 @@ def detect_script_issues(cache):
         ar_r = arabic_ratio(ar)
         if ar_r == 0.0 and len(ar) > 10:
             is_inci = bool(re.search(r"[™®©]", ar)) or bool(
-                re.match(r"^[A-Za-z0-9™®©\s()\-,\.]+$", ar))
+                re.match(r"^[A-Z][a-z]+\s*\(.*\)$", ar))  # "Name (Chemical)"
             if not is_inci and not re.match(r"^[A-Z][a-z]+ [A-Z][a-z]+", ar):
                 issues[i] = build_mismatch(cache, i,
                     "no Arabic script in translation",
