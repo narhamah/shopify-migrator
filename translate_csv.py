@@ -242,11 +242,23 @@ def main():
     keep_as_is = []
     skip = []
 
+    retranslate_count = 0
     for i, row in enumerate(rows):
         default = row.get("Default content", "").strip()
         translated = row.get("Translated content", "").strip()
 
         if translated:
+            # Detect "translations" that are just English copied over
+            if translated == default and _should_translate(row) and len(default) > 2:
+                # Check if it has any Arabic script — if not, it needs real translation
+                has_arabic = bool(re.search(
+                    r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]',
+                    translated))
+                if not has_arabic:
+                    row["Translated content"] = ""  # clear fake translation
+                    to_translate.append(i)
+                    retranslate_count += 1
+                    continue
             skip.append((i, "already translated"))
         elif not default:
             skip.append((i, "empty"))
@@ -259,6 +271,8 @@ def main():
 
     print("\nBreakdown:")
     print(f"  Already translated: {sum(1 for _, r in skip if r == 'already translated')}")
+    if retranslate_count:
+        print(f"  Fake translations (English copied as Arabic): {retranslate_count}")
     print(f"  Keep as-is (URLs/images/config): {len(keep_as_is)}")
     print(f"  Need AI translation: {len(to_translate)}")
     print(f"  Skip (empty/non-translatable): {sum(1 for _, r in skip if r != 'already translated')}")
