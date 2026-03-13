@@ -1532,9 +1532,11 @@ def translate_csv(
         print(f"Resuming: {len(our_translations)} fields from previous runs")
 
     # --fix: purge bad translations from progress
+    # Use low ratio (0.05) because progress values may be raw rich_text JSON
+    # where JSON structure keys inflate the Latin char count far beyond 30%.
     if fix and our_translations:
         bad_keys = [k for k, v in our_translations.items()
-                    if not has_arabic(v) and ":chunk_" not in k]
+                    if not has_arabic(v, min_ratio=0.05) and ":chunk_" not in k]
         if bad_keys:
             for k in bad_keys:
                 del our_translations[k]
