@@ -62,6 +62,8 @@ def adaptive_batch(fields, max_tokens=6000):
 
     Short fields (titles, buttons) get packed densely.
     Long fields (body_html, rich_text JSON) get smaller batches.
+    Fields exceeding max_tokens are split into sub-fields using
+    _split_oversized_field() and reassembled after translation.
     """
     batches = []
     current_batch = []
@@ -69,6 +71,20 @@ def adaptive_batch(fields, max_tokens=6000):
 
     for field in fields:
         field_tokens = _estimate_tokens(field["value"])
+
+        # If a single field exceeds max_tokens, split it into chunks
+        if field_tokens > max_tokens:
+            # Flush current batch first
+            if current_batch:
+                batches.append(current_batch)
+                current_batch = []
+                current_tokens = 0
+
+            chunks = _split_oversized_field(field, max_tokens)
+            for chunk in chunks:
+                batches.append([chunk])
+            continue
+
         if current_batch and (current_tokens + field_tokens > max_tokens):
             batches.append(current_batch)
             current_batch = []
@@ -79,6 +95,245 @@ def adaptive_batch(fields, max_tokens=6000):
     if current_batch:
         batches.append(current_batch)
     return batches
+
+
+def _split_oversized_field(field, max_tokens):
+    """Split a single oversized field into multiple chunk-fields.
+
+    Each chunk-field has the same id with a `:chunk_N` suffix.
+    The original field gets a `_chunks` key recording how many parts.
+
+    For rich_text JSON, splits by top-level children array.
+    For HTML, splits by block elements (<p>, <div>, <h1-h6>, <ul>, <ol>, <li>).
+    For plain text, splits by paragraphs (double newlines).
+    """
+    value = field["value"]
+    field_id = field["id"]
+
+    # Try to detect rich_text JSON
+    segments = None
+    is_rich_text = False
+    if value.strip().startswith("{") and '"type"' in value[:100]:
+        try:
+            parsed = json.loads(value)
+            children = parsed.get("children", [])
+            if children and isinstance(children, list):
+                is_rich_text = True
+                segments = []
+                current_group = []
+                current_tokens = 0
+                for child in children:
+                    child_json = json.dumps(child, ensure_ascii=False)
+                    child_tokens = _estimate_tokens(child_json)
+                    if current_group and current_tokens + child_tokens > max_tokens * 0.8:
+                        seg = json.dumps(
+                            {**parsed, "children": current_group},
+                            ensure_ascii=False)
+                        segments.append(seg)
+                        current_group = []
+                        current_tokens = 0
+                    current_group.append(child)
+                    current_tokens += child_tokens
+                if current_group:
+                    seg = json.dumps(
+                        {**parsed, "children": current_group},
+                        ensure_ascii=False)
+                    segments.append(seg)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Try HTML splitting
+    if not segments and ("<p" in value or "<div" in value or "<h" in value):
+        segments = _split_html_blocks(value, max_tokens)
+
+    # Fallback: split by paragraphs / lines
+    if not segments:
+        segments = _split_text_blocks(value, max_tokens)
+
+    # Build chunk fields
+    chunks = []
+    for i, seg in enumerate(segments):
+        chunk_field = dict(field)
+        chunk_field["id"] = f"{field_id}:chunk_{i}"
+        chunk_field["value"] = seg
+        chunk_field["_is_chunk"] = True
+        chunk_field["_chunk_index"] = i
+        chunk_field["_chunk_total"] = len(segments)
+        chunk_field["_parent_id"] = field_id
+        chunk_field["_is_rich_text_chunk"] = is_rich_text
+        chunks.append(chunk_field)
+
+    # Mark original field
+    field["_chunks"] = len(segments)
+    return chunks
+
+
+def _split_html_blocks(html, max_tokens):
+    """Split HTML by block-level elements."""
+    block_pattern = re.compile(
+        r'(<(?:p|div|h[1-6]|ul|ol|li|section|article|blockquote|table|tr|thead|tbody)'
+        r'[\s>])', re.IGNORECASE)
+    parts = block_pattern.split(html)
+
+    segments = []
+    current = ""
+    current_tokens = 0
+
+    for part in parts:
+        part_tokens = _estimate_tokens(part)
+        if current and current_tokens + part_tokens > max_tokens * 0.8:
+            segments.append(current)
+            current = ""
+            current_tokens = 0
+        current += part
+        current_tokens += part_tokens
+
+    if current:
+        segments.append(current)
+
+    return segments if len(segments) > 1 else [html]
+
+
+def _split_text_blocks(text, max_tokens):
+    """Split plain text by double newlines, then single newlines if needed."""
+    # Try double newline first
+    paragraphs = text.split("\n\n")
+    if len(paragraphs) > 1:
+        return _merge_text_chunks(paragraphs, "\n\n", max_tokens)
+
+    # Try single newline
+    lines = text.split("\n")
+    if len(lines) > 1:
+        return _merge_text_chunks(lines, "\n", max_tokens)
+
+    # Last resort: split by sentences
+    sentences = re.split(r'(?<=[.!?。])\s+', text)
+    if len(sentences) > 1:
+        return _merge_text_chunks(sentences, " ", max_tokens)
+
+    # Absolute last resort: hard split by character count
+    char_limit = max_tokens * 3  # ~3 chars per token
+    return [text[i:i + char_limit] for i in range(0, len(text), char_limit)]
+
+
+def _merge_text_chunks(parts, separator, max_tokens):
+    """Merge text parts into chunks that fit within token limits."""
+    segments = []
+    current = ""
+    current_tokens = 0
+
+    for part in parts:
+        part_tokens = _estimate_tokens(part)
+        if current and current_tokens + part_tokens > max_tokens * 0.8:
+            segments.append(current)
+            current = ""
+            current_tokens = 0
+        if current:
+            current += separator
+        current += part
+        current_tokens += part_tokens
+
+    if current:
+        segments.append(current)
+    return segments
+
+
+def _reassemble_chunks(fields, all_translations, our_translations):
+    """Reassemble chunked field translations back into their parent fields.
+
+    Finds all chunk translations (id contains ':chunk_N'), groups by parent,
+    and merges them in order. For rich_text JSON chunks, merges children arrays.
+    For HTML/text chunks, concatenates.
+
+    Updates all_translations and our_translations in place.
+    """
+    # Find chunked fields
+    chunked_parents = {}
+    for field in fields:
+        if field.get("_chunks"):
+            chunked_parents[field["id"]] = field
+
+    if not chunked_parents:
+        return
+
+    # Group chunk translations by parent id
+    chunk_groups = {}  # parent_id -> [(index, translated_value, field)]
+    for field in fields:
+        if not field.get("_is_chunk"):
+            # Also scan batches — chunks have ids like "parent_id:chunk_N"
+            continue
+        parent_id = field.get("_parent_id")
+        if not parent_id:
+            continue
+        chunk_id = field["id"]
+        if chunk_id in all_translations:
+            chunk_groups.setdefault(parent_id, []).append(
+                (field["_chunk_index"], all_translations[chunk_id], field))
+
+    # Also scan all_translations for chunk keys we may have missed
+    for key, value in list(all_translations.items()):
+        if ":chunk_" in key:
+            parts = key.rsplit(":chunk_", 1)
+            if len(parts) == 2:
+                parent_id, idx_str = parts
+                if parent_id in chunked_parents:
+                    try:
+                        idx = int(idx_str)
+                    except ValueError:
+                        continue
+                    group = chunk_groups.setdefault(parent_id, [])
+                    if not any(g[0] == idx for g in group):
+                        group.append((idx, value, None))
+
+    reassembled = 0
+    for parent_id, chunks in chunk_groups.items():
+        parent = chunked_parents.get(parent_id)
+        if not parent:
+            continue
+
+        expected = parent.get("_chunks", 0)
+        if len(chunks) < expected:
+            print(f"    WARNING: Only {len(chunks)}/{expected} chunks translated for {parent_id}")
+
+        # Sort by index and merge
+        chunks.sort(key=lambda x: x[0])
+        translated_parts = [c[1] for c in chunks]
+
+        # Check if chunks are rich_text JSON
+        is_rt = any(c[2] and c[2].get("_is_rich_text_chunk") for c in chunks if c[2])
+
+        if is_rt:
+            merged = _merge_rich_text_chunks(translated_parts)
+        else:
+            merged = "".join(translated_parts)
+
+        all_translations[parent_id] = merged
+        our_translations[parent_id] = merged
+        reassembled += 1
+
+    if reassembled:
+        print(f"  Reassembled {reassembled} chunked field(s)")
+
+
+def _merge_rich_text_chunks(parts):
+    """Merge rich_text JSON chunks by combining their children arrays."""
+    all_children = []
+    base = None
+    for part in parts:
+        try:
+            parsed = json.loads(part)
+            if base is None:
+                base = parsed
+            children = parsed.get("children", [])
+            all_children.extend(children)
+        except (json.JSONDecodeError, TypeError):
+            # If parsing fails, treat as text
+            return "".join(parts)
+
+    if base is not None:
+        base["children"] = all_children
+        return json.dumps(base, ensure_ascii=False)
+    return "".join(parts)
 
 
 # =====================================================================
@@ -1465,6 +1720,11 @@ def translate_csv(
         our_translations.update(all_translations)
         with open(progress_file, "w", encoding="utf-8") as f:
             json.dump(our_translations, f, ensure_ascii=False)
+
+    # ------------------------------------------------------------------
+    # 9b. Reassemble chunked fields
+    # ------------------------------------------------------------------
+    _reassemble_chunks(fields, all_translations, our_translations)
 
     # ------------------------------------------------------------------
     # 10. Apply translations to CSV rows
