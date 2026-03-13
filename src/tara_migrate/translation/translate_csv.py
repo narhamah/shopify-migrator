@@ -1265,16 +1265,40 @@ If the same product appears in multiple pairs, the Arabic name MUST be identical
 - HTML tags, JSON keys, Liquid syntax, trademark symbols (™, ®)
 
 === Flag as BAD ===
-- ANY word from the dictionary above left in English
-- ANY product name in English instead of Arabic
-- Same product name translated differently across pairs (inconsistent)
-- Action verbs or UI labels in English
-- Arabic is English text copied verbatim
-- Arabic is about a different topic or is garbled
+- A product-type word (Shampoo, Conditioner, Serum, Mask, Multivitamin) left in English
+- A full product name left entirely in English instead of Arabic
+- An action verb or UI label left in English (Shop, Buy, Learn More, Benefits, etc.)
+- Arabic is the English text copied verbatim (no translation done at all)
+- Arabic is about a completely different topic
 
-Return a JSON array with one object per pair:
-[{"i": 0, "ok": true}, {"i": 1, "ok": false, "reason": "'Shampoo' not translated to شامبو"}]
-Include ALL pairs. Be strict — when in doubt, flag it."""
+=== EXAMPLES ===
+OK: EN: "Sage+ Multivitamin Shampoo" → AR: "الميرمية+ شامبو فيتامينات متعددة"
+  (all product words translated to Arabic)
+
+BAD: EN: "Sage+ Multivitamin Shampoo" → AR: "Sage+ Multivitamin Shampoo"
+  (English copied verbatim, nothing translated)
+
+BAD: EN: "Anti-Hair Fall Scalp Serum" → AR: "Anti-Hair Fall سيروم فروة الرأس"
+  ("Anti-Hair Fall" left in English — should be "مضاد لتساقط الشعر")
+
+OK: EN: "Formulated with Tocopherol and Niacinamide" → AR: "تركيبة غنية بالتوكوفيرول والنياسيناميد"
+  (INCI names can stay in English/transliterated form)
+
+OK: EN: "TARA Kansa Wand" → AR: "TARA Kansa Wand"
+  (brand name + tool proper noun — allowed in English)
+
+BAD: EN: "Shop the Collection" → AR: "Shop the Collection"
+  (action verb + category word not translated)
+
+OK: EN: "Key Benefits" → AR: "الفوائد الرئيسية"
+  (UI label properly translated)
+
+BAD: EN: "How to Use" → AR: "How to Use"
+  (UI label left in English)
+
+Return a JSON array. Only include BAD pairs — omit OK ones:
+[{"i": 1, "ok": false, "reason": "'Shampoo' left in English, should be شامبو"}]
+All OK → return []"""
 
 
 def _validate_with_haiku(translations_to_check, batch_size=30):
@@ -1340,8 +1364,11 @@ def _validate_with_haiku(translations_to_check, batch_size=30):
                     idx = r.get("i", -1)
                     if 0 <= idx < len(batch) and not r.get("ok", True):
                         bad_ids.add(batch[idx]["id"])
+                        reason = r.get("reason", "")
+                        field = batch[idx].get("field", "")
+                        print(f"      [{field}] {reason}")
                         batch_bad += 1
-                status = f" {batch_bad} bad" if batch_bad else " all OK"
+                status = f" {batch_bad} flagged" if batch_bad else " all OK"
             else:
                 status = " parse-error"
             print(f"    Batch {bnum}/{total_batches}...{status}")
