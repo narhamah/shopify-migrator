@@ -1316,7 +1316,9 @@ def _validate_with_haiku(translations_to_check, batch_size=30):
         for i, item in enumerate(batch):
             eng = item["english"][:500]
             ara = item["arabic"][:500]
-            lines.append(f"{i}. EN: {eng}")
+            field = item.get("field", "")
+            header = f"{i}. [{field}]" if field else f"{i}."
+            lines.append(f"{header} EN: {eng}")
             lines.append(f"   AR: {ara}")
 
         prompt = "\n".join(lines)
@@ -1719,19 +1721,23 @@ def translate_csv(
         # 2. From CSV rows (keyed by field_id, where translated != default)
         to_validate = []
 
-        # Progress entries (look up English from CSV)
+        # Progress entries (look up English + field name from CSV)
         for key, value in our_translations.items():
             if ":chunk_" in key:
                 continue
             ar_visible = _get_visible_for_validation(value)
             en_source = csv_english.get(key, "")
             en_visible = _get_visible_for_validation(en_source) if en_source else ""
+            # Extract human-readable field name from key (TYPE|ID|field_name)
+            parts = key.split("|")
+            field_label = f"{parts[0].lower()}:{parts[2]}" if len(parts) >= 3 else ""
             if ar_visible and len(ar_visible) > 2:
                 to_validate.append({
                     "id": key,
                     "source": "progress",
                     "english": en_visible,
                     "arabic": ar_visible,
+                    "field": field_label,
                 })
 
         # CSV rows with existing translations
@@ -1747,12 +1753,14 @@ def translate_csv(
                 continue  # Already checked above via progress
             eng_visible = _get_visible_for_validation(default)
             ar_visible = _get_visible_for_validation(translated)
+            field_label = f"{row['Type'].lower()}:{row['Field']}"
             if eng_visible and ar_visible and len(eng_visible) > 2:
                 to_validate.append({
                     "id": field_id,
                     "source": "csv",
                     "english": eng_visible,
                     "arabic": ar_visible,
+                    "field": field_label,
                     "_row_idx": i,
                 })
 
