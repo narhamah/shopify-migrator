@@ -153,6 +153,143 @@ def _has_arabic(text, min_ratio=0.3):
     return arabic / alpha >= min_ratio
 
 
+# Product-type English words that MUST be translated to Arabic.
+# Fast local check — catches the most common issues without an API call.
+# For thorough checking, use --ai-classify which sends words to Claude Haiku.
+_MUST_TRANSLATE_WORDS = re.compile(
+    r"\b(?:"
+    # Product type words
+    r"Multivitamin|Shampoo|Conditioner|Serum|Mask|Routine"
+    # Body part / category words (when not part of INCI)
+    r"|Scalp\s+Serum|Scalp\s+Shampoo|Scalp\s+Treatment"
+    r"|Hair\s+Fall|Hair\s+Loss|Hair\s+Growth|Hair\s+Care"
+    # Marketing / description words
+    r"|Anti[- ]?Aging|Anti[- ]?Hair[- ]?Fall|Well[- ]?Aging"
+    r"|Luxury\s+Sample|Discovery\s+Set"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Cache for Haiku word classifications (populated when --ai-classify is used)
+_haiku_must_translate = set()  # words Haiku says must be translated
+_haiku_permitted = set()       # words Haiku says are OK in Latin script
+_haiku_client = None           # Anthropic client, initialized on demand
+
+
+def _classify_words_with_haiku(words):
+    """Use Claude Haiku to decide which English words must be translated.
+
+    Returns (must_translate: set, permitted: set).
+    Results are cached globally so each word is only classified once.
+    """
+    global _haiku_client, _haiku_must_translate, _haiku_permitted
+
+    # Filter out already-classified words
+    new_words = [w for w in words if w.lower() not in _haiku_must_translate
+                 and w.lower() not in _haiku_permitted]
+    if not new_words:
+        return _haiku_must_translate, _haiku_permitted
+
+    if _haiku_client is None:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            print("WARNING: ANTHROPIC_API_KEY not set, falling back to blocklist.")
+            return _haiku_must_translate, _haiku_permitted
+        from anthropic import Anthropic
+        _haiku_client = Anthropic(api_key=api_key)
+
+    system = """You classify English words found in Arabic translations for TARA (luxury hair-care brand).
+
+PERMITTED in Latin script: brand names (TARA, Kansa Wand, Gua Sha), patented ingredients
+(Capixyl™, Procapil®, Silverfree™), INCI/chemical names, botanical Latin names,
+scientific abbreviations (pH, SPF, DNA, NMF, PCA), units, magazine names (Marie Claire),
+structural/code words (HTML, CSS).
+
+MUST TRANSLATE to Arabic: product types (Multivitamin, Shampoo, Conditioner, Serum, Mask),
+body/hair words in consumer context (Scalp, Hair, Roots), marketing words (Routine,
+Collection, Deluxe, Sample, Detox), action words (Repair, Purify, Nourish), and any
+common English word an Arabic consumer would expect in Arabic.
+
+Reply with JSON only: {"permitted": [...], "translate": [...]}"""
+
+    try:
+        resp = _haiku_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=system,
+            messages=[{"role": "user", "content": f"Words: {new_words}"}],
+            temperature=0,
+        )
+        text = resp.content[0].text.strip()
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        result = json.loads(text)
+        _haiku_must_translate.update(w.lower() for w in result.get("translate", []))
+        _haiku_permitted.update(w.lower() for w in result.get("permitted", []))
+    except Exception as e:
+        print(f"  WARNING: Haiku classification failed ({e}), falling back to blocklist")
+
+    return _haiku_must_translate, _haiku_permitted
+
+
+def _get_visible_text(text):
+    """Extract visible text from any format (rich_text, HTML, plain)."""
+    if text.startswith("{") and '"type"' in text:
+        extracted = _extract_rich_text(text)
+        if extracted and extracted.strip():
+            text = extracted
+    stripped = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    stripped = re.sub(r"<script[^>]*>.*?</script>", " ", stripped, flags=re.DOTALL | re.IGNORECASE)
+    stripped = re.sub(r"<[^>]+>", " ", stripped)
+    return stripped
+
+
+def _find_english_words(text):
+    """Find all English words (3+ chars) in Arabic text."""
+    visible = _get_visible_text(text)
+    if not re.search(r"[\u0600-\u06FF]", visible):
+        return []
+    visible = re.split(r"(?:Full INCI|INCI الكامل)\s*:", visible)[0]
+    words = re.findall(r"\b[a-zA-ZÀ-ÿ]{3,}\b", visible)
+    seen = set()
+    unique = []
+    for w in words:
+        if w.lower() not in seen:
+            seen.add(w.lower())
+            unique.append(w)
+    return unique
+
+
+def _has_untranslated_english(text, use_ai=False):
+    """Detect English words that should have been translated.
+
+    If use_ai=True and ANTHROPIC_API_KEY is set, uses Claude Haiku to classify
+    each English word as permitted or must-translate. Otherwise falls back to
+    a regex blocklist of common product-type words.
+    """
+    visible = _get_visible_text(text)
+
+    # Must have some Arabic to be a "partial" translation
+    if not re.search(r"[\u0600-\u06FF]", visible):
+        return False
+
+    # Remove INCI blocks
+    stripped = re.split(r"(?:Full INCI|INCI الكامل)\s*:", visible)[0]
+
+    if use_ai:
+        # AI mode: find all English words and classify with Haiku
+        words = _find_english_words(text)
+        if not words:
+            return False
+        must_translate, permitted = _classify_words_with_haiku(words)
+        return any(w.lower() in must_translate for w in words)
+    else:
+        # Fast mode: regex blocklist
+        return bool(_MUST_TRANSLATE_WORDS.search(stripped))
+
+
 # =====================================================================
 # Token estimation & batching
 # =====================================================================
@@ -396,6 +533,8 @@ def main():
                         help="Ignore original CSV translations (re-translate them)")
     parser.add_argument("--reset", action="store_true",
                         help="Clear progress file (re-translate what this script did before)")
+    parser.add_argument("--ai-classify", action="store_true",
+                        help="Use Claude Haiku to classify English words (requires ANTHROPIC_API_KEY)")
     args = parser.parse_args()
 
     # Default output: Arabic/<input_filename>
@@ -522,10 +661,16 @@ def main():
             elif field_id in our_translations and not args.reset:
                 from_previous_run.append((i, field_id))
             elif translated and not args.overwrite:
-                # Detect untranslated content: identical to default or no Arabic
-                is_fake = (translated == default and not _has_arabic(translated))
-                needs_fix = args.fix and not _has_arabic(translated)
-                if is_fake or needs_fix:
+                # Detect bad translations:
+                # 1. No/low Arabic (ratio < 0.3) — always re-translate
+                # 2. Has Arabic but contains untranslated English words
+                #    (e.g. "التمر+ Multivitamin" or body_html with English phrases)
+                low_arabic = not _has_arabic(translated)
+                has_english_gaps = _has_untranslated_english(
+                    translated, use_ai=getattr(args, "ai_classify", False)
+                )
+                is_bad = low_arabic or has_english_gaps
+                if is_bad:
                     fix_bad_csv.append(i)
                     to_translate.append(i)
                 else:
@@ -541,7 +686,7 @@ def main():
         print(f"  Keep as-is (URLs/images/config):   {len(keep_as_is)}")
         print(f"  Need AI translation NOW:           {len(to_translate)}")
         if fix_bad_csv:
-            print(f"    ↳ {len(fix_bad_csv)} bad translations (no Arabic) to re-translate")
+            print(f"    ↳ {len(fix_bad_csv)} bad translations (low Arabic / untranslated English words) to re-translate")
         if n_gaps > 0:
             print(f"    ↳ {n_gaps} gaps/retries from previous run")
         print(f"  Skip (empty/non-translatable):     {len(skip)}")
