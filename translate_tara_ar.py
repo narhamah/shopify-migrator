@@ -338,6 +338,52 @@ def load_developer_prompt():
         return f.read()
 
 
+def _retry_missing_responses_api(client, model, missing_fields, developer_prompt,
+                                 reasoning_effort="medium"):
+    """Retry translating a small set of fields missed in a batch.
+
+    Uses a focused prompt with the same developer prompt for cache hits.
+    Returns (translation_map, tokens_used).
+    """
+    toon_input = to_toon(missing_fields)
+    user_message = (
+        "Translate the following TOON input into Tara Arabic and return TOON only.\n\n"
+        f"<TOON>\n{toon_input}\n</TOON>"
+    )
+    try:
+        response = client.responses.create(
+            model=model,
+            instructions=developer_prompt,
+            input=user_message,
+            reasoning={"effort": reasoning_effort},
+        )
+        result = ""
+        for item in response.output:
+            if item.type == "message":
+                for content in item.content:
+                    if content.type == "output_text":
+                        result += content.text
+        result = result.strip()
+        if result.startswith("```"):
+            lines = result.split("\n")
+            if lines[-1].strip() == "```":
+                result = "\n".join(lines[1:-1])
+            else:
+                result = "\n".join(lines[1:])
+        result = re.sub(r"</?TOON>", "", result).strip()
+
+        translated = from_toon(result)
+        t_map = {e["id"]: e["value"] for e in translated}
+        valid_ids = {f["id"] for f in missing_fields}
+        t_map = {k: v for k, v in t_map.items() if k in valid_ids}
+        tokens = (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0)
+        print(f"    Retry got {len(t_map)}/{len(missing_fields)} translations ({tokens} tokens)")
+        return t_map, tokens
+    except Exception as e:
+        print(f"    Retry failed: {e}")
+        return {}, 0
+
+
 def translate_batch_responses_api(client, model, fields, developer_prompt,
                                   batch_num, total_batches, reasoning_effort="medium"):
     """Translate a batch of fields using the OpenAI Responses API with prompt caching.
@@ -464,9 +510,6 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
                 print(f"    DEBUG: {len(extra)} extra IDs (hallucinated): {list(extra)[:3]}")
                 for eid in extra:
                     del t_map[eid]
-            if missing:
-                print(f"    WARNING: {len(missing)} untranslated fields")
-                print(f"    DEBUG: missing IDs: {list(missing)[:5]}")
 
             # Usage stats
             usage = response.usage
@@ -474,6 +517,21 @@ def translate_batch_responses_api(client, model, fields, developer_prompt,
             cached = getattr(usage, "input_tokens_details", None)
             cached_tokens = getattr(cached, "cached_tokens", 0) if cached else 0
             cache_info = f" [cached: {cached_tokens:,}]" if cached_tokens else ""
+
+            # Retry missing fields in a focused smaller batch
+            if missing and len(missing) <= 10:
+                print(f"    Retrying {len(missing)} missing fields...")
+                missing_fields = [f for f in fields if f["id"] in missing]
+                retry_map, retry_tokens = _retry_missing_responses_api(
+                    client, model, missing_fields, developer_prompt, reasoning_effort)
+                t_map.update(retry_map)
+                total_tokens += retry_tokens
+                still_missing = missing - set(retry_map.keys())
+                if still_missing:
+                    print(f"    WARNING: {len(still_missing)} fields still missing after retry")
+            elif missing:
+                print(f"    WARNING: {len(missing)} untranslated fields")
+
             print(f"    Done: {len(t_map)} translated "
                   f"({usage.input_tokens} in + {usage.output_tokens} out = "
                   f"{total_tokens} tokens){cache_info}")
