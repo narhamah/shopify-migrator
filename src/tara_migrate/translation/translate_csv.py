@@ -1197,6 +1197,127 @@ def _upload_csv_translations(client, csv_path):
 
 
 # =====================================================================
+# LLM-based translation quality validation (Haiku)
+# =====================================================================
+
+_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+_QUALITY_SYSTEM_PROMPT = """\
+You are a translation QA checker for TARA, a luxury scalp-care brand.
+You will receive pairs of (English source, Arabic translation).
+Judge whether each Arabic translation is GOOD or BAD.
+
+A translation is GOOD if:
+- The Arabic text conveys the same meaning as the English
+- Product names kept in English are fine (e.g., "Kansa Wand", "Gua Sha", "TARA")
+- INCI / scientific ingredient names in English are fine
+- Brand names, proper nouns, URLs, numbers in English are fine
+- Minor paraphrasing or creative rewording is fine
+- HTML tags / JSON keys in English are fine (structural, not content)
+
+A translation is BAD if:
+- The Arabic is actually just the English text copied verbatim (no translation done)
+- Common English words that SHOULD be translated are left in English
+  (e.g., "Shampoo", "Conditioner", "Serum", "Hair", "Scalp", "Benefits",
+   "How to use", "Description", "Anti-Aging", "Free of", etc.)
+- The Arabic is about a completely different topic
+- The Arabic is garbled / nonsensical
+
+Return a JSON array with one object per pair:
+[{"i": 0, "ok": true}, {"i": 1, "ok": false, "reason": "English body text not translated"}]
+Include ALL pairs in your response."""
+
+
+def _validate_with_haiku(translations_to_check, batch_size=30):
+    """Validate translation quality using Haiku.
+
+    Args:
+        translations_to_check: list of dicts with keys:
+            - id: field identifier
+            - english: source English text
+            - arabic: translated Arabic text
+        batch_size: pairs per LLM call
+
+    Returns:
+        set of ids that are BAD translations.
+    """
+    if not translations_to_check:
+        return set()
+
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("  WARNING: ANTHROPIC_API_KEY not set, falling back to regex quality check")
+        return None  # Signal caller to use fallback
+
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key)
+
+    bad_ids = set()
+    total_batches = (len(translations_to_check) + batch_size - 1) // batch_size
+    print(f"  Validating {len(translations_to_check)} translations with Haiku ({total_batches} batches)...")
+
+    for start in range(0, len(translations_to_check), batch_size):
+        batch = translations_to_check[start:start + batch_size]
+        bnum = start // batch_size + 1
+
+        lines = []
+        for i, item in enumerate(batch):
+            eng = item["english"][:500]
+            ara = item["arabic"][:500]
+            lines.append(f"{i}. EN: {eng}")
+            lines.append(f"   AR: {ara}")
+
+        prompt = "\n".join(lines)
+
+        try:
+            resp = client.messages.create(
+                model=_HAIKU_MODEL,
+                max_tokens=4096,
+                system=_QUALITY_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = resp.content[0].text
+            # Parse JSON from response
+            json_match = re.search(r"\[.*\]", text, re.DOTALL)
+            if json_match:
+                results = json.loads(json_match.group())
+                batch_bad = 0
+                for r in results:
+                    idx = r.get("i", -1)
+                    if 0 <= idx < len(batch) and not r.get("ok", True):
+                        bad_ids.add(batch[idx]["id"])
+                        batch_bad += 1
+                status = f" {batch_bad} bad" if batch_bad else " all OK"
+            else:
+                status = " parse-error"
+            print(f"    Batch {bnum}/{total_batches}...{status}")
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"    Batch {bnum}/{total_batches}... ERROR({e})")
+
+    return bad_ids
+
+
+def _get_visible_for_validation(text):
+    """Extract visible text for validation (strip HTML/JSON structure)."""
+    if not text:
+        return ""
+    # Rich text JSON: extract text values
+    if text.startswith("{") and '"type"' in text:
+        extracted = extract_text(text)
+        if extracted and extracted.strip():
+            return extracted
+    # HTML: strip tags
+    stripped = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    stripped = re.sub(r"<script[^>]*>.*?</script>", " ", stripped, flags=re.DOTALL | re.IGNORECASE)
+    stripped = re.sub(r"<[^>]+>", " ", stripped)
+    return re.sub(r"\s+", " ", stripped).strip()
+
+
+# =====================================================================
 # Quality detection helpers (from translate_tara_ar.py)
 # =====================================================================
 
@@ -1258,7 +1379,8 @@ def _read_csv(input_path):
     raise RuntimeError(f"Cannot read CSV: {input_path}")
 
 
-def _categorize_rows(rows, overwrite=False, fix_mode=False, previous_translations=None):
+def _categorize_rows(rows, overwrite=False, fix_mode=False,
+                     previous_translations=None, llm_bad_ids=None):
     """Categorize CSV rows into translation buckets.
 
     Returns a dict with keys:
@@ -1277,6 +1399,7 @@ def _categorize_rows(rows, overwrite=False, fix_mode=False, previous_translation
     fix_bad = []
 
     previous = previous_translations or {}
+    bad_ids = llm_bad_ids or set()
 
     for i, row in enumerate(rows):
         default = row.get("Default content", "").strip()
@@ -1292,15 +1415,16 @@ def _categorize_rows(rows, overwrite=False, fix_mode=False, previous_translation
         elif field_id in previous:
             from_previous.append((i, field_id))
         elif translated and not overwrite:
-            # Check quality of existing translation
-            low_arabic = not has_arabic(translated)
-            has_english_gaps = _has_untranslated_english(translated)
-            is_bad = low_arabic or has_english_gaps
-
-            # Also catch "translations" that are just English copied over
-            if not is_bad and translated == default and len(default) > 2:
-                if not has_arabic(translated):
-                    is_bad = True
+            # Use LLM validation results if available, otherwise fall back to regex
+            if bad_ids:
+                is_bad = field_id in bad_ids
+            else:
+                low_arabic = not has_arabic(translated)
+                has_english_gaps = _has_untranslated_english(translated)
+                is_bad = low_arabic or has_english_gaps
+                if not is_bad and translated == default and len(default) > 2:
+                    if not has_arabic(translated):
+                        is_bad = True
 
             if is_bad and fix_mode:
                 fix_bad.append(i)
@@ -1531,18 +1655,86 @@ def translate_csv(
             our_translations = json.load(f)
         print(f"Resuming: {len(our_translations)} fields from previous runs")
 
-    # --fix: purge bad translations from progress
-    # Use low ratio (0.05) because progress values may be raw rich_text JSON
-    # where JSON structure keys inflate the Latin char count far beyond 30%.
-    if fix and our_translations:
-        bad_keys = [k for k, v in our_translations.items()
-                    if not has_arabic(v, min_ratio=0.05) and ":chunk_" not in k]
-        if bad_keys:
-            for k in bad_keys:
-                del our_translations[k]
-            with open(progress_file, "w", encoding="utf-8") as f:
-                json.dump(our_translations, f, ensure_ascii=False)
-            print(f"--fix: purged {len(bad_keys)} bad translations from progress")
+    # --fix: validate translations with Haiku LLM
+    if fix and (our_translations or any(r.get("Translated content", "").strip() for r in rows)):
+        # Build field_id → English lookup from CSV rows
+        csv_english = {}
+        for row in rows:
+            default = row.get("Default content", "").strip()
+            if default:
+                fid = f"{row['Type']}|{row['Identification']}|{row['Field']}"
+                csv_english[fid] = default
+
+        # Collect all translations to validate:
+        # 1. From progress file (keyed by field_id)
+        # 2. From CSV rows (keyed by field_id, where translated != default)
+        to_validate = []
+
+        # Progress entries (look up English from CSV)
+        for key, value in our_translations.items():
+            if ":chunk_" in key:
+                continue
+            ar_visible = _get_visible_for_validation(value)
+            en_source = csv_english.get(key, "")
+            en_visible = _get_visible_for_validation(en_source) if en_source else ""
+            if ar_visible and len(ar_visible) > 2:
+                to_validate.append({
+                    "id": key,
+                    "source": "progress",
+                    "english": en_visible,
+                    "arabic": ar_visible,
+                })
+
+        # CSV rows with existing translations
+        for i, row in enumerate(rows):
+            default = row.get("Default content", "").strip()
+            translated = row.get("Translated content", "").strip()
+            if not default or not translated:
+                continue
+            if is_non_translatable(row) or is_keep_as_is(row):
+                continue
+            field_id = f"{row['Type']}|{row['Identification']}|{row['Field']}"
+            if field_id in our_translations:
+                continue  # Already checked above via progress
+            eng_visible = _get_visible_for_validation(default)
+            ar_visible = _get_visible_for_validation(translated)
+            if eng_visible and ar_visible and len(eng_visible) > 2:
+                to_validate.append({
+                    "id": field_id,
+                    "source": "csv",
+                    "english": eng_visible,
+                    "arabic": ar_visible,
+                    "_row_idx": i,
+                })
+
+        if to_validate:
+            bad_ids = _validate_with_haiku(to_validate)
+            if bad_ids is None:
+                # Fallback: no API key, use simple regex check
+                bad_ids = set()
+                for item in to_validate:
+                    if item["source"] == "progress":
+                        if not has_arabic(item["arabic"], min_ratio=0.05):
+                            bad_ids.add(item["id"])
+                    else:
+                        if not has_arabic(item["arabic"]) or _has_untranslated_english(item["arabic"]):
+                            bad_ids.add(item["id"])
+
+            # Purge bad progress entries
+            progress_purged = [k for k in bad_ids if k in our_translations]
+            if progress_purged:
+                for k in progress_purged:
+                    del our_translations[k]
+                with open(progress_file, "w", encoding="utf-8") as f:
+                    json.dump(our_translations, f, ensure_ascii=False)
+                print(f"--fix: purged {len(progress_purged)} bad translations from progress")
+
+            # Track bad CSV field_ids so _categorize_rows can use them
+            _fix_bad_field_ids = bad_ids
+        else:
+            _fix_bad_field_ids = set()
+    else:
+        _fix_bad_field_ids = set()
 
     # ------------------------------------------------------------------
     # 3. Categorize rows
@@ -1550,6 +1742,7 @@ def translate_csv(
     cats = _categorize_rows(
         rows, overwrite=overwrite, fix_mode=fix,
         previous_translations=our_translations,
+        llm_bad_ids=_fix_bad_field_ids,
     )
 
     to_translate = cats["to_translate"]
