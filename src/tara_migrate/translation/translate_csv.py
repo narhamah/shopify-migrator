@@ -1403,11 +1403,24 @@ def _validate_with_haiku(translations_to_check, batch_size=30):
                         batch_bad += 1
                 status = f" {batch_bad} flagged" if batch_bad else " all OK"
             else:
-                status = " parse-error"
+                debug_file = f".debug_validate_batch_{bnum}.txt"
+                with open(debug_file, "w", encoding="utf-8") as df:
+                    df.write(text)
+                status = f" parse-error (dumped to {debug_file})"
             print(f"    Batch {bnum}/{total_batches}...{status}")
             time.sleep(0.5)
         except Exception as e:
-            print(f"    Batch {bnum}/{total_batches}... ERROR({e})")
+            debug_file = f".debug_validate_batch_{bnum}.txt"
+            try:
+                with open(debug_file, "w", encoding="utf-8") as df:
+                    df.write(f"ERROR: {e}\n\n")
+                    if 'text' in locals():
+                        df.write(text)
+                    else:
+                        df.write(f"PROMPT:\n{prompt}")
+            except Exception:
+                pass
+            print(f"    Batch {bnum}/{total_batches}... ERROR({e}) — dumped to {debug_file}")
 
     return bad_ids
 
