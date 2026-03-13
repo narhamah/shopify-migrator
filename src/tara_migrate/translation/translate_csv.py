@@ -1577,10 +1577,17 @@ def translate_csv(
         rows[idx]["Translated content"] = our_translations[field_id]
 
     if not to_translate:
+        skip_indices = {idx for idx, _reason in skip}
+        filtered_rows = [r for i, r in enumerate(rows) if i not in skip_indices]
         if from_previous:
-            _write_csv(output_path, fieldnames, rows)
+            _write_csv(output_path, fieldnames, filtered_rows)
+            if skip_indices:
+                print(f"Dropped {len(skip_indices)} untranslatable rows from output")
             print(f"Nothing new to translate. Applied {len(from_previous)} from previous run.")
         else:
+            _write_csv(output_path, fieldnames, filtered_rows)
+            if skip_indices:
+                print(f"Dropped {len(skip_indices)} untranslatable rows from output")
             print("Nothing to translate. All rows are done.")
         return output_path
 
@@ -1771,10 +1778,14 @@ def translate_csv(
         print(f"Stripped {handle_stripped} handle translations matching default")
 
     # ------------------------------------------------------------------
-    # 11. Write output CSV
+    # 11. Write output CSV (drop untranslatable rows)
     # ------------------------------------------------------------------
-    _write_csv(output_path, fieldnames, rows)
-    _print_summary(rows)
+    skip_indices = {idx for idx, _reason in skip}
+    filtered_rows = [r for i, r in enumerate(rows) if i not in skip_indices]
+    _write_csv(output_path, fieldnames, filtered_rows)
+    if skip_indices:
+        print(f"Dropped {len(skip_indices)} untranslatable rows from output")
+    _print_summary(filtered_rows)
 
     print(f"\nProgress saved to {progress_file}")
     print(f"  ({len(our_translations)} total fields translated)")
