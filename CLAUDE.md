@@ -9,13 +9,19 @@ Python CLI pipeline migrating the **TARA luxury scalp-care** Shopify store from 
 ```
 src/tara_migrate/          ← Production library (all logic lives here)
   client/shopify_client.py ← Shopify REST + GraphQL API client (1,296 lines)
-  core/                    ← Shared utilities: config, utils, rich_text, language, logging, shopify_fields
-  pipeline/                ← Main migration phases: export, import_english, import_arabic, build_site, post_migration, migrate_all_images
-  translation/             ← AI translation: translator, engine, translate_gaps, field_extractors, toon encoding
+  core/                    ← Shared utilities: config, utils, rich_text, language, logging, shopify_fields,
+                             csv_utils (CSV row classification), graphql_queries (shared GQL templates)
+  pipeline/                ← Main migration phases: export, import_english, import_arabic, build_site,
+                             post_migration, migrate_all_images
+  translation/             ← AI translation: translator, engine, translate_gaps, field_extractors, toon,
+                             translate_csv (CSV-based translation), validate_csv (CSV validation/cleaning)
   setup/                   ← Schema creation: setup_store, setup_collections, setup_menus, setup_homepage
-  fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status, fix_redirects
+  fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status,
+                             fix_redirects, fix_translations (GraphQL translation fixer)
   tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images
-  audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data, verify_saudi
+  audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
+                             verify_saudi, audit_translations (GraphQL audit/investigate/upload),
+                             audit_site (Playwright visual audit)
 
 *.py (root)                ← Thin wrapper scripts that import from src/tara_migrate/ and call main()
 tests/                     ← pytest test suite with mocks and fixtures
@@ -24,7 +30,7 @@ data/                      ← Pipeline data (gitignored): spain_export/, englis
 
 ### Thin Wrapper Pattern
 
-Root-level scripts are 3-5 line entry points:
+ALL root-level scripts are 3-5 line entry points:
 ```python
 #!/usr/bin/env python3
 from tara_migrate.pipeline.export_spain import main
@@ -32,17 +38,7 @@ if __name__ == "__main__":
     main()
 ```
 
-All logic lives in `src/tara_migrate/`. Tests import from there too.
-
-### Standalone Root Scripts (NOT thin wrappers)
-
-These larger files were built as standalone translation/audit tools and have NOT been refactored into the library:
-- `translate_csv.py` / `translate_csv_ar.py` / `translate_tara_ar.py` — CSV-based translation tools
-- `fix_translations.py` / `fix_remaining_ar.py` — Arabic translation fixers using GraphQL
-- `validate_csv.py` / `verify_translation.py` — AI-powered translation validators
-- `audit_site.py` / `audit_site_ar.py` / `audit_translations.py` — Playwright-based visual audits
-- `investigate_translations.py` / `upload_translations_graphql.py` / `clean_translation_csv.py` — GraphQL translation tools
-- `generate_woff2.py` — Font converter
+All logic lives in `src/tara_migrate/`. Tests import from there too. No standalone scripts at root.
 
 ## 8-Phase Build Pipeline (`build_site.py`)
 
@@ -152,10 +148,28 @@ python compare_stores.py
 python verify_saudi.py
 python audit_store.py
 
-# Standalone translation tools (CSV-based, not part of main pipeline)
-python translate_csv_ar.py --input FILE.csv [--agents N] [--start-batch N]
-python validate_csv.py FILE.csv
-python verify_translation.py FILE.csv
+# CSV translation tools (consolidated into library)
+python translate_csv.py --input FILE.csv [--model gpt-5-nano] [--dry-run]
+python translate_csv.py --input FILE.csv --mode per-field [--tov FILE.txt]
+python translate_csv.py --input FILE.csv --upload       # translate + upload to Shopify
+python translate_csv.py --input FILE.csv --upload-only   # upload existing translations
+
+# CSV validation and cleaning
+python validate_csv.py --mode validate --input FILE.csv [--skip-ai]
+python validate_csv.py --mode verify --input FILE.csv [--no-ai]
+python validate_csv.py --mode clean --input FILE.csv [--fix-misaligned]
+
+# Translation audit and investigation
+python audit_translations.py --mode audit [--verbose] [--type PRODUCT]
+python audit_translations.py --mode investigate --resource-id 12345
+python audit_translations.py --mode upload --csv FILE.csv [--dry-run]
+
+# Visual audit (Playwright)
+python audit_site.py --base-url https://sa.taraformula.com --locale-prefix /ar
+python audit_site.py --url https://sa.taraformula.com/ar/products/some-product
+
+# Translation fixers
+python fix_translations.py --audit audit_fix.json --locale ar
 ```
 
 ## Manual Steps (Cannot Be Automated)
