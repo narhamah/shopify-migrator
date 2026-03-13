@@ -1533,7 +1533,8 @@ def translate_csv(
 
     # --fix: purge bad translations from progress
     if fix and our_translations:
-        bad_keys = [k for k, v in our_translations.items() if not has_arabic(v)]
+        bad_keys = [k for k, v in our_translations.items()
+                    if not has_arabic(v) and ":chunk_" not in k]
         if bad_keys:
             for k in bad_keys:
                 del our_translations[k]
@@ -1731,9 +1732,18 @@ def translate_csv(
             json.dump(our_translations, f, ensure_ascii=False)
 
     # ------------------------------------------------------------------
-    # 9b. Reassemble chunked fields
+    # 9b. Reassemble chunked fields and persist
     # ------------------------------------------------------------------
     _reassemble_chunks(fields, all_translations, our_translations)
+
+    # Clean chunk keys from progress — only keep parent keys
+    chunk_keys = [k for k in our_translations if ":chunk_" in k]
+    if chunk_keys:
+        for k in chunk_keys:
+            del our_translations[k]
+    # Save progress with reassembled parent translations
+    with open(progress_file, "w", encoding="utf-8") as f:
+        json.dump(our_translations, f, ensure_ascii=False)
 
     # ------------------------------------------------------------------
     # 10. Apply translations to CSV rows
