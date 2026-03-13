@@ -14,7 +14,8 @@ src/tara_migrate/          ← Production library (all logic lives here)
   pipeline/                ← Main migration phases: export, import_english, import_arabic, build_site,
                              post_migration, migrate_all_images
   translation/             ← AI translation: translator, engine, translate_gaps, field_extractors, toon,
-                             translate_csv (CSV-based translation), validate_csv (CSV validation/cleaning)
+                             translate_csv (CSV-based translation), validate_csv (CSV validation/cleaning),
+                             verify_fix (unified audit→fix→verify pipeline)
   setup/                   ← Schema creation: setup_store, setup_collections, setup_menus, setup_homepage
   fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status,
                              fix_redirects, fix_translations (GraphQL translation fixer)
@@ -116,7 +117,7 @@ python -m pytest -x                         # Stop on first failure
 - **Framework**: pytest (`pytest.ini` sets `pythonpath = src`)
 - **Fixtures** in `tests/conftest.py`: `make_product()`, `make_collection()`, `make_article()`, `make_metaobject()`, `make_id_map()`, `tmp_data_dir()`
 - **All tests use mocks** — no live API calls
-- **Test files**: test_shopify_client (44KB), test_translator (20KB), test_import_english (15KB), test_import_arabic (28KB), test_post_migration (19KB), test_setup_store, test_export_spain, test_optimize_images
+- **Test files**: test_shopify_client (44KB), test_translator (20KB), test_import_english (15KB), test_import_arabic (28KB), test_post_migration (19KB), test_setup_store, test_export_spain, test_optimize_images, test_verify_fix
 
 ## Dependencies
 
@@ -170,6 +171,14 @@ python audit_site.py --url https://sa.taraformula.com/ar/products/some-product
 
 # Translation fixers
 python fix_translations.py --audit audit_fix.json --locale ar
+
+# Unified verify-and-fix (audit -> fix -> verify in one pass)
+python verify_fix_translations.py                           # full pipeline
+python verify_fix_translations.py --audit-only              # audit only, no changes
+python verify_fix_translations.py --dry-run                 # show plan, no uploads
+python verify_fix_translations.py --type PRODUCT            # single resource type
+python verify_fix_translations.py --fix-only MISSING,IDENTICAL  # fix specific problems
+python verify_fix_translations.py --no-verify               # skip re-audit after fix
 ```
 
 ## Manual Steps (Cannot Be Automated)
