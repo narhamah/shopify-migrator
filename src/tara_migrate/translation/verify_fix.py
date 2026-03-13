@@ -175,8 +175,18 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
     full_digest_map = fetch_translatable_resources(client, gid_list, locale)
     print(f"  Fetched digests for {len(full_digest_map)} resources")
 
+    # Log resources that disappeared between audit and fix
+    missing_resources = [gid for gid in gid_list if gid not in full_digest_map]
+    if missing_resources:
+        print(f"  WARNING: {len(missing_resources)} resources deleted since audit:")
+        for gid in missing_resources[:5]:
+            print(f"    {gid}")
+        if len(missing_resources) > 5:
+            print(f"    ... and {len(missing_resources) - 5} more")
+
     # Build translation input using full English from API
     fields_for_ai = []
+    content_changed = 0
     for rid, items in by_resource.items():
         dm = full_digest_map.get(rid, {})
         for item in items:
@@ -188,8 +198,17 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
             if dm and "content" in dm:
                 api_content = dm["content"].get(item["key"])
                 if api_content and api_content.get("value"):
-                    english = api_content["value"]
+                    api_english = api_content["value"]
+                    # Detect content changes between audit and fix
+                    if (item["english"] and len(item["english"]) < 200
+                            and api_english.strip() != item["english"].strip()):
+                        content_changed += 1
+                    english = api_english
             fields_for_ai.append({"id": field_id, "value": english})
+
+    if content_changed:
+        print(f"  NOTE: {content_changed} fields changed since audit "
+              f"(will translate current content)")
 
     print(f"  Fields to translate: {len(fields_for_ai)}")
 
@@ -201,6 +220,9 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
     uploaded = 0
     errors = 0
     skipped = 0
+    skip_reasons = {"resource_deleted": 0, "handle_field": 0,
+                    "ai_no_translation": 0, "field_removed": 0,
+                    "invalid_json": 0}
 
     for batch_start in range(0, len(gid_list), 10):
         batch_gids = gid_list[batch_start:batch_start + 10]
@@ -212,7 +234,9 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
 
         for gid in batch_gids:
             if gid not in full_digest_map:
-                skipped += len(by_resource.get(gid, []))
+                count = len(by_resource.get(gid, []))
+                skipped += count
+                skip_reasons["resource_deleted"] += count
                 continue
 
             dm = full_digest_map[gid]
@@ -222,16 +246,19 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
             for item in by_resource[gid]:
                 if item["key"] == "handle":
                     skipped += 1
+                    skip_reasons["handle_field"] += 1
                     continue
                 field_id = f"{item['resource_type']}|{gid}|{item['key']}"
                 ar_value = t_map.get(field_id)
                 if not ar_value:
                     skipped += 1
+                    skip_reasons["ai_no_translation"] += 1
                     continue
 
                 shopify_field = dm["content"].get(item["key"])
                 if not shopify_field:
                     skipped += 1
+                    skip_reasons["field_removed"] += 1
                     continue
 
                 # Validate JSON before uploading
@@ -240,6 +267,7 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
                     print(f"    WARNING: Skipping invalid JSON for "
                           f"{gid} {item['key']} ({len(ar_value)} chars)")
                     errors += 1
+                    skip_reasons["invalid_json"] += 1
                     continue
 
                 translations_input.append({
@@ -263,6 +291,11 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
         time.sleep(0.3)
 
     print(f"\n  Fix results: uploaded={uploaded}, errors={errors}, skipped={skipped}")
+    if skipped > 0:
+        reasons = {k: v for k, v in skip_reasons.items() if v > 0}
+        if reasons:
+            parts = [f"{k}={v}" for k, v in sorted(reasons.items())]
+            print(f"  Skip breakdown: {', '.join(parts)}")
     return uploaded, errors, skipped
 
 
