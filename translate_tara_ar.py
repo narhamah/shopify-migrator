@@ -47,6 +47,8 @@ def _is_non_translatable(row):
 
     if not default:
         return True
+    if field == "handle":
+        return True
     if default.startswith(("shopify://", "http://", "https://", "/", "gid://")):
         return True
     if re.match(r"^-?\d+\.?\d*$", default):
@@ -898,6 +900,20 @@ def main():
             applied += 1
 
     print(f"Applied {applied}/{len(fields)} new translations")
+
+    # ----------------------------------------------------------------
+    # 9b. Strip handle translations that match default (Shopify rejects these)
+    # ----------------------------------------------------------------
+    handle_stripped = 0
+    for row in rows:
+        if row.get("Field") == "handle":
+            translated = row.get("Translated content", "").strip()
+            default = row.get("Default content", "").strip()
+            if translated and translated == default:
+                row["Translated content"] = ""
+                handle_stripped += 1
+    if handle_stripped:
+        print(f"Stripped {handle_stripped} handle translations matching default (Shopify rejects these)")
 
     # ----------------------------------------------------------------
     # 10. Write output CSV

@@ -30,7 +30,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core.rich_text import is_rich_text_json, extract_text_nodes, rebuild, sanitize
+from tara_migrate.core.rich_text import is_rich_text_json, extract_text_nodes, rebuild, sanitize, validate_structure
 from tara_migrate.translation.translate_gaps import (
     adaptive_batch,
     translate_batch,
@@ -375,6 +375,9 @@ def main():
         if translations_for_rebuild:
             rebuilt = rebuild(rt_info["parsed"], translations_for_rebuild)
             rebuilt = sanitize(rebuilt)
+            # Validate structure against default (restores listType, fixes mismatches)
+            default_json = rows[rt_info["row_idx"]]["Default content"]
+            rebuilt = validate_structure(rebuilt, default_json)
             rows[rt_info["row_idx"]]["Translated content"] = rebuilt
             translated_count += 1
 
@@ -390,6 +393,18 @@ def main():
 
     print(f"\nTranslated {translated_count}/{len(fields)} strings")
     print(f"Total tokens used: {total_tokens:,}")
+
+    # Strip handle translations that match default (Shopify rejects these)
+    handle_stripped = 0
+    for row in rows:
+        if row.get("Field") == "handle":
+            translated = row.get("Translated content", "").strip()
+            default = row.get("Default content", "").strip()
+            if translated and translated == default:
+                row["Translated content"] = ""
+                handle_stripped += 1
+    if handle_stripped:
+        print(f"Stripped {handle_stripped} handle translations matching default (Shopify rejects these)")
 
     # Write output CSV
     with open(args.output, "w", encoding="utf-8-sig", newline="") as f:

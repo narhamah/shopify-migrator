@@ -141,3 +141,96 @@ def validate_json(value):
         return True, parsed
     except (json.JSONDecodeError, TypeError) as e:
         return False, str(e)
+
+
+def validate_structure(translated_json, default_json):
+    """Validate and repair translated rich_text JSON structure against the default.
+
+    Fixes common AI translation corruption:
+    - Missing listType on list nodes (AI drops "listType":"unordered")
+    - Extra trailing data after the root JSON object
+    - Mismatched node types (paragraph inside list where list-item expected)
+
+    Args:
+        translated_json: JSON string of the translated rich_text.
+        default_json: JSON string of the original/default rich_text.
+
+    Returns the repaired JSON string.
+    """
+    if not translated_json or not default_json:
+        return translated_json
+
+    # Parse both, bail on failure
+    try:
+        t_data = json.loads(translated_json)
+    except json.JSONDecodeError:
+        # Try truncating at the end of the first complete JSON object
+        t_data = _truncate_json(translated_json)
+        if t_data is None:
+            return translated_json
+
+    try:
+        d_data = json.loads(default_json)
+    except json.JSONDecodeError:
+        return json.dumps(t_data, ensure_ascii=False)
+
+    _repair_node(t_data, d_data)
+    return json.dumps(t_data, ensure_ascii=False)
+
+
+def _truncate_json(value):
+    """Try to extract a valid JSON object from a string with trailing garbage.
+
+    AI sometimes appends extra text after the root JSON object.
+    """
+    depth = 0
+    in_string = False
+    escape = False
+    for i, ch in enumerate(value):
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_string:
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(value[:i + 1])
+                except json.JSONDecodeError:
+                    return None
+    return None
+
+
+def _repair_node(t_node, d_node):
+    """Recursively repair translated node structure to match default.
+
+    Restores missing listType, fixes mismatched node types at the same level.
+    """
+    if not isinstance(t_node, dict) or not isinstance(d_node, dict):
+        return
+
+    # Restore missing listType on list nodes
+    if t_node.get('type') == 'list' and 'listType' not in t_node:
+        if 'listType' in d_node:
+            t_node['listType'] = d_node['listType']
+        else:
+            t_node['listType'] = 'unordered'  # safe default
+
+    # Recurse into children, matching by index
+    t_children = t_node.get('children', [])
+    d_children = d_node.get('children', [])
+    for tc, dc in zip(t_children, d_children):
+        if isinstance(tc, dict) and isinstance(dc, dict):
+            # Fix mismatched node type (e.g., paragraph where list-item expected)
+            if dc.get('type') == 'list-item' and tc.get('type') == 'paragraph':
+                tc['type'] = 'list-item'
+            _repair_node(tc, dc)

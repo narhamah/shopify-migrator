@@ -19,6 +19,7 @@ from tara_migrate.core.rich_text import (
     extract_text_nodes,
     is_rich_text_json,
     rebuild,
+    validate_structure,
 )
 from tara_migrate.translation.toon import DELIM, from_toon, to_toon
 
@@ -102,7 +103,10 @@ class TranslationEngine:
                 if ar_text:
                     translations[tuple(path)] = ar_text
             if translations:
-                t_map[fid] = rebuild(rt_info["parsed"], translations)
+                rebuilt = rebuild(rt_info["parsed"], translations)
+                # Validate structure against original (restores listType, etc.)
+                original_json = json.dumps(rt_info["parsed"], ensure_ascii=False)
+                t_map[fid] = validate_structure(rebuilt, original_json)
 
         # Clean up internal __RT_ keys from the returned map
         return {k: v for k, v in t_map.items() if "__RT_" not in k}

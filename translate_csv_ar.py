@@ -669,6 +669,20 @@ def main():
     print(f"Applied {applied}/{len(fields)} translations")
 
     # ----------------------------------------------------------------
+    # 10b. Strip handle translations that match default (Shopify rejects these)
+    # ----------------------------------------------------------------
+    handle_stripped = 0
+    for row in rows:
+        if row.get("Field") == "handle":
+            translated = row.get("Translated content", "").strip()
+            default = row.get("Default content", "").strip()
+            if translated and translated == default:
+                row["Translated content"] = ""
+                handle_stripped += 1
+    if handle_stripped:
+        print(f"Stripped {handle_stripped} handle translations matching default (Shopify rejects these)")
+
+    # ----------------------------------------------------------------
     # 11. Write output CSV to Arabic/ folder
     # ----------------------------------------------------------------
     with open(args.output, "w", encoding="utf-8-sig", newline="") as f:
