@@ -418,10 +418,15 @@ def _retry_missing(client, model, missing_fields, source_lang, target_lang, is_r
 
     Uses a direct, focused prompt. Returns (translation_map, tokens_used).
     """
-    toon_input = to_toon(missing_fields)
+    # Use opaque numeric IDs — only send content to the model
+    idx_to_real_id = {str(i): f["id"] for i, f in enumerate(missing_fields)}
+    opaque_fields = [{"id": str(i), "value": f["value"]}
+                     for i, f in enumerate(missing_fields)]
+    toon_input = to_toon(opaque_fields)
     prompt = (
         f"Translate the following TOON data from {source_lang} to {target_lang}. "
-        f"Keep all IDs unchanged. Translate only the values.\n\n{toon_input}"
+        f"Translate only the values (text after §). Keep the numeric IDs unchanged.\n\n"
+        f"{toon_input}"
     )
     try:
         api_kwargs = {
@@ -446,10 +451,12 @@ def _retry_missing(client, model, missing_fields, source_lang, target_lang, is_r
                 result = "\n".join(lines[1:])
 
         translated = from_toon(result)
-        t_map = {e["id"]: e["value"] for e in translated}
-        # Remove hallucinated IDs
-        valid_ids = {f["id"] for f in missing_fields}
-        t_map = {k: v for k, v in t_map.items() if k in valid_ids}
+        # Map opaque IDs back to real field IDs
+        t_map = {}
+        for e in translated:
+            real_id = idx_to_real_id.get(e["id"])
+            if real_id:
+                t_map[real_id] = e["value"]
         tokens = response.usage.prompt_tokens + response.usage.completion_tokens
         print(f"    Retry got {len(t_map)}/{len(missing_fields)} translations ({tokens} tokens)")
         return t_map, tokens
@@ -463,11 +470,15 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
 
     Returns (translation_map, total_tokens_used).
     """
-    toon_input = to_toon(fields)
+    # Use opaque numeric IDs so the model only sees content to translate
+    idx_to_real_id = {str(i): f["id"] for i, f in enumerate(fields)}
+    opaque_fields = [{"id": str(i), "value": f["value"]}
+                     for i, f in enumerate(fields)]
+    toon_input = to_toon(opaque_fields)
 
     prompt = (
         f"Translate the following TOON data from {source_lang} to {target_lang}. "
-        f"Keep all IDs unchanged. Translate only the values. "
+        f"Translate only the values (text after §). Keep the numeric IDs unchanged. "
         f"Follow the TARA {target_lang} tone of voice.\n\n"
         f"{toon_input}"
     )
@@ -518,20 +529,16 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
                     time.sleep(2)
                     continue
 
-            # Build translation map
+            # Build translation map — map opaque IDs back to real field IDs
             t_map = {}
             for entry in translated:
-                t_map[entry["id"]] = entry["value"]
+                real_id = idx_to_real_id.get(entry["id"])
+                if real_id:
+                    t_map[real_id] = entry["value"]
 
-            # Verify IDs match
-            input_ids = {f["id"] for f in fields}
-            output_ids = set(t_map.keys())
-            missing = input_ids - output_ids
-            extra = output_ids - input_ids
-            if extra:
-                # Model fabricated IDs — remove them
-                for eid in extra:
-                    del t_map[eid]
+            # Check for missing translations
+            real_ids = set(idx_to_real_id.values())
+            missing = real_ids - set(t_map.keys())
             usage = response.usage
             total_tokens = usage.prompt_tokens + usage.completion_tokens
 
