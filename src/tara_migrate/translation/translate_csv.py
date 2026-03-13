@@ -597,7 +597,9 @@ Each line is: id|value
 
 === TRANSLATION RULES ===
 - Keep "TARA" unchanged — never translate the brand name
-- Keep product-specific names unchanged (e.g., "Kansa Wand", "Gua Sha")
+- Keep untranslatable tool proper nouns unchanged (e.g., "Kansa Wand", "Gua Sha")
+- TRANSLATE product type words to Arabic: Shampoo→شامبو, Serum→سيروم, Conditioner→بلسم, Mask→ماسك, Oil→زيت, etc.
+- TRANSLATE action verbs: Shop→تسوّق, Discover→اكتشف, Buy→اشترِ, Subscribe→اشترك, etc.
 - Keep ingredient scientific/INCI names unchanged
 - Preserve ALL HTML tags and attributes exactly
 - Preserve Shopify Liquid tags ({{ }}, {% %}) unchanged
@@ -1203,29 +1205,43 @@ def _upload_csv_translations(client, csv_path):
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 _QUALITY_SYSTEM_PROMPT = """\
-You are a translation QA checker for TARA, a luxury scalp-care brand.
+You are a strict translation QA checker for TARA, a luxury scalp-care brand.
 You will receive pairs of (English source, Arabic translation).
-Judge whether each Arabic translation is GOOD or BAD.
+Flag any translation that has English words that should be in Arabic.
 
-A translation is GOOD if:
-- The Arabic text conveys the same meaning as the English
-- Product names kept in English are fine (e.g., "Kansa Wand", "Gua Sha", "TARA")
-- INCI / scientific ingredient names in English are fine
-- Brand names, proper nouns, URLs, numbers in English are fine
-- Minor paraphrasing or creative rewording is fine
-- HTML tags / JSON keys in English are fine (structural, not content)
+MUST be translated to Arabic (flag if left in English):
+- Product type words: "Shampoo"→شامبو, "Conditioner"→بلسم, "Serum"→سيروم, "Mask"→ماسك,
+  "Oil"→زيت, "Scalp Treatment", "Multivitamin"→فيتامينات متعددة, "Complex"
+- Full product names must be in Arabic, e.g.:
+  "Sage+ Multivitamin Shampoo" → "الميرمية+ شامبو فيتامينات متعددة"
+  "Date+ Multivitamin Conditioner" → "التمر+ بلسم فيتامينات متعددة"
+  "Anti-Hair Fall Serum" → "سيروم مضاد لتساقط الشعر"
+- Action verbs: "Shop", "Buy", "Add to Cart", "Subscribe", "Learn More", "Discover", etc.
+- Body/hair terms: "Hair", "Scalp", "Hair Fall", "Hair Growth", "Hair Care", "Roots"
+- Descriptors: "Anti-Aging", "Well-Aging", "Nourishing", "Hydrating", "Strengthening"
+- UI labels: "Benefits", "How to Use", "Description", "Ingredients", "Free of", "Awards"
+- Category words: "Collection", "Best Sellers", "New Arrivals", "Discovery Set", "Routine"
+- ANY other common English word that has a standard Arabic equivalent
 
-A translation is BAD if:
-- The Arabic is actually just the English text copied verbatim (no translation done)
-- Common English words that SHOULD be translated are left in English
-  (e.g., "Shampoo", "Conditioner", "Serum", "Hair", "Scalp", "Benefits",
-   "How to use", "Description", "Anti-Aging", "Free of", etc.)
+ALLOWED to stay in English (do NOT flag):
+- Brand name "TARA" only
+- Scientific INCI ingredient names (e.g., "Tocopherol", "Glycerin", "Panthenol")
+- Tool names that are untranslatable proper nouns: "Kansa Wand", "Gua Sha"
+- URLs, email addresses, numbers, currency codes (SAR, USD)
+- HTML tags, JSON structure keys, Liquid template syntax
+- Isolated short codes or abbreviations (ml, g, pH)
+
+Flag as BAD if:
+- ANY product name is left in English instead of Arabic
+- A product name is translated inconsistently (different Arabic for the same English name across pairs)
+- ANY action verb or UI label is in English
+- The Arabic is the English text copied verbatim (no translation)
 - The Arabic is about a completely different topic
 - The Arabic is garbled / nonsensical
 
 Return a JSON array with one object per pair:
-[{"i": 0, "ok": true}, {"i": 1, "ok": false, "reason": "English body text not translated"}]
-Include ALL pairs in your response."""
+[{"i": 0, "ok": true}, {"i": 1, "ok": false, "reason": "product name 'Shampoo' not translated"}]
+Include ALL pairs. Be strict — when in doubt, flag it."""
 
 
 def _validate_with_haiku(translations_to_check, batch_size=30):
