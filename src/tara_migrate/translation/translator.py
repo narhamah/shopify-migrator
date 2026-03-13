@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from openai import OpenAI
+from tara_migrate.core.rich_text import validate_structure
 
 # =====================================================================
 # Load TARA Tone of Voice from external files
@@ -162,7 +163,9 @@ class Translator:
 
         if isinstance(data, dict) and data.get("children"):
             translate_nodes(data["children"])
-        return json.dumps(data, ensure_ascii=False)
+        result = json.dumps(data, ensure_ascii=False)
+        # Validate structure against original (restores listType, fixes mismatches)
+        return validate_structure(result, rich_text_json)
 
     def translate_handle(self, handle: str, source_lang: str, target_lang: str) -> str:
         """Translate a URL handle (slug). Returns lowercase, hyphenated."""

@@ -413,6 +413,51 @@ def adaptive_batch(fields, max_tokens=12000):
     return batches
 
 
+def _retry_missing(client, model, missing_fields, source_lang, target_lang, is_reasoning):
+    """Retry translating a small set of fields that were missed in a batch.
+
+    Uses a direct, focused prompt. Returns (translation_map, tokens_used).
+    """
+    toon_input = to_toon(missing_fields)
+    prompt = (
+        f"Translate the following TOON data from {source_lang} to {target_lang}. "
+        f"Keep all IDs unchanged. Translate only the values.\n\n{toon_input}"
+    )
+    try:
+        api_kwargs = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": build_system_prompt(target_lang)},
+                {"role": "user", "content": prompt},
+            ],
+        }
+        if is_reasoning:
+            api_kwargs["reasoning_effort"] = "low"
+        else:
+            api_kwargs["temperature"] = 0.3
+
+        response = client.chat.completions.create(**api_kwargs)
+        result = response.choices[0].message.content.strip()
+        if result.startswith("```"):
+            lines = result.split("\n")
+            if lines[-1].strip() == "```":
+                result = "\n".join(lines[1:-1])
+            else:
+                result = "\n".join(lines[1:])
+
+        translated = from_toon(result)
+        t_map = {e["id"]: e["value"] for e in translated}
+        # Remove hallucinated IDs
+        valid_ids = {f["id"] for f in missing_fields}
+        t_map = {k: v for k, v in t_map.items() if k in valid_ids}
+        tokens = response.usage.prompt_tokens + response.usage.completion_tokens
+        print(f"    Retry got {len(t_map)}/{len(missing_fields)} translations ({tokens} tokens)")
+        return t_map, tokens
+    except Exception as e:
+        print(f"    Retry failed: {e}")
+        return {}, 0
+
+
 def translate_batch(client, model, fields, source_lang, target_lang, batch_num, total_batches):
     """Translate a batch of fields using TOON format.
 
@@ -487,11 +532,24 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
                 # Model fabricated IDs — remove them
                 for eid in extra:
                     del t_map[eid]
-            if missing:
-                print(f"    WARNING: {len(missing)} untranslated fields (will retry on next run)")
-
             usage = response.usage
             total_tokens = usage.prompt_tokens + usage.completion_tokens
+
+            if missing and len(missing) <= 10:
+                # Retry just the missing fields in a smaller batch
+                print(f"    Retrying {len(missing)} missing fields...")
+                missing_fields = [f for f in fields if f["id"] in missing]
+                retry_map, retry_tokens = _retry_missing(
+                    client, model, missing_fields, source_lang, target_lang,
+                    is_reasoning)
+                t_map.update(retry_map)
+                total_tokens += retry_tokens
+                still_missing = missing - set(retry_map.keys())
+                if still_missing:
+                    print(f"    WARNING: {len(still_missing)} fields still missing after retry")
+            elif missing:
+                print(f"    WARNING: {len(missing)} untranslated fields (will retry on next run)")
+
             print(f"    Done ({usage.prompt_tokens} prompt + {usage.completion_tokens} completion = {total_tokens} tokens)")
             return t_map, total_tokens
 

@@ -19,6 +19,7 @@ from tara_migrate.core.rich_text import (
     extract_text_nodes,
     is_rich_text_json,
     rebuild,
+    validate_structure,
 )
 from tara_migrate.translation.toon import DELIM, from_toon, to_toon
 
@@ -83,15 +84,29 @@ class TranslationEngine:
 
         # Translate all plain text in batches
         t_map = {}
+        all_missing = []
         total = len(plain_fields)
         for i in range(0, total, self.batch_size):
             batch = plain_fields[i:i + self.batch_size]
             batch_map = self._translate_batch(batch)
             t_map.update(batch_map)
+            # Track missing fields for retry
+            batch_ids = {f["id"] for f in batch}
+            missing = [f for f in batch if f["id"] not in batch_map]
+            all_missing.extend(missing)
             if progress_callback:
                 progress_callback(len(t_map), total)
             if i + self.batch_size < total:
                 time.sleep(1)
+
+        # Retry missing fields in a single focused batch
+        if all_missing:
+            print(f"    Retrying {len(all_missing)} missing fields...")
+            retry_map = self._translate_batch(all_missing)
+            t_map.update(retry_map)
+            still_missing = len(all_missing) - len(retry_map)
+            if still_missing:
+                print(f"    WARNING: {still_missing} fields still missing after retry")
 
         # Rebuild rich_text JSON with translated nodes
         for fid, rt_info in rich_text_map.items():
@@ -102,7 +117,10 @@ class TranslationEngine:
                 if ar_text:
                     translations[tuple(path)] = ar_text
             if translations:
-                t_map[fid] = rebuild(rt_info["parsed"], translations)
+                rebuilt = rebuild(rt_info["parsed"], translations)
+                # Validate structure against original (restores listType, etc.)
+                original_json = json.dumps(rt_info["parsed"], ensure_ascii=False)
+                t_map[fid] = validate_structure(rebuilt, original_json)
 
         # Clean up internal __RT_ keys from the returned map
         return {k: v for k, v in t_map.items() if "__RT_" not in k}
