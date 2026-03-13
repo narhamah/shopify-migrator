@@ -57,13 +57,22 @@ def _estimate_tokens(text):
     return max(1, len(text) // 3)
 
 
-def adaptive_batch(fields, max_tokens=6000):
+def adaptive_batch(fields, max_tokens=6000, chunk_threshold=6000):
     """Split fields into batches sized by estimated token count.
 
     Short fields (titles, buttons) get packed densely.
     Long fields (body_html, rich_text JSON) get smaller batches.
-    Fields exceeding max_tokens are split into sub-fields using
+    Fields exceeding chunk_threshold are split into sub-fields using
     _split_oversized_field() and reassembled after translation.
+
+    Args:
+        fields: List of field dicts with 'id' and 'value'.
+        max_tokens: Pack multiple fields into a batch up to this limit.
+        chunk_threshold: Split a single field only when it exceeds this
+            limit.  Defaults to 6000 tokens (~18K chars).  The packing
+            limit (max_tokens) is intentionally independent — a small
+            max_tokens just means each normal field gets its own batch,
+            but does NOT trigger chunking of large fields.
     """
     batches = []
     current_batch = []
@@ -72,15 +81,15 @@ def adaptive_batch(fields, max_tokens=6000):
     for field in fields:
         field_tokens = _estimate_tokens(field["value"])
 
-        # If a single field exceeds max_tokens, split it into chunks
-        if field_tokens > max_tokens:
+        # Only chunk when a single field exceeds chunk_threshold
+        if field_tokens > chunk_threshold:
             # Flush current batch first
             if current_batch:
                 batches.append(current_batch)
                 current_batch = []
                 current_tokens = 0
 
-            chunks = _split_oversized_field(field, max_tokens)
+            chunks = _split_oversized_field(field, chunk_threshold)
             for chunk in chunks:
                 batches.append([chunk])
             continue
