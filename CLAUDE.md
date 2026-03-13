@@ -179,6 +179,7 @@ python verify_fix_translations.py --dry-run                 # show plan, no uplo
 python verify_fix_translations.py --type PRODUCT            # single resource type
 python verify_fix_translations.py --fix-only MISSING,IDENTICAL  # fix specific problems
 python verify_fix_translations.py --no-verify               # skip re-audit after fix
+python verify_fix_translations.py --clean-csv FILE.csv      # strip junk rows from CSV before Shopify import
 ```
 
 ## Manual Steps (Cannot Be Automated)

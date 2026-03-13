@@ -1,4 +1,5 @@
 """Tests for the unified verify_fix translation pipeline."""
+import csv
 import json
 import os
 from unittest.mock import MagicMock, patch, call
@@ -7,6 +8,7 @@ import pytest
 
 from tara_migrate.translation.verify_fix import (
     FIXABLE_STATUSES,
+    clean_csv,
     phase_audit,
     phase_fix,
     phase_verify,
@@ -424,3 +426,217 @@ class TestRunPipeline:
         mock_audit.assert_called_once_with(
             client, "ar", resource_types=["PRODUCT"], verbose=False,
         )
+
+
+# ---------------------------------------------------------------------------
+# clean_csv
+# ---------------------------------------------------------------------------
+
+def _write_csv(path, rows, fieldnames=None):
+    """Helper to write a CSV file from a list of dicts."""
+    if not fieldnames:
+        fieldnames = [
+            "Type", "Identification", "Field",
+            "Default content", "Translated content",
+        ]
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _read_csv(path):
+    """Helper to read a CSV file."""
+    with open(path, "r", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+class TestCleanCsv:
+    def test_removes_non_translatable_urls(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+             "Default content": "My Product", "Translated content": "\u0645\u0646\u062a\u062c"},
+            {"Type": "PRODUCT", "Identification": "123", "Field": "image",
+             "Default content": "https://cdn.shopify.com/img.jpg",
+             "Translated content": "https://cdn.shopify.com/img.jpg"},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 1
+        assert removed == 1
+        assert reasons["non_translatable"] >= 1
+
+    def test_removes_keep_as_is_fields(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+             "Default content": "Product", "Translated content": "\u0645\u0646\u062a\u062c"},
+            {"Type": "ONLINE_STORE_THEME", "Identification": "456",
+             "Field": "facebook_url",
+             "Default content": "Follow us on Facebook",
+             "Translated content": "Follow us on Facebook"},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 1
+        assert reasons["keep_as_is"] >= 1
+
+    def test_removes_empty_translations(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+             "Default content": "Product", "Translated content": ""},
+            {"Type": "PRODUCT", "Identification": "123", "Field": "body",
+             "Default content": "Description",
+             "Translated content": "\u0648\u0635\u0641"},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 1
+        assert reasons["empty_translation"] == 1
+
+    def test_removes_identical_no_arabic(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+             "Default content": "English Only",
+             "Translated content": "English Only"},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 0
+        assert reasons["identical_no_arabic"] == 1
+
+    def test_keeps_identical_arabic(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        arabic_text = "\u0645\u0646\u062a\u062c \u0639\u0631\u0628\u064a"
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+             "Default content": arabic_text,
+             "Translated content": arabic_text},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 1
+
+    def test_removes_handle_fields(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "handle",
+             "Default content": "my-product",
+             "Translated content": "my-product"},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 0
+        assert reasons["non_translatable"] >= 1
+
+    def test_removes_gid_values(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        _write_csv(csv_path, [
+            {"Type": "METAFIELD", "Identification": "789", "Field": "value",
+             "Default content": "gid://shopify/Metaobject/100",
+             "Translated content": "gid://shopify/Metaobject/100"},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 0
+
+    def test_removes_pure_numbers(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "price",
+             "Default content": "29.99",
+             "Translated content": "29.99"},
+        ])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 0
+
+    def test_deduplicates_rows(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        row = {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+               "Default content": "Product",
+               "Translated content": "\u0645\u0646\u062a\u062c"}
+        _write_csv(csv_path, [row, row])
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 1
+        assert reasons["duplicate"] == 1
+
+    def test_custom_output_path(self, tmp_path):
+        csv_path = str(tmp_path / "input.csv")
+        out_path = str(tmp_path / "custom_output.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+             "Default content": "Product",
+             "Translated content": "\u0645\u0646\u062a\u062c"},
+        ])
+
+        clean_csv(csv_path, out_path)
+
+        assert os.path.exists(out_path)
+        rows = _read_csv(out_path)
+        assert len(rows) == 1
+
+    def test_default_output_path(self, tmp_path):
+        csv_path = str(tmp_path / "translations.csv")
+        _write_csv(csv_path, [
+            {"Type": "PRODUCT", "Identification": "123", "Field": "title",
+             "Default content": "Product",
+             "Translated content": "\u0645\u0646\u062a\u062c"},
+        ])
+
+        clean_csv(csv_path)
+
+        expected = str(tmp_path / "translations_clean.csv")
+        assert os.path.exists(expected)
+
+    def test_realistic_mix(self, tmp_path):
+        """Simulate a typical Shopify CSV with ~70% junk rows."""
+        csv_path = str(tmp_path / "export.csv")
+        rows = [
+            # Should keep: real translations
+            {"Type": "PRODUCT", "Identification": "1", "Field": "title",
+             "Default content": "Scalp Serum",
+             "Translated content": "\u0633\u064a\u0631\u0648\u0645 \u0641\u0631\u0648\u0629 \u0627\u0644\u0631\u0623\u0633"},
+            {"Type": "COLLECTION", "Identification": "2", "Field": "title",
+             "Default content": "Best Sellers",
+             "Translated content": "\u0627\u0644\u0623\u0643\u062b\u0631 \u0645\u0628\u064a\u0639\u0627\u064b"},
+            # Should remove: URLs
+            {"Type": "PRODUCT", "Identification": "1", "Field": "image_src",
+             "Default content": "https://cdn.shopify.com/img.jpg",
+             "Translated content": "https://cdn.shopify.com/img.jpg"},
+            # Should remove: GIDs
+            {"Type": "METAFIELD", "Identification": "3", "Field": "value",
+             "Default content": "gid://shopify/Product/999",
+             "Translated content": "gid://shopify/Product/999"},
+            # Should remove: empty translation
+            {"Type": "PRODUCT", "Identification": "1", "Field": "body_html",
+             "Default content": "<p>Body text</p>",
+             "Translated content": ""},
+            # Should remove: number
+            {"Type": "PRODUCT", "Identification": "1", "Field": "weight",
+             "Default content": "0.5",
+             "Translated content": "0.5"},
+            # Should remove: handle
+            {"Type": "PRODUCT", "Identification": "1", "Field": "handle",
+             "Default content": "scalp-serum",
+             "Translated content": "scalp-serum"},
+        ]
+        _write_csv(csv_path, rows)
+
+        kept, removed, reasons = clean_csv(csv_path)
+
+        assert kept == 2  # Only the two real translations
+        assert removed == 5

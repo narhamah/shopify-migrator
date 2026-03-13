@@ -26,17 +26,25 @@ Usage:
 
     # Skip verify step
     python verify_fix_translations.py --no-verify
+
+    # Clean a CSV before Shopify import (no API calls needed)
+    python verify_fix_translations.py --clean-csv translations.csv
 """
 
 import argparse
+import csv
 import json
 import os
+import re
 import sys
 import time
 
 from tara_migrate.audit.audit_translations import (
     audit_translations,
     classify_translation,
+    _is_csv_non_translatable,
+    _is_keep_as_is,
+    _has_arabic_for_upload,
 )
 from tara_migrate.client.shopify_client import ShopifyClient
 from tara_migrate.core.graphql_queries import (
@@ -420,6 +428,104 @@ def run_pipeline(client, engine, locale, resource_types=None, verbose=False,
 
 
 # ---------------------------------------------------------------------------
+# CSV Cleaning — strip junk rows before Shopify import
+# ---------------------------------------------------------------------------
+
+def clean_csv(input_path, output_path=None):
+    """Remove non-translatable rows from a Shopify translation CSV.
+
+    Strips rows that Shopify will skip anyway: URLs, GIDs, handles, images,
+    pure numbers, hex IDs, keep-as-is fields, empty defaults, and rows
+    where the translation is empty or identical with no Arabic.
+
+    Args:
+        input_path: Path to the Shopify CSV export.
+        output_path: Path for the cleaned CSV. Default: input_clean.csv.
+
+    Returns:
+        (kept, removed, removed_reasons) where removed_reasons is a dict.
+    """
+    if not output_path:
+        base, ext = os.path.splitext(input_path)
+        output_path = f"{base}_clean{ext}"
+
+    with open(input_path, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+
+    print(f"\n{'=' * 70}")
+    print(f"  CLEAN CSV")
+    print(f"{'=' * 70}")
+    print(f"  Input:  {input_path} ({len(rows)} rows)")
+
+    kept_rows = []
+    reasons = {
+        "non_translatable": 0, "keep_as_is": 0, "empty_default": 0,
+        "empty_translation": 0, "identical_no_arabic": 0, "duplicate": 0,
+    }
+    seen = set()
+
+    for row in rows:
+        default = row.get("Default content", "").strip()
+        translated = row.get("Translated content", "").strip()
+        field = row.get("Field", "").strip()
+        csv_type = row.get("Type", "").strip()
+        identification = row.get("Identification", "").strip()
+
+        # Dedup by (Type, Identification, Field)
+        dedup_key = (csv_type, identification, field)
+        if dedup_key in seen:
+            reasons["duplicate"] += 1
+            continue
+        seen.add(dedup_key)
+
+        # Strip non-translatable rows
+        if _is_csv_non_translatable(row):
+            reasons["non_translatable"] += 1
+            continue
+
+        # Strip keep-as-is rows (images, URLs, form IDs, etc.)
+        if _is_keep_as_is(row):
+            reasons["keep_as_is"] += 1
+            continue
+
+        # Strip rows with no default content
+        if not default:
+            reasons["empty_default"] += 1
+            continue
+
+        # Strip rows with no translation
+        if not translated:
+            reasons["empty_translation"] += 1
+            continue
+
+        # Strip identical translations with no Arabic
+        if translated == default and not _has_arabic_for_upload(translated):
+            reasons["identical_no_arabic"] += 1
+            continue
+
+        kept_rows.append(row)
+
+    # Write clean CSV
+    with open(output_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(kept_rows)
+
+    total_removed = len(rows) - len(kept_rows)
+    print(f"  Output: {output_path} ({len(kept_rows)} rows)")
+    print(f"  Removed: {total_removed} rows ({total_removed / len(rows) * 100:.1f}%)")
+    if total_removed > 0:
+        active_reasons = {k: v for k, v in reasons.items() if v > 0}
+        parts = [f"{k}={v}" for k, v in sorted(active_reasons.items())]
+        print(f"  Breakdown: {', '.join(parts)}")
+    print(f"{'=' * 70}")
+
+    return len(kept_rows), total_removed, reasons
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -482,6 +588,15 @@ def main():
         help="Save audit problems to JSON file",
     )
     parser.add_argument(
+        "--clean-csv", default=None,
+        help="Strip non-translatable rows from a Shopify CSV before import "
+             "(no API calls needed, exits after cleaning)",
+    )
+    parser.add_argument(
+        "--clean-csv-output", default=None,
+        help="Output path for cleaned CSV (default: <input>_clean.csv)",
+    )
+    parser.add_argument(
         "--shop-url-env", default="SAUDI_SHOP_URL",
         help="Env var for shop URL (default: SAUDI_SHOP_URL)",
     )
@@ -490,6 +605,14 @@ def main():
         help="Env var for access token (default: SAUDI_ACCESS_TOKEN)",
     )
     args = parser.parse_args()
+
+    # CSV cleaning mode — no API calls, no env vars needed
+    if args.clean_csv:
+        if not os.path.exists(args.clean_csv):
+            print(f"ERROR: CSV not found: {args.clean_csv}")
+            sys.exit(1)
+        clean_csv(args.clean_csv, args.clean_csv_output)
+        return
 
     from dotenv import load_dotenv
     load_dotenv()
