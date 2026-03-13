@@ -445,6 +445,44 @@ def _translate_field_perfield(client, model, field, system_prompt, field_num, to
     return None, 0
 
 
+def _extract_gid(field_id):
+    """Extract the numeric GID from a field ID like "Type|'12345|field_name"."""
+    parts = field_id.split("|")
+    for part in parts:
+        # Match GID patterns: 'gid://shopify/... or just '12345...
+        cleaned = part.strip().lstrip("'")
+        if cleaned and cleaned[0].isdigit() and len(cleaned) >= 5:
+            return cleaned
+    return None
+
+
+def _recover_hallucinated_ids(t_map, extra_ids, missing_ids):
+    """Try to match hallucinated (Arabic-translated) IDs back to original IDs.
+
+    The model sometimes translates TOON IDs into Arabic but keeps the numeric
+    GID intact. Match by GID to recover these translations.
+
+    Returns dict of {original_id: hallucinated_id} for successful matches.
+    Mutates t_map in-place: adds original_id entries and removes hallucinated ones.
+    """
+    # Build GID→original_id lookup for missing fields
+    missing_by_gid = {}
+    for mid in missing_ids:
+        gid = _extract_gid(mid)
+        if gid:
+            missing_by_gid[gid] = mid
+
+    recovered = {}
+    for eid in list(extra_ids):
+        gid = _extract_gid(eid)
+        if gid and gid in missing_by_gid:
+            original_id = missing_by_gid[gid]
+            t_map[original_id] = t_map.pop(eid)
+            recovered[original_id] = eid
+
+    return recovered
+
+
 # =====================================================================
 # Responses API batch translation (from translate_tara_ar.py)
 # =====================================================================
@@ -486,6 +524,13 @@ def _retry_missing_responses_api(client, model, missing_fields, developer_prompt
         translated = from_toon(result)
         t_map = {e["id"]: e["value"] for e in translated}
         valid_ids = {f["id"] for f in missing_fields}
+        # Recover hallucinated IDs by GID matching
+        extra = set(t_map.keys()) - valid_ids
+        missing = valid_ids - set(t_map.keys())
+        if extra and missing:
+            recovered = _recover_hallucinated_ids(t_map, extra, missing)
+            if recovered:
+                print(f"    Retry recovered {len(recovered)} hallucinated IDs")
         t_map = {k: v for k, v in t_map.items() if k in valid_ids}
         tokens = (response.usage.input_tokens or 0) + (response.usage.output_tokens or 0)
         print(f"    Retry got {len(t_map)}/{len(missing_fields)} translations ({tokens} tokens)")
@@ -617,6 +662,14 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
             output_ids = set(t_map.keys())
             extra = output_ids - input_ids
             missing = input_ids - output_ids
+            if extra and missing:
+                # Try fuzzy matching: the model often translates IDs into Arabic
+                # but keeps the numeric GID portion intact. Match by GID.
+                recovered = _recover_hallucinated_ids(t_map, extra, missing)
+                if recovered:
+                    print(f"    Recovered {len(recovered)} hallucinated IDs by GID matching")
+                    extra -= set(recovered.values())
+                    missing -= set(recovered.keys())
             if extra:
                 print(f"    DEBUG: {len(extra)} extra IDs (hallucinated): {list(extra)[:3]}")
                 for eid in extra:
