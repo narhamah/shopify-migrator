@@ -1301,6 +1301,40 @@ Return a JSON array. Only include BAD pairs — omit OK ones:
 All OK → return []"""
 
 
+def _parse_json_array(text):
+    """Extract a JSON array from LLM response text.
+
+    Handles: trailing text after array, multiple arrays (merges them),
+    and arrays wrapped in markdown code blocks.
+    """
+    # Strip markdown code fences
+    text = re.sub(r"```json\s*", "", text)
+    text = re.sub(r"```\s*", "", text)
+
+    # Find all JSON arrays in the text
+    arrays = []
+    depth = 0
+    start = None
+    for i, ch in enumerate(text):
+        if ch == "[" and depth == 0:
+            start = i
+            depth = 1
+        elif ch == "[":
+            depth += 1
+        elif ch == "]" and depth == 1:
+            depth = 0
+            try:
+                parsed = json.loads(text[start:i + 1])
+                if isinstance(parsed, list):
+                    arrays.extend(parsed)
+            except json.JSONDecodeError:
+                pass
+        elif ch == "]" and depth > 1:
+            depth -= 1
+
+    return arrays if arrays or start is not None else None
+
+
 def _validate_with_haiku(translations_to_check, batch_size=30):
     """Validate translation quality using Haiku.
 
@@ -1355,10 +1389,9 @@ def _validate_with_haiku(translations_to_check, batch_size=30):
                 messages=[{"role": "user", "content": prompt}],
             )
             text = resp.content[0].text
-            # Parse JSON from response
-            json_match = re.search(r"\[.*\]", text, re.DOTALL)
-            if json_match:
-                results = json.loads(json_match.group())
+            # Parse JSON from response — handle multiple arrays or trailing text
+            results = _parse_json_array(text)
+            if results is not None:
                 batch_bad = 0
                 for r in results:
                     idx = r.get("i", -1)
