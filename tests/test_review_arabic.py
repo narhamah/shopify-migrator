@@ -986,10 +986,24 @@ class TestRunFix:
     @patch("tara_migrate.tools.review_arabic.time.sleep")
     @patch("tara_migrate.tools.review_arabic.upload_translations")
     @patch("tara_migrate.tools.review_arabic.fetch_translatable_resources")
-    def test_retranslation_source_spanish(self, mock_fetch_tr, mock_upload, mock_sleep):
-        """SOURCE_SPANISH should be retranslated (ES->AR directly)."""
+    @patch("tara_migrate.tools.review_arabic.TranslationEngine")
+    def test_retranslation_source_spanish(self, mock_engine_cls, mock_fetch_tr,
+                                          mock_upload, mock_sleep):
+        """SOURCE_SPANISH should fix EN source and retranslate to AR."""
         client = MagicMock()
         engine = MagicMock()
+        engine.model = "gpt-5-nano"
+        engine.reasoning_effort = "minimal"
+        engine.batch_size = 80
+
+        # Mock the EN engine created for ES→EN translation
+        mock_en_engine = MagicMock()
+        mock_en_engine.translate_fields.return_value = {
+            "PRODUCT|gid://shopify/Product/1|title": "Strengthening Shampoo"
+        }
+        mock_engine_cls.return_value = mock_en_engine
+
+        # Mock the AR engine for EN→AR translation
         engine.translate_fields.return_value = {
             "PRODUCT|gid://shopify/Product/1|title": "شامبو مقوي"
         }
@@ -1009,7 +1023,14 @@ class TestRunFix:
         mock_upload.return_value = (1, 0)
 
         uploaded, errors, skipped = run_fix(client, engine, problems)
+
+        # EN engine should have been created and called for ES→EN
+        mock_engine_cls.assert_called_once()
+        mock_en_engine.translate_fields.assert_called_once()
+        # AR engine should have been called for EN→AR
         engine.translate_fields.assert_called_once()
+        # The English source should be updated to the translated value
+        assert problems[0]["english"] == "Strengthening Shampoo"
 
     @patch("tara_migrate.tools.review_arabic.time.sleep")
     @patch("tara_migrate.tools.review_arabic.upload_translations")

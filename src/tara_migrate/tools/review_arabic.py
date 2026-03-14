@@ -254,7 +254,7 @@ def classify_fields(fields, audit_model="claude-haiku-4-5-20251001"):
             if en_text and len(en_text) >= 15:
                 if _ai_is_spanish(en_text, model=audit_model):
                     status = "SOURCE_SPANISH"
-                    detail = "English source is actually Spanish — run review_content.py first"
+                    detail = "English source is actually Spanish — will translate ES→EN and update source"
                     stats["source_spanish"] += 1
                     results.append({**field, "status": status, "detail": detail})
                     continue
@@ -616,6 +616,118 @@ def run_fix(client, engine, problems, locale=LOCALE, dry_run=False):
                 errors += e
 
         print(f"  HTML bloat: uploaded={uploaded}, errors={errors}, skipped={skipped}")
+
+    # ── Fix SOURCE_SPANISH: translate ES→EN and update the English source ──
+
+    source_spanish = [p for p in retranslate if p["status"] == "SOURCE_SPANISH"]
+    if source_spanish and not dry_run:
+        print(f"\n  Fixing {len(source_spanish)} SOURCE_SPANISH fields "
+              f"(translate ES→EN, update source)...")
+
+        # Build an EN translation engine using the English TOV prompt
+        import os as _os
+        project_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(
+            _os.path.dirname(_os.path.abspath(__file__)))))
+        en_tov_path = _os.path.join(project_root, "tara_tov_en.txt")
+        en_tov = ""
+        if _os.path.exists(en_tov_path):
+            with open(en_tov_path, "r", encoding="utf-8") as fh:
+                en_tov = fh.read()
+
+        en_prompt = (
+            "You are a professional translator for TARA, a luxury scalp-care brand. "
+            "Translate the following Spanish text to English.\n"
+            "Keep the TARA brand name unchanged. Keep INCI ingredient names unchanged.\n"
+            "Keep all HTML tags and structure unchanged — only translate the text content.\n"
+        )
+        if en_tov:
+            en_prompt += f"\nEnglish tone of voice:\n{en_tov}\n"
+
+        # Extract concrete values from the engine (handle MagicMock in tests)
+        _model = engine.model if isinstance(engine.model, str) else "gpt-5-nano"
+        _reasoning = engine.reasoning_effort if isinstance(
+            engine.reasoning_effort, str) else "minimal"
+        _batch = engine.batch_size if isinstance(engine.batch_size, int) else 80
+
+        en_engine = TranslationEngine(
+            en_prompt,
+            model=_model,
+            reasoning_effort=_reasoning,
+            batch_size=_batch,
+        )
+
+        # Translate ES→EN
+        es_fields = []
+        for p in source_spanish:
+            field_id = f"{p['resource_type']}|{p['resource_id']}|{p['key']}"
+            es_fields.append({"id": field_id, "value": p["english"]})
+
+        en_translations = en_engine.translate_fields(es_fields)
+        print(f"  Translated {len(en_translations)}/{len(es_fields)} fields ES→EN")
+
+        # Update the English source on Shopify (product SEO fields via metafields)
+        _SEO_KEY_MAP = {
+            "meta_title": "title_tag",
+            "meta_description": "description_tag",
+        }
+        en_updated = 0
+        for p in source_spanish:
+            field_id = f"{p['resource_type']}|{p['resource_id']}|{p['key']}"
+            en_value = en_translations.get(field_id)
+            if not en_value:
+                continue
+
+            # Update the source field on the resource
+            resource_type = p["resource_type"]
+            resource_id = p["resource_id"].split("/")[-1]
+            key = p["key"]
+
+            if resource_type == "PRODUCT" and key in _SEO_KEY_MAP:
+                seo_key = _SEO_KEY_MAP[key]
+                try:
+                    title = en_value if seo_key == "title_tag" else None
+                    desc = en_value if seo_key == "description_tag" else None
+                    client.update_product_seo(resource_id, title, desc)
+                    en_updated += 1
+                except Exception as e:
+                    print(f"    Error updating {resource_type}/{resource_id} "
+                          f"[{key}]: {e}")
+            elif key in ("title", "body_html"):
+                # Update via REST product/collection/page/article update
+                try:
+                    if resource_type == "PRODUCT":
+                        client.update_product(resource_id, {key: en_value})
+                    elif resource_type == "COLLECTION":
+                        client._request("PUT",
+                            f"custom_collections/{resource_id}.json",
+                            json={"custom_collection": {key: en_value}})
+                    elif resource_type == "PAGE":
+                        client._request("PUT", f"pages/{resource_id}.json",
+                            json={"page": {key: en_value}})
+                    en_updated += 1
+                except Exception as e:
+                    print(f"    Error updating {resource_type}/{resource_id} "
+                          f"[{key}]: {e}")
+            else:
+                # For metafields, update via metafieldsSet
+                gid = p["resource_id"]
+                try:
+                    client.set_metafields([{
+                        "ownerId": gid,
+                        "namespace": key.rsplit(".", 1)[0] if "." in key else "custom",
+                        "key": key.rsplit(".", 1)[-1] if "." in key else key,
+                        "value": en_value,
+                        "type": "single_line_text_field",
+                    }])
+                    en_updated += 1
+                except Exception as e:
+                    print(f"    Error updating metafield {gid} [{key}]: {e}")
+
+            # Update the problem's english field so AR translation uses the new EN
+            p["english"] = en_value
+
+        print(f"  Updated {en_updated} English source fields on Shopify")
+        time.sleep(1)  # Let Shopify propagate
 
     # ── Re-translate problems ──
 
