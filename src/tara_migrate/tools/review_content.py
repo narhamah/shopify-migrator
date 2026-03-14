@@ -615,6 +615,53 @@ def _extract_text_for_check(value, mf_type):
     return value
 
 
+_SEO_QUERY = """\
+query($first: Int!, $after: String) {
+  products(first: $first, after: $after) {
+    edges {
+      node {
+        id
+        seo { title description }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+
+def _fetch_product_seo_fields(client):
+    """Fetch SEO title/description for all products via GraphQL.
+
+    Returns dict of {numeric_product_id: {title_tag: str, description_tag: str}}.
+    The global.title_tag and global.description_tag metafields are NOT returned
+    by the REST metafields endpoint, so we must use GraphQL to read them.
+    """
+    seo_map = {}
+    cursor = None
+    while True:
+        data = client._graphql(_SEO_QUERY, {"first": 50, "after": cursor})
+        products = data.get("products", {})
+        for edge in products.get("edges", []):
+            node = edge["node"]
+            gid = node["id"]  # gid://shopify/Product/12345
+            numeric_id = int(gid.split("/")[-1])
+            seo = node.get("seo") or {}
+            title = seo.get("title") or ""
+            desc = seo.get("description") or ""
+            if title or desc:
+                seo_map[numeric_id] = {
+                    "title_tag": title,
+                    "description_tag": desc,
+                }
+        page_info = products.get("pageInfo", {})
+        if not page_info.get("hasNextPage"):
+            break
+        cursor = page_info.get("endCursor")
+        time.sleep(0.3)
+    return seo_map
+
+
 def _fetch_metafields_for_resource(client, resource_type, resource_id, translatable_keys):
     """Fetch metafields for a resource, returning only translatable text fields."""
     metafields = client.get_metafields(resource_type, resource_id)
@@ -640,10 +687,16 @@ def fetch_all_resources(client):
     """Fetch all content resources from the store, including metafields and metaobjects."""
     resources = {}
 
-    # --- Products (body_html + title + metafields) ---
+    # --- Products (body_html + title + metafields + SEO) ---
     print("Fetching products...")
     products = client.get_products()
+
+    # Fetch SEO fields via GraphQL (global.title_tag/description_tag are NOT
+    # returned by the REST metafields endpoint — they're system metafields)
+    seo_map = _fetch_product_seo_fields(client)
+
     product_items = []
+    seo_injected = 0
     for p in products:
         item = {
             "id": p["id"], "title": p.get("title", ""), "handle": p.get("handle", ""),
@@ -652,11 +705,38 @@ def fetch_all_resources(client):
         # Fetch metafields
         mfs = _fetch_metafields_for_resource(client, "products", p["id"],
                                              PRODUCT_TRANSLATABLE_METAFIELDS)
+
+        # Inject SEO fields from GraphQL as synthetic metafield entries
+        seo = seo_map.get(p["id"])
+        if seo:
+            # Check if REST already returned them (unlikely but safe)
+            existing_keys = {m["key"] for m in mfs}
+            if "global.title_tag" not in existing_keys and seo.get("title_tag"):
+                mfs.append({
+                    "id": f"seo-title-{p['id']}",
+                    "key": "global.title_tag",
+                    "value": seo["title_tag"],
+                    "type": "single_line_text_field",
+                    "namespace": "global",
+                    "bare_key": "title_tag",
+                })
+                seo_injected += 1
+            if "global.description_tag" not in existing_keys and seo.get("description_tag"):
+                mfs.append({
+                    "id": f"seo-desc-{p['id']}",
+                    "key": "global.description_tag",
+                    "value": seo["description_tag"],
+                    "type": "single_line_text_field",
+                    "namespace": "global",
+                    "bare_key": "description_tag",
+                })
+                seo_injected += 1
+
         item["metafields"] = mfs
         product_items.append(item)
     resources["products"] = product_items
     mf_count = sum(len(p["metafields"]) for p in product_items)
-    print(f"  {len(product_items)} products ({mf_count} text metafields)")
+    print(f"  {len(product_items)} products ({mf_count} text metafields, {seo_injected} SEO fields via GraphQL)")
 
     # --- Collections (body_html + title) ---
     print("Fetching collections...")
