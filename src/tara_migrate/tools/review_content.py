@@ -508,7 +508,7 @@ def translate_spanish_to_english(html, client_openai, model="gpt-4o-mini"):
         resp = client_openai.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
+
         )
         result = resp.choices[0].message.content.strip()
         # Strip markdown code block wrappers if the model added them
@@ -548,7 +548,7 @@ def translate_plain_text(text, client_openai, model="gpt-4o-mini"):
         resp = client_openai.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
+
         )
         result = resp.choices[0].message.content.strip()
         # Strip markdown code block wrappers if the model added them
