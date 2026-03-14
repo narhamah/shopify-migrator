@@ -19,7 +19,8 @@ src/tara_migrate/          ← Production library (all logic lives here)
   setup/                   ← Schema creation: setup_store, setup_collections, setup_menus, setup_homepage
   fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status,
                              fix_redirects, fix_translations (GraphQL translation fixer)
-  tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images
+  tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images,
+                             review_content (English content review), review_arabic (Arabic translation review)
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -158,6 +159,18 @@ python review_content.py --type pages --skip-spanish   # Strip HTML bloat from p
 python review_content.py --skip-html-cleanup           # Only fix Spanish (no HTML stripping)
 python review_content.py --audit-model MODEL           # Override audit model (default: claude-haiku-4-5-20251001)
 python review_content.py --model MODEL                 # Override translation model (default: gpt-4o-mini)
+
+# Arabic translation review (7-step pipeline: fetch → classify → semantic check → fix → verify)
+python review_arabic.py --audit                        # Audit only, no changes
+python review_arabic.py --dry-run                      # Show planned changes
+python review_arabic.py                                # Full pipeline: audit + fix + verify
+python review_arabic.py --type PRODUCT                 # Only audit products
+python review_arabic.py --type PRODUCT,METAFIELD       # Multiple types
+python review_arabic.py --skip-semantic                # Skip Haiku correspondence check (faster)
+python review_arabic.py --model gpt-5-mini             # Override translation model
+python review_arabic.py --audit-model MODEL            # Override Haiku audit model
+python review_arabic.py --no-verify                    # Skip post-fix re-audit
+python review_arabic.py --save-report FILE.json        # Save audit report
 
 # Audit
 python compare_stores.py
