@@ -3,7 +3,7 @@
 
 Connects directly to the Saudi store and audits ALL content for:
   1. Remaining Spanish text → translates to English via OpenAI
-  2. Magento pagebuilder remnants → strips non-Shopify markup
+  2. HTML bloat → strips all unnecessary HTML (styles, scripts, data-*, junk attrs)
 
 Content checked:
   - body_html on products, collections, pages, articles
@@ -18,8 +18,8 @@ Usage:
     python review_content.py                            # Apply fixes
     python review_content.py --type pages               # Only audit pages
     python review_content.py --type metaobjects          # Only audit metaobjects
-    python review_content.py --skip-spanish              # Only strip Magento HTML
-    python review_content.py --skip-magento              # Only fix Spanish
+    python review_content.py --skip-spanish              # Only strip HTML bloat
+    python review_content.py --skip-html-cleanup         # Only fix Spanish
 """
 
 import argparse
@@ -94,20 +94,55 @@ TEXT_METAFIELD_TYPES = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Magento Pagebuilder Detection & Stripping
+# HTML Bloat Detection & Stripping
 # ─────────────────────────────────────────────────────────────────────────────
+# Strips ALL unnecessary HTML — Magento remnants, inline styles, data-*
+# attributes, <style>/<script> blocks, empty wrappers, redundant attributes.
+# Goal: clean, semantic HTML suitable for Shopify body_html fields.
 
-# Attributes that only appear in Magento PageBuilder HTML
-_MAGENTO_ATTRS = re.compile(
-    r'\s*(?:data-pb-style|data-content-type|data-appearance|data-element'
-    r'|data-enable-parallax|data-parallax-speed|data-background-images'
-    r'|data-background-type|data-video-loop|data-video-play-only-visible'
-    r'|data-video-lazy-load|data-video-fallback-src|data-grid-size'
-    r'|data-same-width|data-link-type|data-role|data-price-amount'
-    r'|data-price-type|data-price-box|data-product-id|data-product-sku'
-    r'|data-post|data-action|data-autoplay|data-autoplay-speed'
-    r'|data-infinite-loop|data-show-arrows|data-show-dots'
-    r'|data-carousel-mode|data-center-padding)="[^"]*"',
+# ALL <style> blocks (inline CSS has no place in Shopify body_html)
+_ALL_STYLE_RE = re.compile(
+    r'<style[^>]*>.*?</style>',
+    re.IGNORECASE | re.DOTALL,
+)
+
+# ALL <script> blocks
+_ALL_SCRIPT_RE = re.compile(
+    r'<script[^>]*>.*?</script>',
+    re.IGNORECASE | re.DOTALL,
+)
+
+# HTML comments
+_COMMENT_RE = re.compile(
+    r'<!--.*?-->',
+    re.DOTALL,
+)
+
+# ALL data-* attributes (Magento, analytics, JS framework leftovers)
+_DATA_ATTRS_RE = re.compile(
+    r'\s+data-[a-z][a-z0-9_-]*="[^"]*"',
+    re.IGNORECASE,
+)
+
+# Inline style attributes
+_STYLE_ATTR_RE = re.compile(
+    r'\s+style="[^"]*"',
+    re.IGNORECASE,
+)
+
+# Non-semantic attributes to remove (id, role, aria-* on non-interactive elements,
+# tabindex, onclick/onload handlers, etc.)
+_JUNK_ATTRS_RE = re.compile(
+    r'\s+(?:id|role|tabindex|aria-[a-z-]+|on[a-z]+|xmlns|xml:lang|lang|dir|itemscope'
+    r'|itemtype|itemprop|loading|decoding|fetchpriority|crossorigin|referrerpolicy'
+    r'|draggable|contenteditable|spellcheck|autocomplete|autofocus|translate'
+    r'|hidden|inert)="[^"]*"',
+    re.IGNORECASE,
+)
+
+# Boolean junk attributes (no value)
+_JUNK_BOOL_ATTRS_RE = re.compile(
+    r'\s+(?:hidden|inert|draggable|contenteditable|spellcheck|autofocus|translate)\b(?!=)',
     re.IGNORECASE,
 )
 
@@ -123,104 +158,141 @@ _MAGENTO_CLASSES = re.compile(
     re.IGNORECASE,
 )
 
-# <style> blocks targeting Magento pagebuilder selectors
-_MAGENTO_STYLE_RE = re.compile(
-    r'<style[^>]*>(?:[^<]|<(?!/style))*?data-pb-style(?:[^<]|<(?!/style))*?</style>',
-    re.IGNORECASE | re.DOTALL,
-)
-
-# Generic <style> blocks (often Magento inline styles for product containers)
-_INLINE_STYLE_RE = re.compile(
-    r'<style[^>]*>(?:[^<]|<(?!/style))*?\.product-image-container(?:[^<]|<(?!/style))*?</style>',
-    re.IGNORECASE | re.DOTALL,
-)
-
-# <script> blocks (Magento init scripts, inline JS)
-_SCRIPT_RE = re.compile(
-    r'<script[^>]*>(?:[^<]|<(?!/script))*?</script>',
-    re.IGNORECASE | re.DOTALL,
-)
-
 # Product carousel blocks (entire <ol class="product-items ..."> ... </ol>)
 _PRODUCT_CAROUSEL_RE = re.compile(
     r'<ol\s+class="product-items[^"]*"[^>]*>.*?</ol>',
     re.IGNORECASE | re.DOTALL,
 )
 
-# Full Magento product block wrappers
-_PRODUCT_BLOCK_RE = re.compile(
-    r'<div\s+class="[^"]*productsCarousel[^"]*"[^>]*>.*?</div>\s*(?=</div>|$)',
-    re.IGNORECASE | re.DOTALL,
+# Non-breaking spaces used as layout hacks
+_NBSP_LINES_RE = re.compile(r'(?:&nbsp;\s*){3,}')
+
+# Width/height attributes on non-img elements (layout bloat)
+_DIMENSION_ATTRS_RE = re.compile(
+    r'\s+(?:width|height)="[^"]*"',
+    re.IGNORECASE,
 )
 
 
-def has_magento_remnants(html):
-    """Check if HTML contains Magento pagebuilder markup."""
+def has_html_bloat(html):
+    """Check if HTML contains unnecessary bloat that should be stripped.
+
+    Detects: <style> blocks, <script> blocks, data-* attributes, inline style
+    attributes, Magento classes, HTML comments, junk attributes.
+    """
     if not html:
         return False
     return bool(
-        _MAGENTO_ATTRS.search(html)
+        _ALL_STYLE_RE.search(html)
+        or _ALL_SCRIPT_RE.search(html)
+        or _DATA_ATTRS_RE.search(html)
+        or _STYLE_ATTR_RE.search(html)
         or _MAGENTO_CLASSES.search(html)
-        or _MAGENTO_STYLE_RE.search(html)
-        or '<script type="text/x-magento-init">' in html
+        or _COMMENT_RE.search(html)
+        or _JUNK_ATTRS_RE.search(html)
     )
 
 
-def strip_magento_html(html):
-    """Strip Magento pagebuilder remnants from HTML, keeping visible content.
+def strip_html_bloat(html):
+    """Strip ALL unnecessary HTML, keeping only clean semantic content.
 
     Strategy:
-    1. Remove <style> blocks with data-pb-style selectors
+    1. Remove all <style> blocks
     2. Remove all <script> blocks
-    3. Remove product carousel blocks entirely
-    4. Remove Magento data-* attributes from remaining elements
-    5. Remove Magento-specific classes
-    6. Clean up empty wrappers and whitespace
+    3. Remove HTML comments
+    4. Remove product carousel / Magento widget blocks
+    5. Remove all data-* attributes
+    6. Remove all inline style attributes
+    7. Remove junk attributes (id, role, aria-*, event handlers, etc.)
+    8. Remove width/height on non-img elements
+    9. Clean up class attributes (remove Magento/framework classes)
+    10. Remove empty class/attributes left behind
+    11. Unwrap redundant wrapper elements (div/span with no attributes)
+    12. Remove empty tags
+    13. Clean up &nbsp; spam and normalize whitespace
     """
     if not html:
         return html
 
     result = html
 
-    # 1. Remove Magento <style> blocks
-    result = _MAGENTO_STYLE_RE.sub('', result)
-    result = _INLINE_STYLE_RE.sub('', result)
+    # 1. Remove ALL <style> blocks
+    result = _ALL_STYLE_RE.sub('', result)
 
     # 2. Remove ALL <script> blocks
-    result = _SCRIPT_RE.sub('', result)
+    result = _ALL_SCRIPT_RE.sub('', result)
 
-    # 3. Remove product carousel blocks
+    # 3. Remove HTML comments
+    result = _COMMENT_RE.sub('', result)
+
+    # 4. Remove product carousel / widget blocks
     result = _PRODUCT_CAROUSEL_RE.sub('', result)
 
-    # 4. Remove Magento data-* attributes
-    result = _MAGENTO_ATTRS.sub('', result)
+    # 5. Remove ALL data-* attributes
+    result = _DATA_ATTRS_RE.sub('', result)
 
-    # 5. Clean up Magento CSS classes from class attributes
+    # 6. Remove ALL inline style attributes
+    result = _STYLE_ATTR_RE.sub('', result)
+
+    # 7. Remove junk attributes
+    result = _JUNK_ATTRS_RE.sub('', result)
+    result = _JUNK_BOOL_ATTRS_RE.sub('', result)
+
+    # 8. Remove width/height on non-img elements
+    # (Keep them on <img> tags — they're useful for layout shift prevention)
+    def _strip_dimensions(m):
+        tag = m.group(0)
+        # Preserve width/height on <img> tags
+        if re.match(r'<img\b', tag, re.IGNORECASE):
+            return tag
+        return _DIMENSION_ATTRS_RE.sub('', tag)
+
+    result = re.sub(r'<[^>]+>', _strip_dimensions, result)
+
+    # 9. Clean up class attributes (remove Magento/framework-specific classes)
     def _clean_classes(m):
         classes = m.group(1)
-        # Remove Magento-specific classes
         cleaned = _MAGENTO_CLASSES.sub('', classes).strip()
-        # Normalize whitespace
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         if not cleaned:
             return ''
         return f'class="{cleaned}"'
 
-    result = re.compile(r'class="([^"]*)"').sub(_clean_classes, result)
+    result = re.sub(r'class="([^"]*)"', _clean_classes, result)
 
-    # 6. Remove empty tags left behind (empty divs, spans, figures, etc.)
-    # Repeat a few times to handle nested empty tags
+    # 10. Remove empty/useless attribute remnants
+    # Empty class=""
+    result = re.sub(r'\s+class=""', '', result)
+    # Trailing whitespace inside tags
+    result = re.sub(r'\s+>', '>', result)
+    # Multiple spaces inside tags
+    result = re.sub(r'(<[^>]*?)  +', r'\1 ', result)
+
+    # 11. Unwrap redundant wrapper elements (div/span with no attributes,
+    # containing content). Repeat to handle nesting.
     for _ in range(5):
         prev = result
-        # Remove empty tags (may contain only whitespace)
+        # Unwrap <div>content</div> → content (only if no attributes)
         result = re.sub(
-            r'<(div|span|figure|ol|ul|li|strong|a|form|button)\b[^>]*>\s*</\1>',
+            r'<(div|span)>\s*(.*?)\s*</\1>',
+            r'\2', result, flags=re.IGNORECASE | re.DOTALL,
+        )
+        if result == prev:
+            break
+
+    # 12. Remove empty tags (may contain only whitespace)
+    for _ in range(5):
+        prev = result
+        result = re.sub(
+            r'<(div|span|figure|ol|ul|li|strong|em|b|i|a|form|button|section'
+            r'|article|header|footer|nav|aside|p)\b[^>]*>\s*</\1>',
             '', result, flags=re.IGNORECASE | re.DOTALL,
         )
         if result == prev:
             break
 
-    # 7. Normalize whitespace
+    # 13. Clean up &nbsp; spam and normalize whitespace
+    result = _NBSP_LINES_RE.sub(' ', result)
     result = re.sub(r'\n{3,}', '\n\n', result)
     result = re.sub(r'  +', ' ', result)
     result = result.strip()
@@ -487,13 +559,13 @@ def fetch_all_resources(client):
 # Audit & Fix
 # ─────────────────────────────────────────────────────────────────────────────
 
-def audit_content(resources, skip_spanish=False, skip_magento=False):
-    """Audit all resources for Spanish content and Magento remnants.
+def audit_content(resources, skip_spanish=False, skip_html_cleanup=False):
+    """Audit all resources for Spanish content and HTML bloat.
 
     Checks:
-      - body_html for Magento remnants and Spanish text
+      - body_html for HTML bloat (styles, scripts, data-*, junk attrs) and Spanish text
       - title for Spanish text
-      - metafield values for Spanish text and Magento remnants (rich_text)
+      - metafield values for Spanish text and HTML bloat (rich_text)
       - metaobject text_fields for Spanish text
 
     Returns a list of findings: [{resource_type, item, issue, field, label}, ...]
@@ -509,11 +581,11 @@ def audit_content(resources, skip_spanish=False, skip_magento=False):
             # --- Check body_html ---
             body = item.get("body_html", "")
             if body:
-                if not skip_magento and has_magento_remnants(body):
+                if not skip_html_cleanup and has_html_bloat(body):
                     findings.append({
                         "resource_type": resource_type,
                         "item": item,
-                        "issue": "magento",
+                        "issue": "html_bloat",
                         "field": "body_html",
                         "label": f"{base_label} [body_html]",
                     })
@@ -546,11 +618,11 @@ def audit_content(resources, skip_spanish=False, skip_magento=False):
                 mf_type = mf.get("type", "")
                 text = _extract_text_for_check(mf_value, mf_type)
 
-                if not skip_magento and mf_type == "rich_text_field" and has_magento_remnants(mf_value):
+                if not skip_html_cleanup and mf_type == "rich_text_field" and has_html_bloat(mf_value):
                     findings.append({
                         "resource_type": resource_type,
                         "item": item,
-                        "issue": "magento",
+                        "issue": "html_bloat",
                         "field": f"metafield:{mf['key']}",
                         "label": f"{base_label} [{mf['key']}]",
                         "metafield": mf,
@@ -574,11 +646,11 @@ def audit_content(resources, skip_spanish=False, skip_magento=False):
                 tf_type = tf.get("type", "")
                 text = _extract_text_for_check(tf_value, tf_type)
 
-                if not skip_magento and tf_type == "rich_text_field" and has_magento_remnants(tf_value):
+                if not skip_html_cleanup and tf_type == "rich_text_field" and has_html_bloat(tf_value):
                     findings.append({
                         "resource_type": resource_type,
                         "item": item,
-                        "issue": "magento",
+                        "issue": "html_bloat",
                         "field": f"text_field:{tf['key']}",
                         "label": f"{base_label} [{tf['key']}]",
                         "text_field": tf,
@@ -597,11 +669,192 @@ def audit_content(resources, skip_spanish=False, skip_magento=False):
     return findings
 
 
-def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
+# ─────────────────────────────────────────────────────────────────────────────
+# AI Bloat Scanner — Sonnet 4.6 pattern learning
+# ─────────────────────────────────────────────────────────────────────────────
+
+_BLOAT_SCAN_PROMPT = """\
+Analyze this HTML content from a Shopify store. Identify ANY unnecessary HTML bloat that should be stripped, including but not limited to:
+
+- Inline style attributes (style="...")
+- data-* attributes from any framework (Magento, React, Vue, etc.)
+- <style> or <script> blocks
+- HTML comments
+- Empty wrapper elements (div/span with no semantic purpose)
+- Redundant class attributes from CSS frameworks or page builders
+- width/height attributes on non-img elements
+- Non-semantic attributes (id, role, tabindex, aria-* on non-interactive elements)
+- &nbsp; used for spacing/layout
+- Any other HTML that adds no value for Shopify content display
+
+For each bloat pattern found, report:
+1. PATTERN: A short name for the pattern
+2. EXAMPLE: The actual HTML snippet showing the bloat
+3. SUGGESTION: How it should be cleaned
+
+If the HTML is clean and has no bloat, respond with just: CLEAN
+
+HTML to analyze:
+"""
+
+_BLOAT_CLEAN_PROMPT = """\
+Clean this HTML for a Shopify store product/page body_html field.
+Strip ALL unnecessary bloat while preserving the visible content and semantic structure.
+
+REMOVE:
+- All <style> and <script> blocks
+- All HTML comments
+- All data-* attributes
+- All inline style attributes (style="...")
+- All id, role, tabindex, aria-*, onclick/on* attributes
+- All width/height attributes (except on <img> tags)
+- Empty wrapper elements (div, span with no content or purpose)
+- Redundant CSS class attributes from page builders or frameworks
+- &nbsp; used for spacing (replace with normal spaces)
+- Any non-semantic wrapper divs/spans
+
+PRESERVE:
+- All visible text content
+- Semantic HTML elements: <h1>-<h6>, <p>, <ul>, <ol>, <li>, <a>, <img>, <table>, <blockquote>
+- <img> src, alt, width, height attributes
+- <a> href attributes
+- Content structure and hierarchy
+
+Return ONLY the cleaned HTML. No explanations, no markdown code blocks.
+
+HTML to clean:
+"""
+
+
+def ai_clean_html(html, model="claude-sonnet-4-6"):
+    """Use Sonnet 4.6 to clean HTML, stripping all bloat while preserving content.
+
+    This is a fallback for HTML patterns our regex rules don't catch.
+    Returns cleaned HTML, or None on failure.
+    """
+    if not html or len(html) < 20:
+        return html
+
+    try:
+        client = _get_audit_client()
+        resp = client.messages.create(
+            model=model,
+            max_tokens=16384,
+            messages=[{"role": "user", "content": _BLOAT_CLEAN_PROMPT + html}],
+        )
+        cleaned = resp.content[0].text.strip()
+        # Strip markdown code block wrappers if the model added them
+        if cleaned.startswith("```html"):
+            cleaned = cleaned[7:]
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        return cleaned.strip()
+    except Exception as e:
+        print(f"    AI clean error: {e}")
+        return None
+
+
+def ai_scan_for_bloat(resources, debug_file="data/html_bloat_debug.jsonl",
+                      model="claude-sonnet-4-6"):
+    """Use Sonnet 4.6 to scan all body_html and rich_text fields for HTML bloat patterns.
+
+    Logs findings to a JSONL debug file for later analysis and pattern building.
+    This is a learning step — it finds bloat our regex rules might miss.
+    """
+    client = _get_audit_client()
+    scanned = 0
+    bloat_found = 0
+
+    # Ensure data directory exists
+    debug_dir = os.path.dirname(debug_file)
+    if debug_dir:
+        os.makedirs(debug_dir, exist_ok=True)
+
+    with open(debug_file, "w", encoding="utf-8") as fh:
+        for resource_type, items in resources.items():
+            for item in items:
+                handle = item.get("handle", item.get("id", "?"))
+                item_id = item.get("id", "?")
+
+                # Collect all HTML content from this resource
+                html_fields = {}
+
+                body = item.get("body_html", "")
+                if body and len(body) > 20:
+                    html_fields["body_html"] = body
+
+                # Rich text metafields
+                for mf in item.get("metafields", []):
+                    if mf.get("type") == "rich_text_field" and mf.get("value"):
+                        html_fields[f"metafield:{mf['key']}"] = mf["value"]
+
+                # Rich text metaobject fields
+                for tf in item.get("text_fields", []):
+                    if tf.get("type") == "rich_text_field" and tf.get("value"):
+                        html_fields[f"text_field:{tf['key']}"] = tf["value"]
+
+                if not html_fields:
+                    continue
+
+                for field_name, html_content in html_fields.items():
+                    scanned += 1
+                    # Truncate very long HTML to avoid token limits
+                    html_sample = html_content[:4000]
+
+                    try:
+                        resp = client.messages.create(
+                            model=model,
+                            max_tokens=1024,
+                            messages=[{"role": "user", "content": (
+                                _BLOAT_SCAN_PROMPT + html_sample
+                            )}],
+                        )
+                        answer = resp.content[0].text.strip()
+
+                        if answer.upper() != "CLEAN":
+                            bloat_found += 1
+                            # Also get Sonnet's cleaned version
+                            cleaned = ai_clean_html(html_content, model=model)
+                            # First strip with our regex rules for comparison
+                            regex_cleaned = strip_html_bloat(html_content)
+                            entry = {
+                                "resource_type": resource_type,
+                                "id": str(item_id),
+                                "handle": handle,
+                                "field": field_name,
+                                "html_length": len(html_content),
+                                "html_sample": html_content[:2000],
+                                "ai_analysis": answer,
+                                "regex_detected": has_html_bloat(html_content),
+                                "regex_cleaned_length": len(regex_cleaned),
+                                "ai_cleaned_length": len(cleaned) if cleaned else None,
+                                "ai_cleaned_sample": cleaned[:2000] if cleaned else None,
+                            }
+                            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                            print(f"  BLOAT: {resource_type}/{handle} [{field_name}] "
+                                  f"({len(html_content):,} → regex:{len(regex_cleaned):,} "
+                                  f"/ ai:{len(cleaned):,} chars)" if cleaned else
+                                  f"  BLOAT: {resource_type}/{handle} [{field_name}] "
+                                  f"({len(html_content):,} chars, AI clean failed)")
+
+                    except Exception as e:
+                        print(f"  Scan error for {resource_type}/{handle} [{field_name}]: {e}")
+
+    print(f"\nAI bloat scan complete: {scanned} fields scanned, "
+          f"{bloat_found} with bloat detected")
+    if bloat_found > 0:
+        print(f"Debug log: {debug_file}")
+
+    return debug_file
+
+
+def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=False):
     """Apply fixes for all findings.
 
     Handles body_html, titles, metafields, and metaobject fields.
-    Magento stripping is done locally (no AI needed).
+    HTML bloat stripping uses regex (default) or Sonnet 4.6 (--ai-clean).
     Spanish translation uses OpenAI.
     """
     if not findings:
@@ -638,13 +891,22 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
         if field == "body_html":
             body = item["body_html"]
 
-            if "magento" in issues:
+            if "html_bloat" in issues:
                 before_len = len(body)
-                body = strip_magento_html(body)
+                if ai_clean:
+                    cleaned = ai_clean_html(body)
+                    if cleaned:
+                        body = cleaned
+                    else:
+                        print(f"    AI clean failed, falling back to regex")
+                        body = strip_html_bloat(body)
+                else:
+                    body = strip_html_bloat(body)
                 after_len = len(body)
                 reduction = before_len - after_len
                 pct = (reduction / before_len * 100) if before_len else 0
-                print(f"    Stripped Magento: {before_len:,} -> {after_len:,} chars ({pct:.0f}% reduction)")
+                method = "AI" if ai_clean else "regex"
+                print(f"    Stripped HTML bloat ({method}): {before_len:,} -> {after_len:,} chars ({pct:.0f}% reduction)")
 
             if "spanish" in issues:
                 if has_spanish_content(body):
@@ -661,7 +923,7 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
                         failed += 1
                         continue
                 else:
-                    print(f"    Spanish was in Magento blocks (already stripped)")
+                    print(f"    Spanish was in stripped HTML blocks (already removed)")
 
             if dry_run:
                 visible = extract_visible_text(body)
@@ -745,9 +1007,14 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
             mf_type = mf.get("type", "")
             mf_key = mf.get("key", "")
 
-            if "magento" in issues and mf_type == "rich_text_field":
-                mf_value = strip_magento_html(mf_value)
-                print(f"    Stripped Magento from {mf_key}")
+            if "html_bloat" in issues and mf_type == "rich_text_field":
+                if ai_clean:
+                    cleaned = ai_clean_html(mf_value)
+                    mf_value = cleaned if cleaned else strip_html_bloat(mf_value)
+                else:
+                    mf_value = strip_html_bloat(mf_value)
+                method = "AI" if ai_clean else "regex"
+                print(f"    Stripped HTML bloat from {mf_key} ({method})")
 
             if "spanish" in issues:
                 text = _extract_text_for_check(mf_value, mf_type)
@@ -797,9 +1064,14 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
             tf_type = tf.get("type", "")
             tf_key = tf.get("key", "")
 
-            if "magento" in issues and tf_type == "rich_text_field":
-                tf_value = strip_magento_html(tf_value)
-                print(f"    Stripped Magento from {tf_key}")
+            if "html_bloat" in issues and tf_type == "rich_text_field":
+                if ai_clean:
+                    cleaned = ai_clean_html(tf_value)
+                    tf_value = cleaned if cleaned else strip_html_bloat(tf_value)
+                else:
+                    tf_value = strip_html_bloat(tf_value)
+                method = "AI" if ai_clean else "regex"
+                print(f"    Stripped HTML bloat from {tf_key} ({method})")
 
             if "spanish" in issues:
                 text = _extract_text_for_check(tf_value, tf_type)
@@ -858,13 +1130,19 @@ def main():
                         choices=["products", "collections", "pages", "articles", "metaobjects"],
                         help="Only audit a specific resource type")
     parser.add_argument("--skip-spanish", action="store_true",
-                        help="Skip Spanish detection (only strip Magento)")
-    parser.add_argument("--skip-magento", action="store_true",
-                        help="Skip Magento stripping (only fix Spanish)")
+                        help="Skip Spanish detection (only strip HTML bloat)")
+    parser.add_argument("--skip-html-cleanup", action="store_true",
+                        help="Skip HTML cleanup (only fix Spanish)")
     parser.add_argument("--model", default="gpt-5o-mini",
                         help="OpenAI model for Spanish->English translation (default: gpt-5o-mini)")
     parser.add_argument("--audit-model", default="claude-haiku-4-5-20251001",
                         help="Anthropic model for Spanish detection audit (default: claude-haiku-4-5-20251001)")
+    parser.add_argument("--ai-clean", action="store_true",
+                        help="Use Sonnet 4.6 to clean HTML (instead of regex-only stripping)")
+    parser.add_argument("--scan-bloat", action="store_true",
+                        help="Run AI bloat scan (Sonnet 4.6) and log patterns to debug file")
+    parser.add_argument("--scan-bloat-file", default="data/html_bloat_debug.jsonl",
+                        help="Debug file for AI bloat scan (default: data/html_bloat_debug.jsonl)")
     parser.add_argument("--save-report", metavar="FILE",
                         help="Save audit report to JSON file")
     args = parser.parse_args()
@@ -914,15 +1192,15 @@ def main():
 
     findings = audit_content(resources,
                              skip_spanish=args.skip_spanish,
-                             skip_magento=args.skip_magento)
+                             skip_html_cleanup=args.skip_html_cleanup)
 
     # Group for display
-    magento_findings = [f for f in findings if f["issue"] == "magento"]
+    bloat_findings = [f for f in findings if f["issue"] == "html_bloat"]
     spanish_findings = [f for f in findings if f["issue"] == "spanish"]
 
-    if magento_findings:
-        print(f"\nMagento pagebuilder remnants: {len(magento_findings)}")
-        for f in magento_findings:
+    if bloat_findings:
+        print(f"\nHTML bloat detected: {len(bloat_findings)}")
+        for f in bloat_findings:
             print(f"  - {f['label']}")
 
     if spanish_findings:
@@ -951,7 +1229,7 @@ def main():
         return
 
     print(f"\nTotal issues: {len(findings)} "
-          f"(Magento: {len(magento_findings)}, Spanish: {len(spanish_findings)})")
+          f"(HTML bloat: {len(bloat_findings)}, Spanish: {len(spanish_findings)})")
 
     # Save report if requested
     if args.save_report:
@@ -967,6 +1245,14 @@ def main():
             json.dump(report, fh, indent=2, ensure_ascii=False)
         print(f"\nReport saved to {args.save_report}")
 
+    # AI bloat scan (pattern learning step)
+    if args.scan_bloat:
+        print(f"\n{'='*60}")
+        print("AI BLOAT SCAN (Sonnet 4.6 — pattern learning)")
+        print("=" * 60)
+        debug_file = ai_scan_for_bloat(resources, debug_file=args.scan_bloat_file)
+        print(f"\nDone. Review {debug_file} and feed it back for pattern analysis.")
+
     if args.audit:
         return
 
@@ -975,7 +1261,8 @@ def main():
     print("APPLYING FIXES" + (" (DRY RUN)" if args.dry_run else ""))
     print("=" * 60)
 
-    apply_fixes(client, findings, dry_run=args.dry_run, model=args.model)
+    apply_fixes(client, findings, dry_run=args.dry_run, model=args.model,
+                ai_clean=args.ai_clean)
 
 
 if __name__ == "__main__":

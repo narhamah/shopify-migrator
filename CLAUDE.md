@@ -145,13 +145,17 @@ python fix_prices.py [--update-shopify]
 python fix_status.py
 python fix_images.py
 
-# Content review (strip Magento HTML, translate remaining Spanish)
-python review_content.py --audit                     # Report issues only (Haiku 4.5 detection)
-python review_content.py --dry-run                   # Show planned changes
-python review_content.py                             # Apply fixes (gpt-5o-mini translation)
-python review_content.py --type pages --skip-spanish # Strip Magento from pages only
-python review_content.py --audit-model MODEL         # Override audit model (default: claude-haiku-4-5-20251001)
-python review_content.py --model MODEL               # Override translation model (default: gpt-5o-mini)
+# Content review (strip HTML bloat, translate remaining Spanish)
+python review_content.py --audit                       # Report issues only (Haiku 4.5 detection)
+python review_content.py --dry-run                     # Show planned changes
+python review_content.py                               # Apply fixes (regex stripping + gpt-5o-mini translation)
+python review_content.py --ai-clean                    # Use Sonnet 4.6 to clean HTML (instead of regex)
+python review_content.py --ai-clean --dry-run          # Preview AI-cleaned HTML
+python review_content.py --scan-bloat                  # AI bloat scan: log patterns to data/html_bloat_debug.jsonl
+python review_content.py --type pages --skip-spanish   # Strip HTML bloat from pages only
+python review_content.py --skip-html-cleanup           # Only fix Spanish (no HTML stripping)
+python review_content.py --audit-model MODEL           # Override audit model (default: claude-haiku-4-5-20251001)
+python review_content.py --model MODEL                 # Override translation model (default: gpt-5o-mini)
 
 # Audit
 python compare_stores.py

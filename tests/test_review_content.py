@@ -1,10 +1,10 @@
-"""Tests for review_content — Magento stripping, Spanish detection, and full-coverage audit."""
+"""Tests for review_content — HTML bloat stripping, Spanish detection, and full-coverage audit."""
 
 import pytest
 
 from tara_migrate.tools.review_content import (
-    has_magento_remnants,
-    strip_magento_html,
+    has_html_bloat,
+    strip_html_bloat,
     has_spanish_content,
     has_spanish_text,
     extract_visible_text,
@@ -15,62 +15,62 @@ from tara_migrate.tools.review_content import (
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Magento Detection
+# HTML Bloat Detection
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestHasMagentoRemnants:
+class TestHasHtmlBloat:
     def test_clean_html(self):
-        assert not has_magento_remnants("<p>Hello world</p>")
+        assert not has_html_bloat("<p>Hello world</p>")
 
     def test_empty(self):
-        assert not has_magento_remnants("")
-        assert not has_magento_remnants(None)
+        assert not has_html_bloat("")
+        assert not has_html_bloat(None)
 
     def test_data_pb_style(self):
         html = '<div data-pb-style="ABC123">content</div>'
-        assert has_magento_remnants(html)
+        assert has_html_bloat(html)
 
     def test_data_content_type(self):
         html = '<div data-content-type="row" data-appearance="full-width">x</div>'
-        assert has_magento_remnants(html)
+        assert has_html_bloat(html)
 
     def test_pagebuilder_class(self):
         html = '<div class="pagebuilder-column">x</div>'
-        assert has_magento_remnants(html)
+        assert has_html_bloat(html)
 
     def test_product_carousel_class(self):
         html = '<div class="productsCarousel">x</div>'
-        assert has_magento_remnants(html)
+        assert has_html_bloat(html)
 
     def test_magento_init_script(self):
         html = '<script type="text/x-magento-init">{"foo":"bar"}</script>'
-        assert has_magento_remnants(html)
+        assert has_html_bloat(html)
 
     def test_product_item_class(self):
         html = '<div class="product-item-info">x</div>'
-        assert has_magento_remnants(html)
+        assert has_html_bloat(html)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Magento Stripping
+# HTML Bloat Stripping
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestStripMagentoHtml:
+class TestStripHtmlBloat:
     def test_clean_html_unchanged(self):
         html = "<p>Hello <strong>world</strong></p>"
-        assert strip_magento_html(html) == html
+        assert strip_html_bloat(html) == html
 
     def test_empty(self):
-        assert strip_magento_html("") == ""
-        assert strip_magento_html(None) is None
+        assert strip_html_bloat("") == ""
+        assert strip_html_bloat(None) is None
 
-    def test_removes_magento_style_blocks(self):
+    def test_removes_all_style_blocks(self):
         html = (
             '<style>#html-body [data-pb-style=ABC]{display:flex}</style>'
             '<p>Keep this</p>'
         )
-        result = strip_magento_html(html)
-        assert "data-pb-style" not in result
+        result = strip_html_bloat(html)
+        assert "<style" not in result
         assert "<p>Keep this</p>" in result
 
     def test_removes_script_blocks(self):
@@ -79,21 +79,21 @@ class TestStripMagentoHtml:
             '<script type="text/javascript">var x = 1;</script>'
             '<p>World</p>'
         )
-        result = strip_magento_html(html)
+        result = strip_html_bloat(html)
         assert "<script" not in result
         assert "<p>Hello</p>" in result
         assert "<p>World</p>" in result
 
-    def test_removes_magento_data_attributes(self):
+    def test_removes_all_data_attributes(self):
         html = '<div data-content-type="row" data-appearance="full-width" data-element="main"><p>Keep</p></div>'
-        result = strip_magento_html(html)
+        result = strip_html_bloat(html)
         assert "data-content-type" not in result
         assert "data-appearance" not in result
         assert "<p>Keep</p>" in result
 
-    def test_removes_magento_classes(self):
+    def test_removes_framework_classes(self):
         html = '<div class="pagebuilder-column myclass"><p>Keep</p></div>'
-        result = strip_magento_html(html)
+        result = strip_html_bloat(html)
         assert "pagebuilder-column" not in result
         # Custom class is preserved
         assert "myclass" in result
@@ -106,20 +106,41 @@ class TestStripMagentoHtml:
             '</ol>'
             '<p>Footer</p>'
         )
-        result = strip_magento_html(html)
+        result = strip_html_bloat(html)
         assert "product-items" not in result
         assert "<h2>Our Products</h2>" in result
         assert "<p>Footer</p>" in result
 
-    def test_removes_product_image_styles(self):
+    def test_removes_all_inline_styles(self):
         html = (
             '<p>Content</p>'
             '<style>.product-image-container-278 { width: 132px; }</style>'
             '<p>More</p>'
         )
-        result = strip_magento_html(html)
-        assert "product-image-container" not in result
+        result = strip_html_bloat(html)
+        assert "<style" not in result
         assert "<p>Content</p>" in result
+
+    def test_removes_style_attributes(self):
+        html = '<p style="color: red; font-size: 14px;">Hello</p>'
+        result = strip_html_bloat(html)
+        assert 'style=' not in result
+        assert "Hello" in result
+
+    def test_removes_html_comments(self):
+        html = '<p>Before</p><!-- old comment --><p>After</p>'
+        result = strip_html_bloat(html)
+        assert "<!--" not in result
+        assert "Before" in result
+        assert "After" in result
+
+    def test_removes_junk_attributes(self):
+        html = '<div id="main" role="presentation" tabindex="0"><p>Content</p></div>'
+        result = strip_html_bloat(html)
+        assert 'id=' not in result
+        assert 'role=' not in result
+        assert 'tabindex=' not in result
+        assert "Content" in result
 
     def test_preserves_semantic_html(self):
         """Headings, paragraphs, images should survive."""
@@ -130,14 +151,14 @@ class TestStripMagentoHtml:
             '<img src="https://example.com/img.jpg" alt="Hair">'
             '</div>'
         )
-        result = strip_magento_html(html)
+        result = strip_html_bloat(html)
         assert "<h3>Brush the Right Way</h3>" in result
         assert "Use a wide-tooth comb" in result
         assert '<img src="https://example.com/img.jpg"' in result
 
     def test_significant_size_reduction(self):
-        """Magento HTML is typically 10-100x larger than visible content."""
-        # Simulate a typical Magento pagebuilder block
+        """Bloated HTML is typically 10-100x larger than visible content."""
+        # Simulate a typical bloated block
         magento_html = (
             '<style>#html-body [data-pb-style=X]{display:flex}</style>'
             '<div data-content-type="row" data-appearance="full-width" '
@@ -152,7 +173,7 @@ class TestStripMagentoHtml:
             '</div></div></div>'
             '<script type="text/x-magento-init">{"foo":"bar"}</script>'
         )
-        result = strip_magento_html(magento_html)
+        result = strip_html_bloat(magento_html)
         assert len(result) < len(magento_html)
         assert "Healthy Hair" in result
         assert "Discover our formulas" in result
@@ -168,7 +189,7 @@ class TestStripMagentoHtml:
             '<p>Brushing thin hair can be frustrating.</p>'
             '</div></div></div></div>'
         )
-        result = strip_magento_html(html)
+        result = strip_html_bloat(html)
         assert "Brushing thin hair can be frustrating" in result
         # Magento classes should be gone
         assert "post-blogPostContent" not in result
@@ -302,7 +323,7 @@ class TestAuditContent:
         findings = audit_content(resources)
         assert len(findings) == 0
 
-    def test_finds_magento(self):
+    def test_finds_html_bloat(self):
         resources = {
             "pages": [{"id": 1, "handle": "test", "title": "Test",
                        "body_html": '<div data-pb-style="X">content</div>', "type": "page",
@@ -310,7 +331,7 @@ class TestAuditContent:
         }
         findings = audit_content(resources)
         assert len(findings) == 1
-        assert findings[0]["issue"] == "magento"
+        assert findings[0]["issue"] == "html_bloat"
         assert findings[0]["field"] == "body_html"
 
     def test_finds_spanish(self):
@@ -333,13 +354,13 @@ class TestAuditContent:
         findings = audit_content(resources, skip_spanish=True)
         assert len(findings) == 0
 
-    def test_skip_magento_flag(self):
+    def test_skip_html_cleanup_flag(self):
         resources = {
             "pages": [{"id": 1, "handle": "test", "title": "Test",
                        "body_html": '<div data-pb-style="X">content</div>', "type": "page",
                        "metafields": []}]
         }
-        findings = audit_content(resources, skip_magento=True)
+        findings = audit_content(resources, skip_html_cleanup=True)
         assert len(findings) == 0
 
     def test_both_issues(self):
@@ -351,7 +372,8 @@ class TestAuditContent:
         findings = audit_content(resources)
         assert len(findings) == 2
         issues = {f["issue"] for f in findings}
-        assert issues == {"magento", "spanish"}
+        assert "html_bloat" in issues
+        assert "spanish" in issues
 
     def test_empty_body(self):
         resources = {
@@ -417,7 +439,7 @@ class TestAuditContent:
         findings = audit_content(resources)
         assert len(findings) == 0
 
-    def test_finds_magento_in_rich_text_metafield(self):
+    def test_finds_html_bloat_in_rich_text_metafield(self):
         resources = {
             "products": [{"id": 1, "handle": "test", "title": "Test",
                           "body_html": "", "type": "product",
@@ -430,7 +452,7 @@ class TestAuditContent:
         }
         findings = audit_content(resources)
         assert len(findings) == 1
-        assert findings[0]["issue"] == "magento"
+        assert findings[0]["issue"] == "html_bloat"
         assert findings[0]["field"] == "metafield:custom.key_benefits_content"
 
     # ── Metaobject audit ──
@@ -474,7 +496,7 @@ class TestAuditContent:
     # ── Combined: multiple field types with issues ──
 
     def test_multiple_issues_across_fields(self):
-        """A product with Spanish title, Magento body, and Spanish metafield."""
+        """A product with Spanish title, bloated body, and Spanish metafield."""
         resources = {
             "products": [{"id": 1, "handle": "test",
                           "title": "Champ fortalecedor con extracto de romero",
