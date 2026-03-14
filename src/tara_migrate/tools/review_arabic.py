@@ -53,7 +53,7 @@ from tara_migrate.core.language import (
 from tara_migrate.core.rich_text import extract_text, is_rich_text_json
 from tara_migrate.core.shopify_fields import TRANSLATABLE_RESOURCE_TYPES
 from tara_migrate.tools.patch_spanish import is_spanish
-from tara_migrate.tools.review_content import has_html_bloat, strip_html_bloat
+from tara_migrate.tools.review_content import has_html_bloat, strip_html_bloat, _ai_is_spanish
 from tara_migrate.translation.engine import TranslationEngine, load_developer_prompt
 
 LOCALE = "ar"
@@ -205,7 +205,7 @@ def _has_spanish_in_arabic(text):
     return is_spanish(latin_text)
 
 
-def classify_fields(fields):
+def classify_fields(fields, audit_model="claude-haiku-4-5-20251001"):
     """Classify all fields with basic checks + enhanced Arabic quality checks.
 
     Basic checks (from audit_translations.classify_translation):
@@ -247,14 +247,17 @@ def classify_fields(fields):
 
         # Check 0: Is the English SOURCE actually Spanish?
         # This means review_content.py didn't clean it — flag separately.
+        # Use AI detection (same as review_content.py) to avoid false positives
+        # on product names and ingredient terms that contain Spanish words.
         if english and status != "MISSING":
             en_text = _extract_checkable_text(english)
-            if en_text and len(en_text) >= 15 and is_spanish(en_text):
-                status = "SOURCE_SPANISH"
-                detail = "English source is actually Spanish — run review_content.py first"
-                stats["source_spanish"] += 1
-                results.append({**field, "status": status, "detail": detail})
-                continue
+            if en_text and len(en_text) >= 15:
+                if _ai_is_spanish(en_text, model=audit_model):
+                    status = "SOURCE_SPANISH"
+                    detail = "English source is actually Spanish — run review_content.py first"
+                    stats["source_spanish"] += 1
+                    results.append({**field, "status": status, "detail": detail})
+                    continue
 
         # Enhanced checks for fields that passed basic classification
         if status == "OK":
@@ -431,7 +434,7 @@ def run_audit(client, resource_types, haiku_client, haiku_model, skip_semantic=F
     print(f"\n{'=' * 60}")
     print("CLASSIFICATION")
     print("=" * 60)
-    classified, stats = classify_fields(all_fields)
+    classified, stats = classify_fields(all_fields, audit_model=haiku_model)
 
     # Print stats
     for key, val in stats.items():
