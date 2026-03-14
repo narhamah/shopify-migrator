@@ -29,6 +29,7 @@ import re
 import sys
 import time
 
+import anthropic
 from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
@@ -38,6 +39,52 @@ from tara_migrate.translation.translator import (
     METAOBJECT_TRANSLATABLE_FIELDS,
     PRODUCT_TRANSLATABLE_METAFIELDS,
 )
+
+# Global audit model client (lazy-initialized)
+_audit_client = None
+_audit_model = None
+
+
+def _get_audit_client():
+    """Lazy-initialize the Anthropic client for audit."""
+    global _audit_client
+    if _audit_client is None:
+        _audit_client = anthropic.Anthropic()
+    return _audit_client
+
+
+def _ai_is_spanish(text, model="claude-haiku-4-5-20251001"):
+    """Use Claude to detect if text contains Spanish content.
+
+    Returns True if the text contains Spanish that should be translated.
+    Falls back to regex detection if the API call fails.
+    """
+    if not text or len(text) < 10:
+        return False
+
+    # Quick regex pre-filter: skip text that's clearly not Spanish
+    # (pure ASCII with no Spanish markers at all)
+    if not is_spanish(text) and not re.search(r'[áéíóúñü¿¡]', text, re.IGNORECASE):
+        return False
+
+    try:
+        client = _get_audit_client()
+        resp = client.messages.create(
+            model=model,
+            max_tokens=10,
+            messages=[{"role": "user", "content": (
+                "Is the following text in Spanish (or does it contain Spanish that "
+                "should be translated to English)? Ignore brand names like TARA, "
+                "Kansa Wand, Gua Sha, and INCI/scientific names.\n"
+                "Reply ONLY with YES or NO.\n\n"
+                f"{text[:2000]}"
+            )}],
+        )
+        answer = resp.content[0].text.strip().upper()
+        return answer.startswith("YES")
+    except Exception as e:
+        print(f"    Audit model error, falling back to regex: {e}")
+        return is_spanish(text)
 
 # Metafield types that contain translatable text
 TEXT_METAFIELD_TYPES = {
@@ -231,17 +278,21 @@ def extract_text_from_rich_text_json(value):
 
 
 def has_spanish_text(text):
-    """Check if plain text contains Spanish."""
+    """Check if plain text contains Spanish using AI audit model."""
     if not text or len(text) < 10:
         return False
+    if _audit_model:
+        return _ai_is_spanish(text, model=_audit_model)
     return is_spanish(text)
 
 
 def has_spanish_content(html):
-    """Check if HTML body contains Spanish text."""
+    """Check if HTML body contains Spanish text using AI audit model."""
     visible = extract_visible_text(html)
     if not visible or len(visible) < 10:
         return False
+    if _audit_model:
+        return _ai_is_spanish(visible, model=_audit_model)
     return is_spanish(visible)
 
 
@@ -810,8 +861,10 @@ def main():
                         help="Skip Spanish detection (only strip Magento)")
     parser.add_argument("--skip-magento", action="store_true",
                         help="Skip Magento stripping (only fix Spanish)")
-    parser.add_argument("--model", default="gpt-4o-mini",
-                        help="OpenAI model for Spanish->English translation (default: gpt-4o-mini)")
+    parser.add_argument("--model", default="gpt-5o-mini",
+                        help="OpenAI model for Spanish->English translation (default: gpt-5o-mini)")
+    parser.add_argument("--audit-model", default="claude-haiku-4-5-20251001",
+                        help="Anthropic model for Spanish detection audit (default: claude-haiku-4-5-20251001)")
     parser.add_argument("--save-report", metavar="FILE",
                         help="Save audit report to JSON file")
     args = parser.parse_args()
@@ -823,10 +876,16 @@ def main():
         print("ERROR: Set SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN in .env")
         sys.exit(1)
 
+    # Set audit model globally so has_spanish_text/has_spanish_content use it
+    global _audit_model
+    _audit_model = args.audit_model
+
     client = ShopifyClient(shop_url, access_token)
 
     print("=" * 60)
     print("CONTENT REVIEWER — Saudi Store (Full Coverage)")
+    print(f"  Audit model:       {args.audit_model}")
+    print(f"  Translation model: {args.model}")
     print("=" * 60)
 
     # Fetch resources

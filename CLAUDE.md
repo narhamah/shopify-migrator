@@ -62,6 +62,7 @@ SPAIN_ACCESS_TOKEN=shpat_xxx
 SAUDI_SHOP_URL=xxx.myshopify.com
 SAUDI_ACCESS_TOKEN=shpat_xxx
 OPENAI_API_KEY=sk-xxx
+ANTHROPIC_API_KEY=sk-ant-xxx
 ```
 
 ## Data Pipeline
@@ -145,10 +146,12 @@ python fix_status.py
 python fix_images.py
 
 # Content review (strip Magento HTML, translate remaining Spanish)
-python review_content.py --audit                     # Report issues only
+python review_content.py --audit                     # Report issues only (Haiku 4.5 detection)
 python review_content.py --dry-run                   # Show planned changes
-python review_content.py                             # Apply fixes
+python review_content.py                             # Apply fixes (gpt-5o-mini translation)
 python review_content.py --type pages --skip-spanish # Strip Magento from pages only
+python review_content.py --audit-model MODEL         # Override audit model (default: claude-haiku-4-5-20251001)
+python review_content.py --model MODEL               # Override translation model (default: gpt-5o-mini)
 
 # Audit
 python compare_stores.py
