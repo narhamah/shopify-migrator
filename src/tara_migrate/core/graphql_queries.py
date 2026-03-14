@@ -185,7 +185,11 @@ def upload_translations(client, gid, translations_input):
 
     Returns (uploaded_count, error_count).
     """
-    MAX_PER_REQUEST = 50
+    # OnlineStoreTheme resources have a stricter per-mutation key limit
+    if "OnlineStoreTheme" in gid:
+        MAX_PER_REQUEST = 20
+    else:
+        MAX_PER_REQUEST = 50
     total_uploaded = 0
     total_errors = 0
 
