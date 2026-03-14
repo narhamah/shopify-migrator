@@ -33,6 +33,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
+from tara_migrate.core.rich_text import extract_text_nodes, rebuild, is_rich_text_json
 from tara_migrate.tools.patch_spanish import is_spanish
 from tara_migrate.translation.translator import (
     ARTICLE_TRANSLATABLE_METAFIELDS,
@@ -563,6 +564,25 @@ def translate_plain_text(text, client_openai, model="gpt-4o-mini"):
         return result.strip()
     except Exception as e:
         print(f"    Translation error: {e}")
+        return None
+
+
+def _translate_rich_text_json(json_str, client_openai, model="gpt-4o-mini"):
+    """Translate text nodes inside rich_text JSON, preserving the JSON structure."""
+    try:
+        texts, parsed = extract_text_nodes(json_str)
+        if not texts:
+            return json_str
+        translations = {}
+        for path, text_value in texts:
+            translated = translate_plain_text(text_value, client_openai, model=model)
+            if translated:
+                translations[tuple(path)] = translated
+            else:
+                translations[tuple(path)] = text_value  # keep original on failure
+        return rebuild(parsed, translations)
+    except Exception as e:
+        print(f"    Rich text translation error: {e}")
         return None
 
 
@@ -1175,7 +1195,9 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                         import openai
                         openai_client = openai.OpenAI()
                     print(f"    Translating {mf_key}...")
-                    if mf_type == "rich_text_field":
+                    if mf_type == "rich_text_field" and is_rich_text_json(mf_value):
+                        translated = _translate_rich_text_json(mf_value, openai_client, model=model)
+                    elif mf_type == "rich_text_field":
                         translated = translate_spanish_to_english(mf_value, openai_client, model=model)
                     else:
                         translated = translate_plain_text(mf_value, openai_client, model=model)
@@ -1232,7 +1254,9 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                         import openai
                         openai_client = openai.OpenAI()
                     print(f"    Translating {tf_key}...")
-                    if tf_type == "rich_text_field":
+                    if tf_type == "rich_text_field" and is_rich_text_json(tf_value):
+                        translated = _translate_rich_text_json(tf_value, openai_client, model=model)
+                    elif tf_type == "rich_text_field":
                         translated = translate_spanish_to_english(tf_value, openai_client, model=model)
                     else:
                         translated = translate_plain_text(tf_value, openai_client, model=model)
