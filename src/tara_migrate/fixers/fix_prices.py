@@ -212,6 +212,55 @@ def update_shopify_products(prices):
     print(f"\nUpdated {updated} Shopify variant prices")
 
 
+# Manual SAR prices for products not in Magento's sa-en store view.
+# These are from the official TARA pricing spreadsheet.
+# handle → SAR retail price (tax inclusive)
+MANUAL_SAR_PRICES = {
+    "age-well-system": 469,
+    "hair-density-system": 469,
+    "hair-stimulation-system": 469,
+    "nurture-shampoo": 129,
+    "nurture-system": 379,
+    "revitalizing-shampoo": 149,
+    "scalp-hair-revival-system": 469,
+    # TODO: add when prices are confirmed
+    # "argan-oil": ???,
+    # "deep-cleansing-clay-mask": ???,
+    # "nourishing-dry-oil": ???,
+}
+
+
+def update_shopify_by_handle(manual_prices):
+    """Update Shopify product prices by handle for products not in Magento."""
+    from tara_migrate.client import ShopifyClient
+
+    shop_url = os.environ.get("SAUDI_SHOP_URL")
+    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    if not shop_url or not access_token:
+        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        return 0
+
+    client = ShopifyClient(shop_url, access_token)
+    updated = 0
+
+    for handle, price in manual_prices.items():
+        try:
+            products = client._get_json(f"products.json?handle={handle}")[0].get("products", [])
+            if not products:
+                print(f"  {handle}: not found on Shopify — skipping")
+                continue
+            product = products[0]
+            for v in product.get("variants", []):
+                client._request("PUT", f"variants/{v['id']}.json",
+                                json={"variant": {"price": str(price)}})
+                print(f"  {product['title'][:40]}: → {price} SAR (variant {v['id']})")
+                updated += 1
+        except Exception as e:
+            print(f"  Error updating {handle}: {e}")
+
+    return updated
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(description="Fetch SAR prices and update products")
@@ -225,7 +274,7 @@ def main():
                         help=f"Delay between requests (default: {REQUEST_DELAY})")
     args = parser.parse_args()
 
-    # 1. Fetch SAR prices
+    # 1. Fetch SAR prices from Magento
     prices = fetch_sar_prices(args.site, args.store, args.delay)
 
     if not prices:
@@ -248,8 +297,14 @@ def main():
 
     # 3. Optionally update Shopify
     if args.update_shopify:
-        print("\nUpdating Shopify products...")
+        print("\nUpdating Shopify products (from Magento)...")
         update_shopify_products(prices)
+
+        # Also update products with manual prices (not in Magento sa-en)
+        if MANUAL_SAR_PRICES:
+            print(f"\nUpdating {len(MANUAL_SAR_PRICES)} products with manual SAR prices...")
+            manual_updated = update_shopify_by_handle(MANUAL_SAR_PRICES)
+            print(f"Updated {manual_updated} manual-price variants")
 
     print("\nDone!")
 
