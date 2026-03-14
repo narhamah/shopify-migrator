@@ -540,28 +540,12 @@ def run_fix(client, engine, problems, locale=LOCALE, dry_run=False):
         print("\nNo problems to fix!")
         return 0, 0, 0
 
-    # Separate theme problems that are MISSING (likely blocked by Shopify's
-    # ~3,400 translation key limit per locale per theme) from those that
-    # already have a translation and can be updated.
-    theme_missing = [p for p in problems
-                     if p["resource_type"] == "ONLINE_STORE_THEME"
-                     and p["status"] == "MISSING"]
-    fixable = [p for p in problems
-               if not (p["resource_type"] == "ONLINE_STORE_THEME"
-                       and p["status"] == "MISSING")]
-
-    bloat_only = [p for p in fixable if p["status"] in _STRIP_ONLY]
-    retranslate = [p for p in fixable if p["status"] in _RETRANSLATE]
+    bloat_only = [p for p in problems if p["status"] in _STRIP_ONLY]
+    retranslate = [p for p in problems if p["status"] in _RETRANSLATE]
 
     print(f"\n{'=' * 60}")
     print(f"FIX PHASE" + (" (DRY RUN)" if dry_run else ""))
     print("=" * 60)
-    if theme_missing:
-        print(f"  Theme MISSING (skipped): {len(theme_missing)}")
-        print(f"    → Shopify limits themes to ~3,400 translation keys per locale.")
-        print(f"      Your theme has 4,485 translatable fields — over the cap.")
-        print(f"      MISSING keys can't be registered; remove unused sections/")
-        print(f"      templates to free up slots, or manage via locales/ar.json.")
     print(f"  HTML bloat strip only: {len(bloat_only)}")
     print(f"  Re-translate EN→AR:   {len(retranslate)}")
 
