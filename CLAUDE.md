@@ -200,6 +200,12 @@ python audit_site.py --url https://sa.taraformula.com/ar/products/some-product
 # Translation fixers
 python fix_translations.py --audit audit_fix.json --locale ar
 
+# Theme translation key audit (Shopify ~3,400 key limit per locale)
+python audit_theme_keys.py                           # Audit only — show breakdown
+python audit_theme_keys.py --remove-junk             # Remove unnecessary translations
+python audit_theme_keys.py --dry-run                 # Preview what would be removed
+python audit_theme_keys.py --dump data/theme_keys.json  # Dump all keys to JSON
+
 # Unified verify-and-fix (audit -> fix -> verify in one pass)
 python verify_fix_translations.py                           # full pipeline
 python verify_fix_translations.py --audit-only              # audit only, no changes
