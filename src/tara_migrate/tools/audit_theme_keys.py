@@ -62,6 +62,20 @@ def classify_key(key, value):
     """
     val = (value or "").strip()
 
+    # ── SYSTEM: Shopify-managed strings (auto-translated by Shopify) ────
+    # These are built-in checkout, customer account, and system strings.
+    # Shopify provides its own translations for these when Arabic is enabled
+    # as a locale — registering custom translations wastes key slots.
+    _SYSTEM_PREFIXES = (
+        "shopify.checkout.",       # Checkout flow strings
+        "shopify.sentence.",       # Sentence connectors
+        "customer_accounts.",      # Customer account pages
+        "content.",                # Content system strings
+        "sections.global.",        # Theme setting labels (not storefront-visible)
+    )
+    if any(key.startswith(p) for p in _SYSTEM_PREFIXES):
+        return "system", "Shopify auto-translated system string"
+
     # ── JUNK: Empty or whitespace-only ──────────────────────────────────
     if not val:
         return "junk", "empty value"
@@ -215,7 +229,7 @@ def fetch_theme_keys(client, locale=LOCALE):
 
 def analyze_keys(fields):
     """Categorize every field and return analysis."""
-    categories = {"useful": [], "junk": [], "review": []}
+    categories = {"useful": [], "system": [], "junk": [], "review": []}
     reason_counts = Counter()
 
     for f in fields:
@@ -289,26 +303,44 @@ def print_analysis(categories, reason_counts, fields):
     print(f"\n{'─' * 70}")
     print(f"CLASSIFICATION")
     print(f"{'─' * 70}")
-    for cat in ["useful", "junk", "review"]:
+    for cat in ["useful", "system", "junk", "review"]:
         items = categories[cat]
         with_t = sum(1 for f in items if f["has_translation"])
         print(f"  {cat.upper():>8}: {len(items):>5} fields "
               f"({with_t} with existing Arabic translations)")
 
-    useful_count = len(categories["useful"])
-    junk_count = len(categories["junk"])
-    print(f"\n  After removing junk: ~{useful_count + len(categories['review'])} fields remain")
-    if useful_count + len(categories["review"]) <= 3400:
+    removable = len(categories["system"]) + len(categories["junk"])
+    remaining = len(categories["useful"]) + len(categories["review"])
+    print(f"\n  Removable (system + junk): {removable}")
+    print(f"  Remaining after cleanup:  {remaining}")
+    if remaining <= 3400:
         print(f"  --> UNDER the 3,400 limit! Removal should unblock translations.")
     else:
-        over = useful_count + len(categories["review"]) - 3400
-        print(f"  --> Still {over} over the limit. May need to review more keys.")
+        over = remaining - 3400
+        print(f"  --> Still {over} over the limit.")
 
     print(f"\n{'─' * 70}")
     print(f"BREAKDOWN BY REASON")
     print(f"{'─' * 70}")
     for reason, count in reason_counts.most_common():
         print(f"  {count:>5}  {reason}")
+
+    # Show system keys breakdown
+    system = categories["system"]
+    if system:
+        sys_with_t = sum(1 for f in system if f["has_translation"])
+        # Group by key prefix (first 2 dotted segments)
+        by_prefix = defaultdict(int)
+        for f in system:
+            parts = f["key"].split(".")
+            prefix = ".".join(parts[:2]) if len(parts) >= 2 else parts[0]
+            by_prefix[prefix] += 1
+        print(f"\n{'─' * 70}")
+        print(f"SYSTEM KEYS ({len(system)} total, {sys_with_t} with translations)")
+        print(f"  These are auto-translated by Shopify — safe to remove.")
+        print(f"{'─' * 70}")
+        for prefix, count in sorted(by_prefix.items(), key=lambda x: -x[1]):
+            print(f"  {count:>5}  {prefix}.*")
 
     # Show junk keys that HAVE translations (removal candidates)
     junk_with_trans = [f for f in categories["junk"] if f["has_translation"]]
@@ -392,37 +424,41 @@ def main():
             json.dump(fields, f, indent=2, ensure_ascii=False)
         print(f"\nDumped {len(fields)} keys to {args.dump}")
 
-    # Remove junk translations if requested
+    # Remove junk + system translations if requested
     if args.remove_junk or args.dry_run:
-        to_remove = list(categories["junk"])
+        to_remove = list(categories["system"]) + list(categories["junk"])
         if args.include_review:
             to_remove.extend(categories["review"])
 
         removable = [f for f in to_remove if f["has_translation"]]
         if not removable:
-            print("\nNo junk translations to remove (none have Arabic translations).")
+            print("\nNo removable translations found (none have Arabic translations).")
             return
 
         action = "Would remove" if args.dry_run else "Removing"
+        sys_count = sum(1 for f in removable if f["category"] == "system")
+        junk_count = sum(1 for f in removable if f["category"] == "junk")
         print(f"\n{'=' * 70}")
-        print(f"{action} {len(removable)} junk Arabic translations")
+        print(f"{action} {len(removable)} Arabic translations")
+        print(f"  System (Shopify auto-translated): {sys_count}")
+        print(f"  Junk (non-translatable values):   {junk_count}")
         print(f"{'=' * 70}")
 
         removed, errors = remove_translations(
             client, removable, dry_run=args.dry_run
         )
 
+        remaining = len(fields) - len(to_remove)
         print(f"\n  Removed:     {removed}")
         if errors:
             print(f"  Errors:      {errors}")
         print(f"  Total keys:  {len(fields)}")
-        print(f"  Junk keys:   {len(to_remove)} (not all had translations)")
-        remaining_useful = len(fields) - len(to_remove)
-        print(f"  Useful keys: {remaining_useful}")
-        if remaining_useful <= 3400:
+        print(f"  Removable:   {len(to_remove)} (system + junk)")
+        print(f"  Remaining:   {remaining}")
+        if remaining <= 3400:
             print(f"  --> Under the 3,400 limit! Theme translations should work now.")
         else:
-            print(f"  --> Still {remaining_useful - 3400} over the limit.")
+            print(f"  --> Still {remaining - 3400} over the limit.")
 
 
 if __name__ == "__main__":
