@@ -50,6 +50,34 @@ class TestHasHtmlBloat:
         html = '<div class="product-item-info">x</div>'
         assert has_html_bloat(html)
 
+    def test_event_handlers(self):
+        html = '<div onclick="alert(1)">x</div>'
+        assert has_html_bloat(html)
+
+    # ── Legitimate Shopify HTML should NOT be flagged ──
+
+    def test_inline_style_not_flagged(self):
+        """Inline styles could be intentional formatting."""
+        html = '<p style="color: red;">Hello</p>'
+        assert not has_html_bloat(html)
+
+    def test_html_comments_not_flagged(self):
+        html = '<p>Hello</p><!-- section marker --><p>World</p>'
+        assert not has_html_bloat(html)
+
+    def test_id_aria_not_flagged(self):
+        html = '<div id="faq" role="region" aria-label="FAQ"><p>Content</p></div>'
+        assert not has_html_bloat(html)
+
+    def test_generic_data_attrs_not_flagged(self):
+        """Generic data-* attributes from Shopify apps should not be flagged."""
+        html = '<div data-section-id="123"><p>Content</p></div>'
+        assert not has_html_bloat(html)
+
+    def test_non_magento_style_block_not_flagged(self):
+        html = '<style>.custom { color: red; }</style><p>Content</p>'
+        assert not has_html_bloat(html)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HTML Bloat Stripping
@@ -64,7 +92,7 @@ class TestStripHtmlBloat:
         assert strip_html_bloat("") == ""
         assert strip_html_bloat(None) is None
 
-    def test_removes_all_style_blocks(self):
+    def test_removes_magento_style_blocks(self):
         html = (
             '<style>#html-body [data-pb-style=ABC]{display:flex}</style>'
             '<p>Keep this</p>'
@@ -72,6 +100,15 @@ class TestStripHtmlBloat:
         result = strip_html_bloat(html)
         assert "<style" not in result
         assert "<p>Keep this</p>" in result
+
+    def test_preserves_non_magento_style_blocks(self):
+        """Non-Magento <style> blocks could be intentional — preserve them."""
+        html = (
+            '<style>.custom-layout { display: grid; }</style>'
+            '<p>Content</p>'
+        )
+        result = strip_html_bloat(html)
+        assert "<style" in result
 
     def test_removes_script_blocks(self):
         html = (
@@ -84,14 +121,21 @@ class TestStripHtmlBloat:
         assert "<p>Hello</p>" in result
         assert "<p>World</p>" in result
 
-    def test_removes_all_data_attributes(self):
+    def test_removes_magento_data_attributes(self):
         html = '<div data-content-type="row" data-appearance="full-width" data-element="main"><p>Keep</p></div>'
         result = strip_html_bloat(html)
         assert "data-content-type" not in result
         assert "data-appearance" not in result
         assert "<p>Keep</p>" in result
 
-    def test_removes_framework_classes(self):
+    def test_preserves_generic_data_attributes(self):
+        """Generic data-* attributes could be from Shopify apps — preserve them."""
+        html = '<div data-section-id="123" data-shopify="true"><p>Content</p></div>'
+        result = strip_html_bloat(html)
+        assert 'data-section-id' in result
+        assert 'data-shopify' in result
+
+    def test_removes_magento_classes(self):
         html = '<div class="pagebuilder-column myclass"><p>Keep</p></div>'
         result = strip_html_bloat(html)
         assert "pagebuilder-column" not in result
@@ -111,35 +155,44 @@ class TestStripHtmlBloat:
         assert "<h2>Our Products</h2>" in result
         assert "<p>Footer</p>" in result
 
-    def test_removes_all_inline_styles(self):
+    def test_removes_magento_product_image_styles(self):
         html = (
             '<p>Content</p>'
             '<style>.product-image-container-278 { width: 132px; }</style>'
             '<p>More</p>'
         )
         result = strip_html_bloat(html)
-        assert "<style" not in result
+        assert "product-image-container" not in result
         assert "<p>Content</p>" in result
 
-    def test_removes_style_attributes(self):
+    def test_preserves_inline_style_attributes(self):
+        """Inline style attributes could be intentional merchant formatting."""
         html = '<p style="color: red; font-size: 14px;">Hello</p>'
         result = strip_html_bloat(html)
-        assert 'style=' not in result
+        assert 'style=' in result
         assert "Hello" in result
 
-    def test_removes_html_comments(self):
-        html = '<p>Before</p><!-- old comment --><p>After</p>'
+    def test_preserves_html_comments(self):
+        """HTML comments could be Shopify section markers — preserve them."""
+        html = '<p>Before</p><!-- section --><p>After</p>'
         result = strip_html_bloat(html)
-        assert "<!--" not in result
         assert "Before" in result
         assert "After" in result
 
-    def test_removes_junk_attributes(self):
-        html = '<div id="main" role="presentation" tabindex="0"><p>Content</p></div>'
+    def test_preserves_id_role_aria_attributes(self):
+        """id, role, aria-* are legitimate for accessibility and anchors."""
+        html = '<div id="faq" role="region" aria-label="FAQ"><p>Content</p></div>'
         result = strip_html_bloat(html)
-        assert 'id=' not in result
-        assert 'role=' not in result
-        assert 'tabindex=' not in result
+        assert 'id="faq"' in result
+        assert 'role="region"' in result
+        assert 'aria-label="FAQ"' in result
+
+    def test_removes_event_handlers(self):
+        """Event handlers are a security risk — always strip."""
+        html = '<div onclick="alert(1)" onload="init()"><p>Content</p></div>'
+        result = strip_html_bloat(html)
+        assert 'onclick=' not in result
+        assert 'onload=' not in result
         assert "Content" in result
 
     def test_preserves_semantic_html(self):

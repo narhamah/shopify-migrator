@@ -96,53 +96,60 @@ TEXT_METAFIELD_TYPES = {
 # ─────────────────────────────────────────────────────────────────────────────
 # HTML Bloat Detection & Stripping
 # ─────────────────────────────────────────────────────────────────────────────
-# Strips ALL unnecessary HTML — Magento remnants, inline styles, data-*
-# attributes, <style>/<script> blocks, empty wrappers, redundant attributes.
-# Goal: clean, semantic HTML suitable for Shopify body_html fields.
+# Conservative approach: only strip what we're CERTAIN is foreign bloat.
+# Shopify body_html can legitimately use inline styles, classes, ids, and
+# aria-* attributes for display and accessibility. We only remove patterns
+# that are definitively from Magento/external platforms.
+#
+# SAFE to strip (never used by Shopify themes in body_html):
+#   - <script> blocks (Shopify sanitizes these out anyway)
+#   - Magento data-* attributes (data-pb-style, data-content-type, etc.)
+#   - Magento CSS classes (pagebuilder-*, product-item-*, etc.)
+#   - Magento product carousel/widget blocks
+#   - <style> blocks with Magento selectors
+#   - Event handler attributes (onclick, onload, etc.)
+#
+# PRESERVED (could be intentional):
+#   - Inline style="..." attributes (merchants use for alignment, colors)
+#   - Generic class="..." attributes (theme CSS may target these)
+#   - id="..." attributes (could be anchor link targets)
+#   - role, aria-* attributes (accessibility)
+#   - width/height on any element
+#   - <style> blocks without Magento selectors (could be intentional)
+#   - HTML comments (could be Shopify section markers)
 
-# ALL <style> blocks (inline CSS has no place in Shopify body_html)
-_ALL_STYLE_RE = re.compile(
-    r'<style[^>]*>.*?</style>',
-    re.IGNORECASE | re.DOTALL,
-)
-
-# ALL <script> blocks
-_ALL_SCRIPT_RE = re.compile(
+# <script> blocks — Shopify strips these from body_html anyway
+_SCRIPT_RE = re.compile(
     r'<script[^>]*>.*?</script>',
     re.IGNORECASE | re.DOTALL,
 )
 
-# HTML comments
-_COMMENT_RE = re.compile(
-    r'<!--.*?-->',
-    re.DOTALL,
+# <style> blocks with Magento pagebuilder selectors (definitely foreign)
+_MAGENTO_STYLE_RE = re.compile(
+    r'<style[^>]*>(?:[^<]|<(?!/style))*?'
+    r'(?:data-pb-style|\.pagebuilder-|\.product-image-container|\.price-)'
+    r'(?:[^<]|<(?!/style))*?</style>',
+    re.IGNORECASE | re.DOTALL,
 )
 
-# ALL data-* attributes (Magento, analytics, JS framework leftovers)
-_DATA_ATTRS_RE = re.compile(
-    r'\s+data-[a-z][a-z0-9_-]*="[^"]*"',
+# Magento-specific data-* attributes (NOT generic data-* which could be from
+# Shopify apps or theme JS)
+_MAGENTO_DATA_ATTRS_RE = re.compile(
+    r'\s*(?:data-pb-style|data-content-type|data-appearance|data-element'
+    r'|data-enable-parallax|data-parallax-speed|data-background-images'
+    r'|data-background-type|data-video-loop|data-video-play-only-visible'
+    r'|data-video-lazy-load|data-video-fallback-src|data-grid-size'
+    r'|data-same-width|data-link-type|data-role|data-price-amount'
+    r'|data-price-type|data-price-box|data-product-id|data-product-sku'
+    r'|data-post|data-action|data-autoplay|data-autoplay-speed'
+    r'|data-infinite-loop|data-show-arrows|data-show-dots'
+    r'|data-carousel-mode|data-center-padding)="[^"]*"',
     re.IGNORECASE,
 )
 
-# Inline style attributes
-_STYLE_ATTR_RE = re.compile(
-    r'\s+style="[^"]*"',
-    re.IGNORECASE,
-)
-
-# Non-semantic attributes to remove (id, role, aria-* on non-interactive elements,
-# tabindex, onclick/onload handlers, etc.)
-_JUNK_ATTRS_RE = re.compile(
-    r'\s+(?:id|role|tabindex|aria-[a-z-]+|on[a-z]+|xmlns|xml:lang|lang|dir|itemscope'
-    r'|itemtype|itemprop|loading|decoding|fetchpriority|crossorigin|referrerpolicy'
-    r'|draggable|contenteditable|spellcheck|autocomplete|autofocus|translate'
-    r'|hidden|inert)="[^"]*"',
-    re.IGNORECASE,
-)
-
-# Boolean junk attributes (no value)
-_JUNK_BOOL_ATTRS_RE = re.compile(
-    r'\s+(?:hidden|inert|draggable|contenteditable|spellcheck|autofocus|translate)\b(?!=)',
+# Event handler attributes (onclick, onload, etc.) — security risk, never needed
+_EVENT_HANDLER_RE = re.compile(
+    r'\s+on[a-z]+="[^"]*"',
     re.IGNORECASE,
 )
 
@@ -164,92 +171,68 @@ _PRODUCT_CAROUSEL_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# Non-breaking spaces used as layout hacks
+# Non-breaking spaces used as layout hacks (3+ in a row)
 _NBSP_LINES_RE = re.compile(r'(?:&nbsp;\s*){3,}')
-
-# Width/height attributes on non-img elements (layout bloat)
-_DIMENSION_ATTRS_RE = re.compile(
-    r'\s+(?:width|height)="[^"]*"',
-    re.IGNORECASE,
-)
 
 
 def has_html_bloat(html):
-    """Check if HTML contains unnecessary bloat that should be stripped.
+    """Check if HTML contains bloat that should be stripped.
 
-    Detects: <style> blocks, <script> blocks, data-* attributes, inline style
-    attributes, Magento classes, HTML comments, junk attributes.
+    Conservative: only flags patterns we're certain are foreign (Magento,
+    event handlers, etc.). Does NOT flag legitimate Shopify HTML like
+    inline styles, generic classes, ids, or aria-* attributes.
     """
     if not html:
         return False
     return bool(
-        _ALL_STYLE_RE.search(html)
-        or _ALL_SCRIPT_RE.search(html)
-        or _DATA_ATTRS_RE.search(html)
-        or _STYLE_ATTR_RE.search(html)
+        _SCRIPT_RE.search(html)
+        or _MAGENTO_STYLE_RE.search(html)
+        or _MAGENTO_DATA_ATTRS_RE.search(html)
         or _MAGENTO_CLASSES.search(html)
-        or _COMMENT_RE.search(html)
-        or _JUNK_ATTRS_RE.search(html)
+        or _EVENT_HANDLER_RE.search(html)
     )
 
 
 def strip_html_bloat(html):
-    """Strip ALL unnecessary HTML, keeping only clean semantic content.
+    """Strip foreign HTML bloat, preserving legitimate Shopify content.
 
-    Strategy:
-    1. Remove all <style> blocks
-    2. Remove all <script> blocks
-    3. Remove HTML comments
-    4. Remove product carousel / Magento widget blocks
-    5. Remove all data-* attributes
-    6. Remove all inline style attributes
-    7. Remove junk attributes (id, role, aria-*, event handlers, etc.)
-    8. Remove width/height on non-img elements
-    9. Clean up class attributes (remove Magento/framework classes)
-    10. Remove empty class/attributes left behind
-    11. Unwrap redundant wrapper elements (div/span with no attributes)
-    12. Remove empty tags
-    13. Clean up &nbsp; spam and normalize whitespace
+    Only removes patterns we're CERTAIN are not needed for Shopify display:
+    1. <script> blocks (Shopify sanitizes these anyway)
+    2. <style> blocks with Magento selectors
+    3. Product carousel / Magento widget blocks
+    4. Magento-specific data-* attributes
+    5. Event handler attributes (onclick, onload — security risk)
+    6. Magento CSS classes from class attributes
+    7. Empty tags left behind after stripping
+    8. Excessive &nbsp; runs
+
+    PRESERVED (could be needed for display):
+    - Inline style attributes, generic data-* attributes
+    - Generic classes, ids, aria-*, role attributes
+    - width/height on any element, HTML comments
+    - <style> blocks without Magento selectors
     """
     if not html:
         return html
 
     result = html
 
-    # 1. Remove ALL <style> blocks
-    result = _ALL_STYLE_RE.sub('', result)
+    # 1. Remove <script> blocks (Shopify sanitizes these anyway)
+    result = _SCRIPT_RE.sub('', result)
 
-    # 2. Remove ALL <script> blocks
-    result = _ALL_SCRIPT_RE.sub('', result)
+    # 2. Remove <style> blocks with Magento selectors only
+    result = _MAGENTO_STYLE_RE.sub('', result)
 
-    # 3. Remove HTML comments
-    result = _COMMENT_RE.sub('', result)
-
-    # 4. Remove product carousel / widget blocks
+    # 3. Remove product carousel / widget blocks
     result = _PRODUCT_CAROUSEL_RE.sub('', result)
 
-    # 5. Remove ALL data-* attributes
-    result = _DATA_ATTRS_RE.sub('', result)
+    # 4. Remove Magento-specific data-* attributes only
+    result = _MAGENTO_DATA_ATTRS_RE.sub('', result)
 
-    # 6. Remove ALL inline style attributes
-    result = _STYLE_ATTR_RE.sub('', result)
+    # 5. Remove event handler attributes (onclick, onload, etc.)
+    result = _EVENT_HANDLER_RE.sub('', result)
 
-    # 7. Remove junk attributes
-    result = _JUNK_ATTRS_RE.sub('', result)
-    result = _JUNK_BOOL_ATTRS_RE.sub('', result)
-
-    # 8. Remove width/height on non-img elements
-    # (Keep them on <img> tags — they're useful for layout shift prevention)
-    def _strip_dimensions(m):
-        tag = m.group(0)
-        # Preserve width/height on <img> tags
-        if re.match(r'<img\b', tag, re.IGNORECASE):
-            return tag
-        return _DIMENSION_ATTRS_RE.sub('', tag)
-
-    result = re.sub(r'<[^>]+>', _strip_dimensions, result)
-
-    # 9. Clean up class attributes (remove Magento/framework-specific classes)
+    # 6. Clean up Magento CSS classes from class attributes
     def _clean_classes(m):
         classes = m.group(1)
         cleaned = _MAGENTO_CLASSES.sub('', classes).strip()
@@ -260,38 +243,22 @@ def strip_html_bloat(html):
 
     result = re.sub(r'class="([^"]*)"', _clean_classes, result)
 
-    # 10. Remove empty/useless attribute remnants
-    # Empty class=""
+    # 7. Remove empty/useless attribute remnants
     result = re.sub(r'\s+class=""', '', result)
-    # Trailing whitespace inside tags
     result = re.sub(r'\s+>', '>', result)
-    # Multiple spaces inside tags
     result = re.sub(r'(<[^>]*?)  +', r'\1 ', result)
 
-    # 11. Unwrap redundant wrapper elements (div/span with no attributes,
-    # containing content). Repeat to handle nesting.
-    for _ in range(5):
-        prev = result
-        # Unwrap <div>content</div> → content (only if no attributes)
-        result = re.sub(
-            r'<(div|span)>\s*(.*?)\s*</\1>',
-            r'\2', result, flags=re.IGNORECASE | re.DOTALL,
-        )
-        if result == prev:
-            break
-
-    # 12. Remove empty tags (may contain only whitespace)
+    # 8. Remove empty tags left behind (may contain only whitespace)
     for _ in range(5):
         prev = result
         result = re.sub(
-            r'<(div|span|figure|ol|ul|li|strong|em|b|i|a|form|button|section'
-            r'|article|header|footer|nav|aside|p)\b[^>]*>\s*</\1>',
+            r'<(div|span|figure|ol|ul|li|strong|em|b|i|a|form|button)\b[^>]*>\s*</\1>',
             '', result, flags=re.IGNORECASE | re.DOTALL,
         )
         if result == prev:
             break
 
-    # 13. Clean up &nbsp; spam and normalize whitespace
+    # 9. Clean up &nbsp; spam and normalize whitespace
     result = _NBSP_LINES_RE.sub(' ', result)
     result = re.sub(r'\n{3,}', '\n\n', result)
     result = re.sub(r'  +', ' ', result)
