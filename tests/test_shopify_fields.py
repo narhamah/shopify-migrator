@@ -146,6 +146,16 @@ class TestIsSkippableFieldThemePatterns:
         assert is_skippable_field("settings.social_youtube")
 
 
+    def test_handle(self):
+        """Resource handles are URL slugs, not translatable text."""
+        assert is_skippable_field("handle")
+
+    def test_handle_in_key_name_not_skipped(self):
+        """Keys containing 'handle' as substring should not be skipped."""
+        assert not is_skippable_field("sections.hero.settings.handle_text")
+        assert not is_skippable_field("custom.handle_prefix")
+
+
 class TestIsSkippableFieldTranslatableMustNotSkip:
     """Fields that contain translatable content must NOT be skipped."""
 

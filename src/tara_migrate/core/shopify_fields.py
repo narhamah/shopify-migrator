@@ -25,6 +25,7 @@ SKIP_FIELD_PATTERNS = [
     r"social_facebook$", r"social_twitter$", r"social_pinterest$",
     r"social_instagram$", r"social_tiktok$", r"social_tumblr$",
     r"social_snapchat$", r"social_youtube$",  # social handles (not URLs, just usernames)
+    r"^handle$",  # resource handles are URL slugs, not translatable text
 ]
 
 # Metafield types that contain translatable text

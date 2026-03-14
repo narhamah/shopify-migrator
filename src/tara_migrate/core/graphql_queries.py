@@ -184,6 +184,8 @@ def upload_translations(client, gid, translations_input):
     """Upload translations one key at a time to isolate errors.
 
     Returns (uploaded_count, error_count).
+    Aborts early if Shopify returns a resource-level limit error
+    ("Too many translation keys") to avoid wasting API calls.
     """
     total_uploaded = 0
     total_errors = 0
@@ -197,7 +199,17 @@ def upload_translations(client, gid, translations_input):
             user_errors = result.get("translationsRegister", {}).get("userErrors", [])
             if user_errors:
                 for ue in user_errors:
-                    print(f"    ERROR {gid}: {ue['field']}: {ue['message']}")
+                    msg = ue["message"]
+                    print(f"    ERROR {gid}: {ue['field']}: {msg}")
+                    # Abort early on resource-level limits — every subsequent
+                    # call will fail with the same error
+                    if "Too many translation keys" in msg:
+                        remaining = len(translations_input) - total_uploaded - total_errors - 1
+                        if remaining > 0:
+                            print(f"    Aborting {remaining} remaining fields for {gid} "
+                                  f"(resource limit reached)")
+                        total_errors += remaining + 1
+                        return total_uploaded, total_errors
                 total_errors += 1
             else:
                 total_uploaded += 1

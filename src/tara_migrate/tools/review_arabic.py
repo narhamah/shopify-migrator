@@ -540,12 +540,27 @@ def run_fix(client, engine, problems, locale=LOCALE, dry_run=False):
         print("\nNo problems to fix!")
         return 0, 0, 0
 
-    bloat_only = [p for p in problems if p["status"] in _STRIP_ONLY]
-    retranslate = [p for p in problems if p["status"] in _RETRANSLATE]
+    # Separate theme problems — they can't be fixed via translationsRegister
+    # (Shopify enforces a per-resource cap on registered translation keys for
+    # themes; locale files in the theme's locales/ directory are the correct
+    # mechanism for theme translations).
+    theme_problems = [p for p in problems
+                      if p["resource_type"] == "ONLINE_STORE_THEME"]
+    fixable = [p for p in problems
+               if p["resource_type"] != "ONLINE_STORE_THEME"]
+
+    bloat_only = [p for p in fixable if p["status"] in _STRIP_ONLY]
+    retranslate = [p for p in fixable if p["status"] in _RETRANSLATE]
 
     print(f"\n{'=' * 60}")
     print(f"FIX PHASE" + (" (DRY RUN)" if dry_run else ""))
     print("=" * 60)
+    if theme_problems:
+        print(f"  Theme fields (skipped): {len(theme_problems)}")
+        print(f"    → Theme translations must be managed via locale files "
+              f"(locales/ar.json),")
+        print(f"      not the Translations API (Shopify enforces a per-resource "
+              f"key limit).")
     print(f"  HTML bloat strip only: {len(bloat_only)}")
     print(f"  Re-translate EN→AR:   {len(retranslate)}")
 
