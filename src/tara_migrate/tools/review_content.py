@@ -511,7 +511,13 @@ def translate_spanish_to_english(html, client_openai, model="gpt-4o-mini"):
             max_tokens=16384,
             temperature=0.2,
         )
-        return resp.choices[0].message.content.strip()
+        result = resp.choices[0].message.content.strip()
+        # Strip markdown code block wrappers if the model added them
+        if result.startswith("```"):
+            result = re.sub(r"^```\w*\n?", "", result)
+        if result.endswith("```"):
+            result = result[:-3]
+        return result.strip()
     except Exception as e:
         print(f"    Translation error: {e}")
         return None
@@ -546,7 +552,13 @@ def translate_plain_text(text, client_openai, model="gpt-4o-mini"):
             max_tokens=4096,
             temperature=0.2,
         )
-        return resp.choices[0].message.content.strip()
+        result = resp.choices[0].message.content.strip()
+        # Strip markdown code block wrappers if the model added them
+        if result.startswith("```"):
+            result = re.sub(r"^```\w*\n?", "", result)
+        if result.endswith("```"):
+            result = result[:-3]
+        return result.strip()
     except Exception as e:
         print(f"    Translation error: {e}")
         return None
