@@ -615,13 +615,16 @@ def _extract_text_for_check(value, mf_type):
     return value
 
 
-_SEO_QUERY = """\
-query($first: Int!, $after: String) {
-  products(first: $first, after: $after) {
+_SEO_TRANSLATABLE_QUERY = """\
+query($resourceType: TranslatableResourceType!, $first: Int!, $after: String) {
+  translatableResources(resourceType: $resourceType, first: $first, after: $after) {
     edges {
       node {
-        id
-        seo { title description }
+        resourceId
+        translatableContent {
+          key
+          value
+        }
       }
     }
     pageInfo { hasNextPage endCursor }
@@ -629,32 +632,40 @@ query($first: Int!, $after: String) {
 }
 """
 
+# SEO field keys in Shopify's Translations API
+_SEO_KEYS = {"meta_title", "meta_description"}
+
 
 def _fetch_product_seo_fields(client):
-    """Fetch SEO title/description for all products via GraphQL.
+    """Fetch SEO title/description for all products via the Translations API.
+
+    The REST metafields endpoint and GraphQL seo{} field do NOT reliably
+    return global.title_tag/description_tag. The Translations API is the
+    only reliable source for these values.
 
     Returns dict of {numeric_product_id: {title_tag: str, description_tag: str}}.
-    The global.title_tag and global.description_tag metafields are NOT returned
-    by the REST metafields endpoint, so we must use GraphQL to read them.
     """
     seo_map = {}
     cursor = None
     while True:
-        data = client._graphql(_SEO_QUERY, {"first": 50, "after": cursor})
-        products = data.get("products", {})
-        for edge in products.get("edges", []):
+        data = client._graphql(_SEO_TRANSLATABLE_QUERY, {
+            "resourceType": "PRODUCT",
+            "first": 50,
+            "after": cursor,
+        })
+        container = data.get("translatableResources", {})
+        for edge in container.get("edges", []):
             node = edge["node"]
-            gid = node["id"]  # gid://shopify/Product/12345
+            gid = node["resourceId"]  # gid://shopify/Product/12345
             numeric_id = int(gid.split("/")[-1])
-            seo = node.get("seo") or {}
-            title = seo.get("title") or ""
-            desc = seo.get("description") or ""
-            if title or desc:
-                seo_map[numeric_id] = {
-                    "title_tag": title,
-                    "description_tag": desc,
-                }
-        page_info = products.get("pageInfo", {})
+            for field in node.get("translatableContent", []):
+                key = field["key"]
+                value = field.get("value") or ""
+                if key == "meta_title" and value:
+                    seo_map.setdefault(numeric_id, {})["title_tag"] = value
+                elif key == "meta_description" and value:
+                    seo_map.setdefault(numeric_id, {})["description_tag"] = value
+        page_info = container.get("pageInfo", {})
         if not page_info.get("hasNextPage"):
             break
         cursor = page_info.get("endCursor")
