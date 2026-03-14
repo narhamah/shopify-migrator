@@ -1,4 +1,4 @@
-"""Tests for review_content — Magento stripping and Spanish detection."""
+"""Tests for review_content — Magento stripping, Spanish detection, and full-coverage audit."""
 
 import pytest
 
@@ -6,8 +6,11 @@ from tara_migrate.tools.review_content import (
     has_magento_remnants,
     strip_magento_html,
     has_spanish_content,
+    has_spanish_text,
     extract_visible_text,
+    extract_text_from_rich_text_json,
     audit_content,
+    _extract_text_for_check,
 )
 
 
@@ -183,18 +186,18 @@ class TestHasSpanishContent:
 
     def test_spanish_content(self):
         assert has_spanish_content(
-            "<p>Detén la caída desde la raíz. Cebolla + Péptidos.</p>"
+            "<p>Detn la cada desde la raz. Cebolla + Pptidos.</p>"
         )
 
     def test_spanish_domain_words(self):
         assert has_spanish_content(
-            "<p>Champú fortalecedor con extracto de romero para el cuero cabelludo.</p>"
+            "<p>Champ fortalecedor con extracto de romero para el cuero cabelludo.</p>"
         )
 
     def test_mixed_spanish_english(self):
         # Spanish function words in otherwise English context
         assert has_spanish_content(
-            "<p>Sérum para el cuero cabelludo con péptidos avanzados.</p>"
+            "<p>Srum para el cuero cabelludo con pptidos avanzados.</p>"
         )
 
     def test_empty(self):
@@ -209,6 +212,21 @@ class TestHasSpanishContent:
         html = '<img alt="imagen" src="https://example.com/img.jpg">'
         # Very short visible text, should not trigger
         assert not has_spanish_content(html)
+
+
+class TestHasSpanishText:
+    def test_plain_english(self):
+        assert not has_spanish_text("Stop hair loss at the root")
+
+    def test_plain_spanish(self):
+        assert has_spanish_text("Champ fortalecedor con extracto de romero")
+
+    def test_short_text(self):
+        assert not has_spanish_text("OK")
+
+    def test_empty(self):
+        assert not has_spanish_text("")
+        assert not has_spanish_text(None)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -235,14 +253,51 @@ class TestExtractVisibleText:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Audit
+# Rich Text JSON Extraction
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestExtractTextFromRichTextJson:
+    def test_simple_rich_text(self):
+        rt = '{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","value":"Hello world"}]}]}'
+        assert "Hello world" in extract_text_from_rich_text_json(rt)
+
+    def test_empty(self):
+        assert extract_text_from_rich_text_json("") == ""
+        assert extract_text_from_rich_text_json(None) == ""
+
+    def test_plain_string_fallback(self):
+        assert extract_text_from_rich_text_json("not json") == "not json"
+
+    def test_nested_children(self):
+        rt = '{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","value":"First"},{"type":"text","value":"Second"}]}]}'
+        result = extract_text_from_rich_text_json(rt)
+        assert "First" in result
+        assert "Second" in result
+
+
+class TestExtractTextForCheck:
+    def test_plain_text(self):
+        assert _extract_text_for_check("Hello", "single_line_text_field") == "Hello"
+
+    def test_rich_text(self):
+        rt = '{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","value":"Content"}]}]}'
+        result = _extract_text_for_check(rt, "rich_text_field")
+        assert "Content" in result
+
+    def test_empty(self):
+        assert _extract_text_for_check("", "single_line_text_field") == ""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Audit — Full Coverage
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestAuditContent:
     def test_clean_content(self):
         resources = {
             "products": [{"id": 1, "handle": "test", "title": "Test",
-                          "body_html": "<p>Clean English content</p>", "type": "product"}]
+                          "body_html": "<p>Clean English content</p>", "type": "product",
+                          "metafields": []}]
         }
         findings = audit_content(resources)
         assert len(findings) == 0
@@ -250,27 +305,30 @@ class TestAuditContent:
     def test_finds_magento(self):
         resources = {
             "pages": [{"id": 1, "handle": "test", "title": "Test",
-                       "body_html": '<div data-pb-style="X">content</div>', "type": "page"}]
+                       "body_html": '<div data-pb-style="X">content</div>', "type": "page",
+                       "metafields": []}]
         }
         findings = audit_content(resources)
         assert len(findings) == 1
         assert findings[0]["issue"] == "magento"
+        assert findings[0]["field"] == "body_html"
 
     def test_finds_spanish(self):
         resources = {
             "articles": [{"id": 1, "handle": "test", "title": "Test",
-                          "body_html": "<p>Champú fortalecedor con extracto de romero para el cuero cabelludo.</p>",
-                          "type": "article"}]
+                          "body_html": "<p>Champ fortalecedor con extracto de romero para el cuero cabelludo.</p>",
+                          "type": "article", "metafields": []}]
         }
         findings = audit_content(resources)
         assert len(findings) == 1
         assert findings[0]["issue"] == "spanish"
+        assert findings[0]["field"] == "body_html"
 
     def test_skip_spanish_flag(self):
         resources = {
             "articles": [{"id": 1, "handle": "test", "title": "Test",
-                          "body_html": "<p>Champú fortalecedor con extracto de romero.</p>",
-                          "type": "article"}]
+                          "body_html": "<p>Champ fortalecedor con extracto de romero.</p>",
+                          "type": "article", "metafields": []}]
         }
         findings = audit_content(resources, skip_spanish=True)
         assert len(findings) == 0
@@ -278,7 +336,8 @@ class TestAuditContent:
     def test_skip_magento_flag(self):
         resources = {
             "pages": [{"id": 1, "handle": "test", "title": "Test",
-                       "body_html": '<div data-pb-style="X">content</div>', "type": "page"}]
+                       "body_html": '<div data-pb-style="X">content</div>', "type": "page",
+                       "metafields": []}]
         }
         findings = audit_content(resources, skip_magento=True)
         assert len(findings) == 0
@@ -286,8 +345,8 @@ class TestAuditContent:
     def test_both_issues(self):
         resources = {
             "pages": [{"id": 1, "handle": "test", "title": "Test",
-                       "body_html": '<div data-pb-style="X">Champú fortalecedor para el cuero cabelludo</div>',
-                       "type": "page"}]
+                       "body_html": '<div data-pb-style="X">Champ fortalecedor para el cuero cabelludo</div>',
+                       "type": "page", "metafields": []}]
         }
         findings = audit_content(resources)
         assert len(findings) == 2
@@ -297,7 +356,140 @@ class TestAuditContent:
     def test_empty_body(self):
         resources = {
             "products": [{"id": 1, "handle": "test", "title": "Test",
-                          "body_html": "", "type": "product"}]
+                          "body_html": "", "type": "product", "metafields": []}]
         }
         findings = audit_content(resources)
         assert len(findings) == 0
+
+    # ── Title audit ──
+
+    def test_finds_spanish_title(self):
+        resources = {
+            "products": [{"id": 1, "handle": "test",
+                          "title": "Champ fortalecedor con extracto de romero",
+                          "body_html": "<p>English body</p>", "type": "product",
+                          "metafields": []}]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 1
+        assert findings[0]["issue"] == "spanish"
+        assert findings[0]["field"] == "title"
+
+    def test_english_title_clean(self):
+        resources = {
+            "products": [{"id": 1, "handle": "test",
+                          "title": "Strengthening Shampoo",
+                          "body_html": "", "type": "product",
+                          "metafields": []}]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 0
+
+    # ── Metafield audit ──
+
+    def test_finds_spanish_in_metafield(self):
+        resources = {
+            "products": [{"id": 1, "handle": "test", "title": "Test",
+                          "body_html": "", "type": "product",
+                          "metafields": [{
+                              "id": 100, "key": "custom.tagline",
+                              "value": "Fortalece tu cuero cabelludo desde la raiz",
+                              "type": "single_line_text_field",
+                              "namespace": "custom", "bare_key": "tagline",
+                          }]}]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 1
+        assert findings[0]["issue"] == "spanish"
+        assert findings[0]["field"] == "metafield:custom.tagline"
+
+    def test_clean_metafield(self):
+        resources = {
+            "products": [{"id": 1, "handle": "test", "title": "Test",
+                          "body_html": "", "type": "product",
+                          "metafields": [{
+                              "id": 100, "key": "custom.tagline",
+                              "value": "Strengthen your scalp from the root",
+                              "type": "single_line_text_field",
+                              "namespace": "custom", "bare_key": "tagline",
+                          }]}]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 0
+
+    def test_finds_magento_in_rich_text_metafield(self):
+        resources = {
+            "products": [{"id": 1, "handle": "test", "title": "Test",
+                          "body_html": "", "type": "product",
+                          "metafields": [{
+                              "id": 100, "key": "custom.key_benefits_content",
+                              "value": '<div data-pb-style="X">Benefits here</div>',
+                              "type": "rich_text_field",
+                              "namespace": "custom", "bare_key": "key_benefits_content",
+                          }]}]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 1
+        assert findings[0]["issue"] == "magento"
+        assert findings[0]["field"] == "metafield:custom.key_benefits_content"
+
+    # ── Metaobject audit ──
+
+    def test_finds_spanish_in_metaobject_field(self):
+        resources = {
+            "metaobjects": [{
+                "id": "gid://shopify/Metaobject/123", "handle": "benefit-1",
+                "title": "benefit-1", "type": "metaobject",
+                "metaobject_type": "benefit",
+                "body_html": "", "metafields": [],
+                "text_fields": [{
+                    "key": "title",
+                    "value": "Fortalece tu cuero cabelludo",
+                    "type": "single_line_text_field",
+                }],
+            }]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 1
+        assert findings[0]["issue"] == "spanish"
+        assert findings[0]["field"] == "text_field:title"
+
+    def test_clean_metaobject_fields(self):
+        resources = {
+            "metaobjects": [{
+                "id": "gid://shopify/Metaobject/123", "handle": "benefit-1",
+                "title": "benefit-1", "type": "metaobject",
+                "metaobject_type": "benefit",
+                "body_html": "", "metafields": [],
+                "text_fields": [{
+                    "key": "title",
+                    "value": "Strengthen your scalp",
+                    "type": "single_line_text_field",
+                }],
+            }]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 0
+
+    # ── Combined: multiple field types with issues ──
+
+    def test_multiple_issues_across_fields(self):
+        """A product with Spanish title, Magento body, and Spanish metafield."""
+        resources = {
+            "products": [{"id": 1, "handle": "test",
+                          "title": "Champ fortalecedor con extracto de romero",
+                          "body_html": '<div data-pb-style="X">English body</div>',
+                          "type": "product",
+                          "metafields": [{
+                              "id": 100, "key": "custom.tagline",
+                              "value": "Fortalece tu cuero cabelludo desde la raiz",
+                              "type": "single_line_text_field",
+                              "namespace": "custom", "bare_key": "tagline",
+                          }]}]
+        }
+        findings = audit_content(resources)
+        assert len(findings) == 3
+        fields = {f["field"] for f in findings}
+        assert "body_html" in fields
+        assert "title" in fields
+        assert "metafield:custom.tagline" in fields

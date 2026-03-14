@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """Review and fix English content on the Saudi Shopify store.
 
-Connects directly to the Saudi store and audits all body_html content
-(products, collections, pages, articles) for:
+Connects directly to the Saudi store and audits ALL content for:
   1. Remaining Spanish text → translates to English via OpenAI
   2. Magento pagebuilder remnants → strips non-Shopify markup
+
+Content checked:
+  - body_html on products, collections, pages, articles
+  - titles on products, collections, pages, articles
+  - product metafields (tagline, short_description, accordion content, SEO tags)
+  - article metafields (blog_summary, hero_caption, short_title)
+  - metaobjects: benefit, faq_entry, ingredient, blog_author fields
 
 Usage:
     python review_content.py --audit                    # Audit only, no changes
     python review_content.py --dry-run                  # Show planned changes
     python review_content.py                            # Apply fixes
     python review_content.py --type pages               # Only audit pages
-    python review_content.py --type articles             # Only audit articles
+    python review_content.py --type metaobjects          # Only audit metaobjects
     python review_content.py --skip-spanish              # Only strip Magento HTML
     python review_content.py --skip-magento              # Only fix Spanish
 """
@@ -27,6 +33,55 @@ from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
 from tara_migrate.tools.patch_spanish import is_spanish
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Content field definitions — what to audit beyond body_html
+# ─────────────────────────────────────────────────────────────────────────────
+
+PRODUCT_TRANSLATABLE_METAFIELDS = {
+    "custom.tagline",
+    "custom.short_description",
+    "custom.size_ml",
+    "custom.key_benefits_heading",
+    "custom.key_benefits_content",
+    "custom.clinical_results_heading",
+    "custom.clinical_results_content",
+    "custom.how_to_use_heading",
+    "custom.how_to_use_content",
+    "custom.whats_inside_heading",
+    "custom.whats_inside_content",
+    "custom.free_of_heading",
+    "custom.free_of_content",
+    "custom.awards_heading",
+    "custom.awards_content",
+    "custom.fragrance_heading",
+    "custom.fragrance_content",
+    "global.title_tag",
+    "global.description_tag",
+}
+
+ARTICLE_TRANSLATABLE_METAFIELDS = {
+    "custom.blog_summary",
+    "custom.hero_caption",
+    "custom.short_title",
+}
+
+METAOBJECT_TRANSLATABLE_FIELDS = {
+    "benefit": {"title", "description", "category", "icon_label"},
+    "faq_entry": {"question", "answer"},
+    "blog_author": {"name", "bio"},
+    "ingredient": {
+        "name", "one_line_benefit", "description", "source", "origin",
+        "category", "concern",
+    },
+}
+
+# Metafield types that contain translatable text
+TEXT_METAFIELD_TYPES = {
+    "single_line_text_field",
+    "multi_line_text_field",
+    "rich_text_field",
+}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Magento Pagebuilder Detection & Stripping
@@ -184,6 +239,41 @@ def extract_visible_text(html):
     return text
 
 
+def extract_text_from_rich_text_json(value):
+    """Extract visible text from a rich_text_field JSON value."""
+    if not value:
+        return ""
+    try:
+        data = json.loads(value) if isinstance(value, str) else value
+    except (json.JSONDecodeError, TypeError):
+        return value if isinstance(value, str) else ""
+
+    texts = []
+
+    def _walk(node):
+        if isinstance(node, str):
+            texts.append(node)
+            return
+        if isinstance(node, dict):
+            if "value" in node and isinstance(node["value"], str):
+                texts.append(node["value"])
+            for child in node.get("children", []):
+                _walk(child)
+        if isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(data)
+    return " ".join(texts).strip()
+
+
+def has_spanish_text(text):
+    """Check if plain text contains Spanish."""
+    if not text or len(text) < 10:
+        return False
+    return is_spanish(text)
+
+
 def has_spanish_content(html):
     """Check if HTML body contains Spanish text."""
     visible = extract_visible_text(html)
@@ -225,54 +315,156 @@ def translate_spanish_to_english(html, client_openai, model="gpt-4o-mini"):
         return None
 
 
+def translate_plain_text(text, client_openai, model="gpt-4o-mini"):
+    """Translate a plain Spanish text string to English."""
+    prompt = (
+        "Translate this Spanish text to English for TARA, a luxury scalp-care brand.\n"
+        "RULES:\n"
+        "- Keep brand names unchanged: TARA, Kansa Wand, Gua Sha\n"
+        "- Keep INCI/scientific names unchanged\n"
+        "- Use professional, direct tone\n"
+        "- Return ONLY the translation, no explanations\n\n"
+        f"{text}"
+    )
+    try:
+        resp = client_openai.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+            temperature=0.2,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"    Translation error: {e}")
+        return None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Resource Fetching
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _extract_text_for_check(value, mf_type):
+    """Extract checkable text from a metafield value based on its type."""
+    if not value:
+        return ""
+    if mf_type == "rich_text_field":
+        return extract_text_from_rich_text_json(value)
+    return value
+
+
+def _fetch_metafields_for_resource(client, resource_type, resource_id, translatable_keys):
+    """Fetch metafields for a resource, returning only translatable text fields."""
+    metafields = client.get_metafields(resource_type, resource_id)
+    result = []
+    for mf in metafields:
+        ns = mf.get("namespace", "")
+        key = mf.get("key", "")
+        full_key = f"{ns}.{key}"
+        mf_type = mf.get("type", "")
+        if full_key in translatable_keys and mf_type in TEXT_METAFIELD_TYPES:
+            result.append({
+                "id": mf["id"],
+                "key": full_key,
+                "value": mf.get("value", ""),
+                "type": mf_type,
+                "namespace": ns,
+                "bare_key": key,
+            })
+    return result
+
+
 def fetch_all_resources(client):
-    """Fetch all content resources from the store."""
+    """Fetch all content resources from the store, including metafields and metaobjects."""
     resources = {}
 
+    # --- Products (body_html + title + metafields) ---
     print("Fetching products...")
     products = client.get_products()
-    resources["products"] = [
-        {"id": p["id"], "title": p.get("title", ""), "handle": p.get("handle", ""),
-         "body_html": p.get("body_html", ""), "type": "product"}
-        for p in products
-    ]
-    print(f"  {len(resources['products'])} products")
+    product_items = []
+    for p in products:
+        item = {
+            "id": p["id"], "title": p.get("title", ""), "handle": p.get("handle", ""),
+            "body_html": p.get("body_html", ""), "type": "product",
+        }
+        # Fetch metafields
+        mfs = _fetch_metafields_for_resource(client, "products", p["id"],
+                                             PRODUCT_TRANSLATABLE_METAFIELDS)
+        item["metafields"] = mfs
+        product_items.append(item)
+    resources["products"] = product_items
+    mf_count = sum(len(p["metafields"]) for p in product_items)
+    print(f"  {len(product_items)} products ({mf_count} text metafields)")
 
+    # --- Collections (body_html + title) ---
     print("Fetching collections...")
     collections = client.get_collections()
     resources["collections"] = [
         {"id": c["id"], "title": c.get("title", ""), "handle": c.get("handle", ""),
-         "body_html": c.get("body_html", ""), "type": "collection"}
+         "body_html": c.get("body_html", ""), "type": "collection", "metafields": []}
         for c in collections
     ]
     print(f"  {len(resources['collections'])} collections")
 
+    # --- Pages (body_html + title) ---
     print("Fetching pages...")
     pages = client.get_pages()
     resources["pages"] = [
         {"id": p["id"], "title": p.get("title", ""), "handle": p.get("handle", ""),
-         "body_html": p.get("body_html", ""), "type": "page"}
+         "body_html": p.get("body_html", ""), "type": "page", "metafields": []}
         for p in pages
     ]
     print(f"  {len(resources['pages'])} pages")
 
+    # --- Articles (body_html + title + metafields) ---
     print("Fetching articles...")
     blogs = client.get_blogs()
     articles = []
     for blog in blogs:
         blog_articles = client.get_articles(blog["id"])
         for a in blog_articles:
-            articles.append({
+            item = {
                 "id": a["id"], "blog_id": blog["id"],
                 "title": a.get("title", ""), "handle": a.get("handle", ""),
                 "body_html": a.get("body_html", ""), "type": "article",
-            })
+            }
+            mfs = _fetch_metafields_for_resource(client, "articles", a["id"],
+                                                 ARTICLE_TRANSLATABLE_METAFIELDS)
+            item["metafields"] = mfs
+            articles.append(item)
     resources["articles"] = articles
-    print(f"  {len(resources['articles'])} articles")
+    mf_count = sum(len(a["metafields"]) for a in articles)
+    print(f"  {len(articles)} articles ({mf_count} text metafields)")
+
+    # --- Metaobjects ---
+    print("Fetching metaobjects...")
+    all_metaobjects = []
+    for mo_type, translatable_fields in METAOBJECT_TRANSLATABLE_FIELDS.items():
+        try:
+            metaobjects = client.get_metaobjects(mo_type)
+        except Exception as e:
+            print(f"  Warning: Could not fetch {mo_type}: {e}")
+            continue
+        for mo in metaobjects:
+            text_fields = []
+            for field in mo.get("fields", []):
+                if field["key"] in translatable_fields and field.get("value"):
+                    text_fields.append({
+                        "key": field["key"],
+                        "value": field["value"],
+                        "type": field.get("type", "single_line_text_field"),
+                    })
+            all_metaobjects.append({
+                "id": mo["id"],
+                "handle": mo.get("handle", ""),
+                "title": mo.get("handle", ""),  # metaobjects use handle as label
+                "type": "metaobject",
+                "metaobject_type": mo_type,
+                "body_html": "",
+                "text_fields": text_fields,
+                "metafields": [],
+            })
+        print(f"  {len(metaobjects)} {mo_type} metaobjects")
+    resources["metaobjects"] = all_metaobjects
 
     return resources
 
@@ -284,33 +476,109 @@ def fetch_all_resources(client):
 def audit_content(resources, skip_spanish=False, skip_magento=False):
     """Audit all resources for Spanish content and Magento remnants.
 
-    Returns a list of findings: [{resource, issue, detail}, ...]
+    Checks:
+      - body_html for Magento remnants and Spanish text
+      - title for Spanish text
+      - metafield values for Spanish text and Magento remnants (rich_text)
+      - metaobject text_fields for Spanish text
+
+    Returns a list of findings: [{resource_type, item, issue, field, label}, ...]
     """
     findings = []
 
     for resource_type, items in resources.items():
         for item in items:
+            handle = item.get("handle", item.get("id", "?"))
+            item_id = item.get("id", "?")
+            base_label = f"{resource_type}/{handle} (id={item_id})"
+
+            # --- Check body_html ---
             body = item.get("body_html", "")
-            if not body:
-                continue
+            if body:
+                if not skip_magento and has_magento_remnants(body):
+                    findings.append({
+                        "resource_type": resource_type,
+                        "item": item,
+                        "issue": "magento",
+                        "field": "body_html",
+                        "label": f"{base_label} [body_html]",
+                    })
 
-            label = f"{resource_type}/{item['handle']} (id={item['id']})"
+                if not skip_spanish and has_spanish_content(body):
+                    findings.append({
+                        "resource_type": resource_type,
+                        "item": item,
+                        "issue": "spanish",
+                        "field": "body_html",
+                        "label": f"{base_label} [body_html]",
+                    })
 
-            if not skip_magento and has_magento_remnants(body):
-                findings.append({
-                    "resource_type": resource_type,
-                    "item": item,
-                    "issue": "magento",
-                    "label": label,
-                })
-
-            if not skip_spanish and has_spanish_content(body):
+            # --- Check title ---
+            title = item.get("title", "")
+            if title and not skip_spanish and has_spanish_text(title):
                 findings.append({
                     "resource_type": resource_type,
                     "item": item,
                     "issue": "spanish",
-                    "label": label,
+                    "field": "title",
+                    "label": f"{base_label} [title]",
                 })
+
+            # --- Check metafields (products, articles) ---
+            for mf in item.get("metafields", []):
+                mf_value = mf.get("value", "")
+                if not mf_value:
+                    continue
+                mf_type = mf.get("type", "")
+                text = _extract_text_for_check(mf_value, mf_type)
+
+                if not skip_magento and mf_type == "rich_text_field" and has_magento_remnants(mf_value):
+                    findings.append({
+                        "resource_type": resource_type,
+                        "item": item,
+                        "issue": "magento",
+                        "field": f"metafield:{mf['key']}",
+                        "label": f"{base_label} [{mf['key']}]",
+                        "metafield": mf,
+                    })
+
+                if not skip_spanish and has_spanish_text(text):
+                    findings.append({
+                        "resource_type": resource_type,
+                        "item": item,
+                        "issue": "spanish",
+                        "field": f"metafield:{mf['key']}",
+                        "label": f"{base_label} [{mf['key']}]",
+                        "metafield": mf,
+                    })
+
+            # --- Check metaobject text_fields ---
+            for tf in item.get("text_fields", []):
+                tf_value = tf.get("value", "")
+                if not tf_value:
+                    continue
+                tf_type = tf.get("type", "")
+                text = _extract_text_for_check(tf_value, tf_type)
+
+                if not skip_magento and tf_type == "rich_text_field" and has_magento_remnants(tf_value):
+                    findings.append({
+                        "resource_type": resource_type,
+                        "item": item,
+                        "issue": "magento",
+                        "field": f"text_field:{tf['key']}",
+                        "label": f"{base_label} [{tf['key']}]",
+                        "text_field": tf,
+                    })
+
+                if not skip_spanish and has_spanish_text(text):
+                    findings.append({
+                        "resource_type": resource_type,
+                        "item": item,
+                        "issue": "spanish",
+                        "field": f"text_field:{tf['key']}",
+                        "label": f"{base_label} [{tf['key']}]",
+                        "text_field": tf,
+                    })
 
     return findings
 
@@ -318,6 +586,7 @@ def audit_content(resources, skip_spanish=False, skip_magento=False):
 def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
     """Apply fixes for all findings.
 
+    Handles body_html, titles, metafields, and metaobject fields.
     Magento stripping is done locally (no AI needed).
     Spanish translation uses OpenAI.
     """
@@ -325,90 +594,237 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
         print("\nNo issues found — content is clean!")
         return
 
-    # Group findings by resource to avoid double-updating
-    by_resource = {}
+    # Group findings by (resource_type, id, field) to avoid double-updating
+    by_target = {}
     for f in findings:
-        key = (f["resource_type"], f["item"]["id"])
-        if key not in by_resource:
-            by_resource[key] = {"item": f["item"], "issues": [], "resource_type": f["resource_type"]}
-        by_resource[key]["issues"].append(f["issue"])
+        key = (f["resource_type"], f["item"]["id"], f["field"])
+        if key not in by_target:
+            by_target[key] = {
+                "item": f["item"],
+                "issues": [],
+                "resource_type": f["resource_type"],
+                "field": f["field"],
+                "finding": f,
+            }
+        by_target[key]["issues"].append(f["issue"])
 
     openai_client = None
     fixed = 0
     failed = 0
 
-    for (rtype, rid), info in by_resource.items():
+    for (rtype, rid, field), info in by_target.items():
         item = info["item"]
         issues = info["issues"]
-        label = f"{rtype}/{item['handle']}"
-        body = item["body_html"]
+        finding = info["finding"]
+        label = f"{rtype}/{item.get('handle', rid)} [{field}]"
 
         print(f"\n  {label} — issues: {', '.join(issues)}")
 
-        # Step 1: Strip Magento first (deterministic, no AI)
-        if "magento" in issues:
-            before_len = len(body)
-            body = strip_magento_html(body)
-            after_len = len(body)
-            reduction = before_len - after_len
-            pct = (reduction / before_len * 100) if before_len else 0
-            print(f"    Stripped Magento: {before_len:,} → {after_len:,} chars ({pct:.0f}% reduction)")
+        # ── body_html fixes ──
+        if field == "body_html":
+            body = item["body_html"]
 
-        # Step 2: Translate Spanish (needs AI)
-        if "spanish" in issues:
-            # Re-check after Magento stripping (some Spanish may have been in Magento blocks)
-            if has_spanish_content(body):
+            if "magento" in issues:
+                before_len = len(body)
+                body = strip_magento_html(body)
+                after_len = len(body)
+                reduction = before_len - after_len
+                pct = (reduction / before_len * 100) if before_len else 0
+                print(f"    Stripped Magento: {before_len:,} -> {after_len:,} chars ({pct:.0f}% reduction)")
+
+            if "spanish" in issues:
+                if has_spanish_content(body):
+                    if openai_client is None:
+                        import openai
+                        openai_client = openai.OpenAI()
+                    print(f"    Translating Spanish -> English...")
+                    translated = translate_spanish_to_english(body, openai_client, model=model)
+                    if translated:
+                        body = translated
+                        print(f"    Translated OK ({len(body):,} chars)")
+                    else:
+                        print(f"    Translation FAILED — skipping")
+                        failed += 1
+                        continue
+                else:
+                    print(f"    Spanish was in Magento blocks (already stripped)")
+
+            if dry_run:
+                visible = extract_visible_text(body)
+                preview = visible[:200] + "..." if len(visible) > 200 else visible
+                print(f"    [DRY RUN] Would update. Preview: {preview}")
+                fixed += 1
+                continue
+
+            try:
+                if rtype == "products":
+                    client.update_product(rid, {"body_html": body})
+                elif rtype == "collections":
+                    try:
+                        client._request("PUT", f"custom_collections/{rid}.json",
+                                        json={"custom_collection": {"id": rid, "body_html": body}})
+                    except Exception:
+                        client._request("PUT", f"smart_collections/{rid}.json",
+                                        json={"smart_collection": {"id": rid, "body_html": body}})
+                elif rtype == "pages":
+                    client._request("PUT", f"pages/{rid}.json",
+                                    json={"page": {"id": rid, "body_html": body}})
+                elif rtype == "articles":
+                    blog_id = item.get("blog_id")
+                    client._request("PUT", f"blogs/{blog_id}/articles/{rid}.json",
+                                    json={"article": {"id": rid, "body_html": body}})
+                print(f"    Updated on Shopify")
+                fixed += 1
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"    Update FAILED: {e}")
+                failed += 1
+
+        # ── title fixes ──
+        elif field == "title":
+            title = item["title"]
+            if "spanish" in issues:
                 if openai_client is None:
                     import openai
                     openai_client = openai.OpenAI()
-                print(f"    Translating Spanish → English...")
-                translated = translate_spanish_to_english(body, openai_client, model=model)
-                if translated:
-                    body = translated
-                    print(f"    Translated OK ({len(body):,} chars)")
-                else:
+                print(f"    Translating title: {title}")
+                translated = translate_plain_text(title, openai_client, model=model)
+                if not translated:
                     print(f"    Translation FAILED — skipping")
                     failed += 1
                     continue
-            else:
-                print(f"    Spanish was in Magento blocks (already stripped)")
+                print(f"    -> {translated}")
 
-        if dry_run:
-            # Show a preview of the cleaned content
-            visible = extract_visible_text(body)
-            preview = visible[:200] + "..." if len(visible) > 200 else visible
-            print(f"    [DRY RUN] Would update. Preview: {preview}")
-            fixed += 1
-            continue
+                if dry_run:
+                    print(f"    [DRY RUN] Would update title")
+                    fixed += 1
+                    continue
 
-        # Apply the update via Shopify REST API
-        try:
-            if rtype == "products":
-                client.update_product(rid, {"body_html": body})
-            elif rtype == "collections":
-                # Determine if custom or smart
                 try:
-                    client._request("PUT", f"custom_collections/{rid}.json",
-                                    json={"custom_collection": {"id": rid, "body_html": body}})
-                except Exception:
-                    client._request("PUT", f"smart_collections/{rid}.json",
-                                    json={"smart_collection": {"id": rid, "body_html": body}})
-            elif rtype == "pages":
-                client._request("PUT", f"pages/{rid}.json",
-                                json={"page": {"id": rid, "body_html": body}})
-            elif rtype == "articles":
-                blog_id = item.get("blog_id")
-                client._request("PUT", f"blogs/{blog_id}/articles/{rid}.json",
-                                json={"article": {"id": rid, "body_html": body}})
-            print(f"    Updated on Shopify ✓")
-            fixed += 1
-            time.sleep(0.5)  # Rate limiting
-        except Exception as e:
-            print(f"    Update FAILED: {e}")
-            failed += 1
+                    if rtype == "products":
+                        client.update_product(rid, {"title": translated})
+                    elif rtype == "collections":
+                        try:
+                            client._request("PUT", f"custom_collections/{rid}.json",
+                                            json={"custom_collection": {"id": rid, "title": translated}})
+                        except Exception:
+                            client._request("PUT", f"smart_collections/{rid}.json",
+                                            json={"smart_collection": {"id": rid, "title": translated}})
+                    elif rtype == "pages":
+                        client._request("PUT", f"pages/{rid}.json",
+                                        json={"page": {"id": rid, "title": translated}})
+                    elif rtype == "articles":
+                        blog_id = item.get("blog_id")
+                        client._request("PUT", f"blogs/{blog_id}/articles/{rid}.json",
+                                        json={"article": {"id": rid, "title": translated}})
+                    print(f"    Updated on Shopify")
+                    fixed += 1
+                    time.sleep(0.5)
+                except Exception as e:
+                    print(f"    Update FAILED: {e}")
+                    failed += 1
+
+        # ── metafield fixes ──
+        elif field.startswith("metafield:"):
+            mf = finding.get("metafield", {})
+            mf_value = mf.get("value", "")
+            mf_type = mf.get("type", "")
+            mf_key = mf.get("key", "")
+
+            if "magento" in issues and mf_type == "rich_text_field":
+                mf_value = strip_magento_html(mf_value)
+                print(f"    Stripped Magento from {mf_key}")
+
+            if "spanish" in issues:
+                text = _extract_text_for_check(mf_value, mf_type)
+                if has_spanish_text(text):
+                    if openai_client is None:
+                        import openai
+                        openai_client = openai.OpenAI()
+                    print(f"    Translating {mf_key}...")
+                    if mf_type == "rich_text_field":
+                        translated = translate_spanish_to_english(mf_value, openai_client, model=model)
+                    else:
+                        translated = translate_plain_text(mf_value, openai_client, model=model)
+                    if translated:
+                        mf_value = translated
+                        print(f"    Translated OK")
+                    else:
+                        print(f"    Translation FAILED — skipping")
+                        failed += 1
+                        continue
+
+            if dry_run:
+                preview = mf_value[:200] + "..." if len(mf_value) > 200 else mf_value
+                print(f"    [DRY RUN] Would update {mf_key}. Preview: {preview}")
+                fixed += 1
+                continue
+
+            try:
+                gid_type = "Product" if rtype == "products" else "Article"
+                client.set_metafields([{
+                    "ownerId": f"gid://shopify/{gid_type}/{rid}",
+                    "namespace": mf.get("namespace", ""),
+                    "key": mf.get("bare_key", ""),
+                    "value": mf_value,
+                    "type": mf_type,
+                }])
+                print(f"    Updated {mf_key} on Shopify")
+                fixed += 1
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"    Update FAILED: {e}")
+                failed += 1
+
+        # ── metaobject text_field fixes ──
+        elif field.startswith("text_field:"):
+            tf = finding.get("text_field", {})
+            tf_value = tf.get("value", "")
+            tf_type = tf.get("type", "")
+            tf_key = tf.get("key", "")
+
+            if "magento" in issues and tf_type == "rich_text_field":
+                tf_value = strip_magento_html(tf_value)
+                print(f"    Stripped Magento from {tf_key}")
+
+            if "spanish" in issues:
+                text = _extract_text_for_check(tf_value, tf_type)
+                if has_spanish_text(text):
+                    if openai_client is None:
+                        import openai
+                        openai_client = openai.OpenAI()
+                    print(f"    Translating {tf_key}...")
+                    if tf_type == "rich_text_field":
+                        translated = translate_spanish_to_english(tf_value, openai_client, model=model)
+                    else:
+                        translated = translate_plain_text(tf_value, openai_client, model=model)
+                    if translated:
+                        tf_value = translated
+                        print(f"    Translated OK")
+                    else:
+                        print(f"    Translation FAILED — skipping")
+                        failed += 1
+                        continue
+
+            if dry_run:
+                preview = tf_value[:200] + "..." if len(tf_value) > 200 else tf_value
+                print(f"    [DRY RUN] Would update {tf_key}. Preview: {preview}")
+                fixed += 1
+                continue
+
+            try:
+                # Update metaobject field via GraphQL
+                mo_id = item["id"]  # GID
+                client.update_metaobject(mo_id, [{"key": tf_key, "value": tf_value}])
+                print(f"    Updated {tf_key} on Shopify")
+                fixed += 1
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"    Update FAILED: {e}")
+                failed += 1
 
     print(f"\n{'='*60}")
-    print(f"Fixed: {fixed}  Failed: {failed}  Total: {len(by_resource)}")
+    print(f"Fixed: {fixed}  Failed: {failed}  Total: {len(by_target)}")
     if dry_run:
         print("(Dry run — no changes were made)")
 
@@ -419,19 +835,20 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini"):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Review & fix English content on Saudi Shopify store")
+        description="Review & fix ALL English content on Saudi Shopify store")
     parser.add_argument("--audit", action="store_true",
                         help="Audit only — report issues without fixing")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show planned changes without applying")
-    parser.add_argument("--type", choices=["products", "collections", "pages", "articles"],
+    parser.add_argument("--type",
+                        choices=["products", "collections", "pages", "articles", "metaobjects"],
                         help="Only audit a specific resource type")
     parser.add_argument("--skip-spanish", action="store_true",
                         help="Skip Spanish detection (only strip Magento)")
     parser.add_argument("--skip-magento", action="store_true",
                         help="Skip Magento stripping (only fix Spanish)")
     parser.add_argument("--model", default="gpt-4o-mini",
-                        help="OpenAI model for Spanish→English translation (default: gpt-4o-mini)")
+                        help="OpenAI model for Spanish->English translation (default: gpt-4o-mini)")
     parser.add_argument("--save-report", metavar="FILE",
                         help="Save audit report to JSON file")
     args = parser.parse_args()
@@ -446,7 +863,7 @@ def main():
     client = ShopifyClient(shop_url, access_token)
 
     print("=" * 60)
-    print("CONTENT REVIEWER — Saudi Store English Content")
+    print("CONTENT REVIEWER — Saudi Store (Full Coverage)")
     print("=" * 60)
 
     # Fetch resources
@@ -455,6 +872,18 @@ def main():
     # Filter by type if requested
     if args.type:
         resources = {args.type: resources.get(args.type, [])}
+
+    # Summary
+    total_items = sum(len(v) for v in resources.values())
+    total_mfs = sum(
+        len(item.get("metafields", []))
+        for items in resources.values() for item in items
+    )
+    total_tfs = sum(
+        len(item.get("text_fields", []))
+        for items in resources.values() for item in items
+    )
+    print(f"\nTotal: {total_items} resources, {total_mfs} metafields, {total_tfs} metaobject fields")
 
     # Audit
     print(f"\n{'='*60}")
@@ -472,15 +901,25 @@ def main():
     if magento_findings:
         print(f"\nMagento pagebuilder remnants: {len(magento_findings)}")
         for f in magento_findings:
-            body = f["item"]["body_html"]
-            visible = extract_visible_text(body)
-            print(f"  - {f['label']} ({len(body):,} chars, "
-                  f"{len(visible):,} visible)")
+            print(f"  - {f['label']}")
 
     if spanish_findings:
         print(f"\nSpanish content detected: {len(spanish_findings)}")
         for f in spanish_findings:
-            visible = extract_visible_text(f["item"]["body_html"])
+            # Show a preview of the Spanish text
+            field = f["field"]
+            if field == "body_html":
+                visible = extract_visible_text(f["item"]["body_html"])
+            elif field == "title":
+                visible = f["item"]["title"]
+            elif field.startswith("metafield:"):
+                mf = f.get("metafield", {})
+                visible = _extract_text_for_check(mf.get("value", ""), mf.get("type", ""))
+            elif field.startswith("text_field:"):
+                tf = f.get("text_field", {})
+                visible = _extract_text_for_check(tf.get("value", ""), tf.get("type", ""))
+            else:
+                visible = ""
             preview = visible[:100] + "..." if len(visible) > 100 else visible
             print(f"  - {f['label']}")
             print(f"    {preview}")
@@ -497,10 +936,10 @@ def main():
         report = [{
             "resource_type": f["resource_type"],
             "id": f["item"]["id"],
-            "handle": f["item"]["handle"],
-            "title": f["item"]["title"],
+            "handle": f["item"].get("handle", ""),
+            "title": f["item"].get("title", ""),
             "issue": f["issue"],
-            "body_html_length": len(f["item"].get("body_html", "")),
+            "field": f["field"],
         } for f in findings]
         with open(args.save_report, "w", encoding="utf-8") as fh:
             json.dump(report, fh, indent=2, ensure_ascii=False)
