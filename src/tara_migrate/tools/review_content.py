@@ -1133,8 +1133,8 @@ def main():
                         help="Skip Spanish detection (only strip HTML bloat)")
     parser.add_argument("--skip-html-cleanup", action="store_true",
                         help="Skip HTML cleanup (only fix Spanish)")
-    parser.add_argument("--model", default="gpt-5o-mini",
-                        help="OpenAI model for Spanish->English translation (default: gpt-5o-mini)")
+    parser.add_argument("--model", default="gpt-4o-mini",
+                        help="OpenAI model for Spanish->English translation (default: gpt-4o-mini)")
     parser.add_argument("--audit-model", default="claude-haiku-4-5-20251001",
                         help="Anthropic model for Spanish detection audit (default: claude-haiku-4-5-20251001)")
     parser.add_argument("--ai-clean", action="store_true",
