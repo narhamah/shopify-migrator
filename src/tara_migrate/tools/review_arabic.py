@@ -52,12 +52,6 @@ from tara_migrate.core.language import (
 )
 from tara_migrate.core.rich_text import extract_text, is_rich_text_json
 from tara_migrate.core.shopify_fields import TRANSLATABLE_RESOURCE_TYPES
-
-# Resource types we actually want to audit (exclude theme strings)
-_CONTENT_RESOURCE_TYPES = [
-    t for t in TRANSLATABLE_RESOURCE_TYPES
-    if t not in ("ONLINE_STORE_THEME",)
-]
 from tara_migrate.tools.patch_spanish import is_spanish
 from tara_migrate.tools.review_content import has_html_bloat, strip_html_bloat
 from tara_migrate.translation.engine import TranslationEngine, load_developer_prompt
@@ -737,8 +731,7 @@ def main():
     parser.add_argument(
         "--type", default=None,
         help="Resource type filter, comma-separated "
-             "(e.g. PRODUCT,COLLECTION,METAFIELD,METAOBJECT). "
-             "ONLINE_STORE_THEME is excluded by default; pass it explicitly to include.",
+             "(e.g. PRODUCT,COLLECTION,METAFIELD,METAOBJECT)",
     )
     parser.add_argument(
         "--skip-semantic", action="store_true",
@@ -785,8 +778,8 @@ def main():
     client = ShopifyClient(shop_url, access_token)
     haiku_client = anthropic.Anthropic()
 
-    # Resource types (skip ONLINE_STORE_THEME by default — those are theme locale strings)
-    resource_types = _CONTENT_RESOURCE_TYPES
+    # Resource types
+    resource_types = TRANSLATABLE_RESOURCE_TYPES
     if args.type:
         resource_types = [t.strip().upper() for t in args.type.split(",")]
 
