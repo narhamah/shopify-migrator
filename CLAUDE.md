@@ -20,7 +20,8 @@ src/tara_migrate/          ← Production library (all logic lives here)
   fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status,
                              fix_redirects, fix_translations (GraphQL translation fixer)
   tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images,
-                             review_content (English content review), review_arabic (Arabic translation review)
+                             review_content (English content review), review_arabic (Arabic translation review),
+                             crawl_and_translate (Playwright crawl → match → translate visible theme strings)
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -208,6 +209,16 @@ python audit_theme_keys.py --dump data/theme_keys.json  # Dump all keys to JSON
 python audit_theme_keys.py --translate               # Translate missing Arabic theme keys
 python audit_theme_keys.py --translate --dry-run     # Preview what would be translated
 python audit_theme_keys.py --translate --model gpt-5-mini  # Use a different model
+
+# Crawl-based theme translation (only translate what's visible on the site)
+python crawl_and_translate.py                              # Full pipeline: crawl → match → translate
+python crawl_and_translate.py --crawl-only                 # Crawl only, save to data/crawl_english.json
+python crawl_and_translate.py --skip-crawl                 # Reuse saved crawl data
+python crawl_and_translate.py --dry-run                    # Show plan, no uploads
+python crawl_and_translate.py --include-checkout           # Also crawl checkout pages
+python crawl_and_translate.py --max-pages 300              # Crawl more pages
+python crawl_and_translate.py --model gpt-5-mini           # Override translation model
+python crawl_and_translate.py --skip-remove                # Don't remove unmatched translations
 
 # Unified verify-and-fix (audit -> fix -> verify in one pass)
 python verify_fix_translations.py                           # full pipeline
