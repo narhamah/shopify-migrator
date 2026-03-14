@@ -71,7 +71,7 @@ def _ai_is_spanish(text, model="claude-haiku-4-5-20251001"):
         client = _get_audit_client()
         resp = client.messages.create(
             model=model,
-            max_tokens=10,
+            max_tokens=4096,
             messages=[{"role": "user", "content": (
                 "Is the following text in Spanish (or does it contain Spanish that "
                 "should be translated to English)? Ignore brand names like TARA, "
@@ -876,7 +876,7 @@ def ai_clean_html(html, model="claude-sonnet-4-6"):
         client = _get_audit_client()
         resp = client.messages.create(
             model=model,
-            max_tokens=16384,
+            max_tokens=65536,
             messages=[{"role": "user", "content": _BLOAT_CLEAN_PROMPT + html}],
         )
         cleaned = resp.content[0].text.strip()
@@ -943,7 +943,7 @@ def ai_scan_for_bloat(resources, debug_file="data/html_bloat_debug.jsonl",
                     try:
                         resp = client.messages.create(
                             model=model,
-                            max_tokens=1024,
+                            max_tokens=4096,
                             messages=[{"role": "user", "content": (
                                 _BLOAT_SCAN_PROMPT + html_sample
                             )}],
