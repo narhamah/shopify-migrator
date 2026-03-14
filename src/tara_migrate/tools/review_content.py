@@ -174,6 +174,144 @@ _PRODUCT_CAROUSEL_RE = re.compile(
 # Non-breaking spaces used as layout hacks (3+ in a row)
 _NBSP_LINES_RE = re.compile(r'(?:&nbsp;\s*){3,}')
 
+# CSS class selector extractor (matches .classname in CSS)
+_CSS_CLASS_SELECTOR_RE = re.compile(r'\.([a-zA-Z_][a-zA-Z0-9_-]*)')
+
+# CSS ID selector extractor (matches #idname in CSS)
+_CSS_ID_SELECTOR_RE = re.compile(r'#([a-zA-Z_][a-zA-Z0-9_-]*)')
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Theme-Aware CSS Validation
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_theme_selectors(client):
+    """Fetch the active theme's CSS and extract all class/ID selectors.
+
+    Returns (class_set, id_set) — sets of strings the theme actually uses.
+    Any class or ID NOT in these sets is dead weight and safe to strip.
+    """
+    theme_id = client.get_main_theme_id()
+    if not theme_id:
+        print("  WARNING: Could not find active theme — skipping CSS analysis")
+        return None, None
+
+    print(f"  Theme ID: {theme_id}")
+
+    # List all assets and find CSS files
+    assets = client.list_assets(theme_id)
+    css_keys = [a["key"] for a in assets
+                if a.get("key", "").endswith(".css") or a.get("key", "").endswith(".css.liquid")]
+
+    if not css_keys:
+        print("  WARNING: No CSS files found in theme")
+        return None, None
+
+    print(f"  Found {len(css_keys)} CSS files")
+
+    all_classes = set()
+    all_ids = set()
+
+    for key in css_keys:
+        try:
+            asset = client.get_asset(theme_id, key)
+            css_content = asset.get("value", "")
+            if not css_content:
+                continue
+
+            # Extract class selectors
+            classes = _CSS_CLASS_SELECTOR_RE.findall(css_content)
+            all_classes.update(classes)
+
+            # Extract ID selectors
+            ids = _CSS_ID_SELECTOR_RE.findall(css_content)
+            all_ids.update(ids)
+
+        except Exception as e:
+            print(f"    Could not read {key}: {e}")
+
+    print(f"  Extracted {len(all_classes)} class selectors, {len(all_ids)} ID selectors from theme CSS")
+    return all_classes, all_ids
+
+
+def strip_dead_classes(html, theme_classes):
+    """Remove CSS classes from HTML that aren't referenced in the theme's CSS.
+
+    A class NOT in the theme CSS is dead weight — it has no styling rules
+    and does nothing for display. Safe to strip unconditionally.
+    """
+    if not html or theme_classes is None:
+        return html
+
+    def _filter_classes(m):
+        classes = m.group(1).split()
+        # Keep only classes that exist in the theme CSS
+        live = [c for c in classes if c in theme_classes]
+        if not live:
+            return ''
+        return f'class="{" ".join(live)}"'
+
+    result = re.sub(r'class="([^"]*)"', _filter_classes, html)
+    # Clean up empty class="" remnants
+    result = re.sub(r'\s+class=""', '', result)
+    return result
+
+
+def strip_dead_ids(html, theme_ids):
+    """Remove id attributes from HTML that aren't referenced in the theme's CSS.
+
+    Only strips IDs that have no corresponding CSS selector. IDs used as
+    anchor targets (href="#id") within the same HTML are preserved.
+    """
+    if not html or theme_ids is None:
+        return html
+
+    # Also preserve IDs referenced as anchor links within this HTML
+    anchor_refs = set(re.findall(r'href="#([^"]+)"', html))
+
+    def _filter_id(m):
+        id_val = m.group(1)
+        if id_val in theme_ids or id_val in anchor_refs:
+            return m.group(0)  # Keep it
+        return ''
+
+    result = re.sub(r'\s+id="([^"]*)"', _filter_id, html)
+    return result
+
+
+def strip_orphan_styles(html):
+    """Remove <style> blocks whose selectors don't match anything in the HTML.
+
+    A <style> block is orphaned if none of its class/ID selectors match
+    classes or IDs actually present in the HTML. Safe to strip.
+    """
+    if not html:
+        return html
+
+    # Extract classes and IDs present in the HTML (outside <style> blocks)
+    html_without_styles = re.sub(r'<style[^>]*>.*?</style>', '', html,
+                                  flags=re.IGNORECASE | re.DOTALL)
+    html_classes = set(re.findall(r'class="([^"]*)"', html_without_styles))
+    html_class_set = set()
+    for cls_attr in html_classes:
+        html_class_set.update(cls_attr.split())
+    html_ids = set(re.findall(r'id="([^"]*)"', html_without_styles))
+
+    def _check_style_block(m):
+        style_content = m.group(0)
+        # Extract selectors referenced in this style block
+        style_classes = set(_CSS_CLASS_SELECTOR_RE.findall(style_content))
+        style_ids = set(_CSS_ID_SELECTOR_RE.findall(style_content))
+
+        # If any selector matches the HTML, keep the block
+        if style_classes & html_class_set or style_ids & html_ids:
+            return style_content
+        # No selectors match — orphaned, strip it
+        return ''
+
+    result = re.sub(r'<style[^>]*>.*?</style>', _check_style_block, html,
+                    flags=re.IGNORECASE | re.DOTALL)
+    return result
+
 
 def has_html_bloat(html):
     """Check if HTML contains bloat that should be stripped.
@@ -193,34 +331,30 @@ def has_html_bloat(html):
     )
 
 
-def strip_html_bloat(html):
-    """Strip foreign HTML bloat, preserving legitimate Shopify content.
+def strip_html_bloat(html, theme_classes=None, theme_ids=None):
+    """Strip HTML bloat using both fingerprint rules and theme CSS validation.
 
-    Only removes patterns we're CERTAIN are not needed for Shopify display:
-    1. <script> blocks (Shopify sanitizes these anyway)
-    2. <style> blocks with Magento selectors
-    3. Product carousel / Magento widget blocks
-    4. Magento-specific data-* attributes
-    5. Event handler attributes (onclick, onload — security risk)
-    6. Magento CSS classes from class attributes
-    7. Empty tags left behind after stripping
-    8. Excessive &nbsp; runs
+    Two-layer approach:
+      Layer 1 — Fingerprint rules (always applied):
+        Known Magento patterns, <script> blocks, event handlers.
+      Layer 2 — Theme-aware (when theme_classes/theme_ids provided):
+        Strips classes/IDs not in the theme's CSS, removes orphan <style> blocks.
+        This is the key insight: if a class has no CSS rule in the theme,
+        it does NOTHING for display — safe to strip automatically.
 
-    PRESERVED (could be needed for display):
-    - Inline style attributes, generic data-* attributes
-    - Generic classes, ids, aria-*, role attributes
-    - width/height on any element, HTML comments
-    - <style> blocks without Magento selectors
+    When theme selectors are NOT provided, falls back to fingerprint-only mode.
     """
     if not html:
         return html
 
     result = html
 
+    # ── Layer 1: Fingerprint rules (always safe) ──
+
     # 1. Remove <script> blocks (Shopify sanitizes these anyway)
     result = _SCRIPT_RE.sub('', result)
 
-    # 2. Remove <style> blocks with Magento selectors only
+    # 2. Remove <style> blocks with Magento selectors
     result = _MAGENTO_STYLE_RE.sub('', result)
 
     # 3. Remove product carousel / widget blocks
@@ -232,8 +366,8 @@ def strip_html_bloat(html):
     # 5. Remove event handler attributes (onclick, onload, etc.)
     result = _EVENT_HANDLER_RE.sub('', result)
 
-    # 6. Clean up Magento CSS classes from class attributes
-    def _clean_classes(m):
+    # 6. Strip known Magento CSS classes
+    def _clean_magento_classes(m):
         classes = m.group(1)
         cleaned = _MAGENTO_CLASSES.sub('', classes).strip()
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
@@ -241,14 +375,29 @@ def strip_html_bloat(html):
             return ''
         return f'class="{cleaned}"'
 
-    result = re.sub(r'class="([^"]*)"', _clean_classes, result)
+    result = re.sub(r'class="([^"]*)"', _clean_magento_classes, result)
 
-    # 7. Remove empty/useless attribute remnants
+    # ── Layer 2: Theme-aware stripping (when CSS data available) ──
+
+    if theme_classes is not None:
+        # 7. Remove classes not in theme CSS — they have no styling rules
+        result = strip_dead_classes(result, theme_classes)
+
+    if theme_ids is not None:
+        # 8. Remove IDs not in theme CSS and not used as anchors
+        result = strip_dead_ids(result, theme_ids)
+
+    # 9. Remove orphan <style> blocks (selectors don't match remaining HTML)
+    result = strip_orphan_styles(result)
+
+    # ── Cleanup ──
+
+    # 10. Remove empty attribute remnants
     result = re.sub(r'\s+class=""', '', result)
     result = re.sub(r'\s+>', '>', result)
     result = re.sub(r'(<[^>]*?)  +', r'\1 ', result)
 
-    # 8. Remove empty tags left behind (may contain only whitespace)
+    # 11. Remove empty tags left behind
     for _ in range(5):
         prev = result
         result = re.sub(
@@ -258,7 +407,7 @@ def strip_html_bloat(html):
         if result == prev:
             break
 
-    # 9. Clean up &nbsp; spam and normalize whitespace
+    # 12. Clean up &nbsp; spam and normalize whitespace
     result = _NBSP_LINES_RE.sub(' ', result)
     result = re.sub(r'\n{3,}', '\n\n', result)
     result = re.sub(r'  +', ' ', result)
@@ -817,7 +966,8 @@ def ai_scan_for_bloat(resources, debug_file="data/html_bloat_debug.jsonl",
     return debug_file
 
 
-def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=False):
+def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=False,
+                theme_classes=None, theme_ids=None):
     """Apply fixes for all findings.
 
     Handles body_html, titles, metafields, and metaobject fields.
@@ -866,9 +1016,9 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                         body = cleaned
                     else:
                         print(f"    AI clean failed, falling back to regex")
-                        body = strip_html_bloat(body)
+                        body = strip_html_bloat(body, theme_classes, theme_ids)
                 else:
-                    body = strip_html_bloat(body)
+                    body = strip_html_bloat(body, theme_classes, theme_ids)
                 after_len = len(body)
                 reduction = before_len - after_len
                 pct = (reduction / before_len * 100) if before_len else 0
@@ -977,9 +1127,9 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
             if "html_bloat" in issues and mf_type == "rich_text_field":
                 if ai_clean:
                     cleaned = ai_clean_html(mf_value)
-                    mf_value = cleaned if cleaned else strip_html_bloat(mf_value)
+                    mf_value = cleaned if cleaned else strip_html_bloat(mf_value, theme_classes, theme_ids)
                 else:
-                    mf_value = strip_html_bloat(mf_value)
+                    mf_value = strip_html_bloat(mf_value, theme_classes, theme_ids)
                 method = "AI" if ai_clean else "regex"
                 print(f"    Stripped HTML bloat from {mf_key} ({method})")
 
@@ -1034,9 +1184,9 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
             if "html_bloat" in issues and tf_type == "rich_text_field":
                 if ai_clean:
                     cleaned = ai_clean_html(tf_value)
-                    tf_value = cleaned if cleaned else strip_html_bloat(tf_value)
+                    tf_value = cleaned if cleaned else strip_html_bloat(tf_value, theme_classes, theme_ids)
                 else:
-                    tf_value = strip_html_bloat(tf_value)
+                    tf_value = strip_html_bloat(tf_value, theme_classes, theme_ids)
                 method = "AI" if ai_clean else "regex"
                 print(f"    Stripped HTML bloat from {tf_key} ({method})")
 
@@ -1223,13 +1373,24 @@ def main():
     if args.audit:
         return
 
+    # Fetch theme CSS for class/ID validation
+    print(f"\n{'='*60}")
+    print("FETCHING THEME CSS (for automated class/ID validation)")
+    print("=" * 60)
+    theme_classes, theme_ids = fetch_theme_selectors(client)
+    if theme_classes is not None:
+        print(f"  Theme-aware mode: classes not in theme CSS will be stripped automatically")
+    else:
+        print(f"  Fingerprint-only mode: only known Magento patterns will be stripped")
+
     # Fix
     print(f"\n{'='*60}")
     print("APPLYING FIXES" + (" (DRY RUN)" if args.dry_run else ""))
     print("=" * 60)
 
     apply_fixes(client, findings, dry_run=args.dry_run, model=args.model,
-                ai_clean=args.ai_clean)
+                ai_clean=args.ai_clean,
+                theme_classes=theme_classes, theme_ids=theme_ids)
 
 
 if __name__ == "__main__":

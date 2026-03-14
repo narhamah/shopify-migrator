@@ -101,14 +101,25 @@ class TestStripHtmlBloat:
         assert "<style" not in result
         assert "<p>Keep this</p>" in result
 
-    def test_preserves_non_magento_style_blocks(self):
-        """Non-Magento <style> blocks could be intentional — preserve them."""
+    def test_strips_orphan_style_blocks(self):
+        """<style> blocks whose selectors don't match any HTML are orphaned — strip."""
         html = (
             '<style>.custom-layout { display: grid; }</style>'
             '<p>Content</p>'
         )
         result = strip_html_bloat(html)
+        assert "<style" not in result
+        assert "<p>Content</p>" in result
+
+    def test_preserves_style_blocks_with_matching_html(self):
+        """<style> blocks whose selectors match actual HTML classes are kept."""
+        html = (
+            '<style>.custom-layout { display: grid; }</style>'
+            '<div class="custom-layout"><p>Content</p></div>'
+        )
+        result = strip_html_bloat(html)
         assert "<style" in result
+        assert "custom-layout" in result
 
     def test_removes_script_blocks(self):
         html = (
@@ -194,6 +205,37 @@ class TestStripHtmlBloat:
         assert 'onclick=' not in result
         assert 'onload=' not in result
         assert "Content" in result
+
+    # ── Theme-aware stripping ──
+
+    def test_theme_aware_strips_dead_classes(self):
+        """Classes not in theme CSS are dead weight — strip them."""
+        html = '<div class="magento-leftover fancy-thing"><p>Content</p></div>'
+        theme_classes = {"fancy-thing"}  # only fancy-thing is in the theme CSS
+        result = strip_html_bloat(html, theme_classes=theme_classes)
+        assert "fancy-thing" in result
+        assert "magento-leftover" not in result
+
+    def test_theme_aware_strips_dead_ids(self):
+        """IDs not in theme CSS and not used as anchors — strip them."""
+        html = '<div id="pb-row-123"><p>Content</p></div>'
+        theme_ids = set()  # no IDs in theme CSS
+        result = strip_html_bloat(html, theme_ids=theme_ids)
+        assert 'id=' not in result
+        assert "Content" in result
+
+    def test_theme_aware_preserves_anchor_ids(self):
+        """IDs used as anchor targets within the HTML are preserved."""
+        html = '<a href="#faq">Go to FAQ</a><div id="faq"><p>FAQ here</p></div>'
+        theme_ids = set()  # not in CSS, but used as anchor
+        result = strip_html_bloat(html, theme_ids=theme_ids)
+        assert 'id="faq"' in result
+
+    def test_without_theme_data_preserves_all_classes(self):
+        """Without theme CSS data, all non-Magento classes are preserved."""
+        html = '<div class="unknown-class"><p>Content</p></div>'
+        result = strip_html_bloat(html)  # no theme_classes passed
+        assert "unknown-class" in result
 
     def test_preserves_semantic_html(self):
         """Headings, paragraphs, images should survive."""
