@@ -692,6 +692,14 @@ def run_fix(client, engine, problems, locale=LOCALE, dry_run=False):
                 except Exception as e:
                     print(f"    Error updating {resource_type}/{resource_id} "
                           f"[{key}]: {e}")
+            elif resource_type == "METAOBJECT":
+                # Update metaobject field via metaobjectUpdate
+                gid = p["resource_id"]
+                try:
+                    client.update_metaobject(gid, [{"key": key, "value": en_value}])
+                    en_updated += 1
+                except Exception as e:
+                    print(f"    Error updating metaobject {gid} [{key}]: {e}")
             elif key in ("title", "body_html"):
                 # Update via REST product/collection/page/article update
                 try:

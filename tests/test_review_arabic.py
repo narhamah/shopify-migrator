@@ -987,36 +987,41 @@ class TestRunFix:
     @patch("tara_migrate.tools.review_arabic.upload_translations")
     @patch("tara_migrate.tools.review_arabic.fetch_translatable_resources")
     @patch("tara_migrate.tools.review_arabic.TranslationEngine")
-    def test_retranslation_source_spanish(self, mock_engine_cls, mock_fetch_tr,
-                                          mock_upload, mock_sleep):
-        """SOURCE_SPANISH should fix EN source and retranslate to AR."""
+    def test_retranslation_source_spanish_metaobject(self, mock_engine_cls,
+                                                      mock_fetch_tr,
+                                                      mock_upload, mock_sleep):
+        """SOURCE_SPANISH on metaobject should update via metaobjectUpdate."""
         client = MagicMock()
         engine = MagicMock()
         engine.model = "gpt-5-nano"
         engine.reasoning_effort = "minimal"
         engine.batch_size = 80
 
+        gid = "gid://shopify/Metaobject/151189422313"
+        field_id = f"METAOBJECT|{gid}|label"
+
         # Mock the EN engine created for ES→EN translation
         mock_en_engine = MagicMock()
         mock_en_engine.translate_fields.return_value = {
-            "PRODUCT|gid://shopify/Product/1|title": "Strengthening Shampoo"
+            field_id: "Strengthening"
         }
         mock_engine_cls.return_value = mock_en_engine
 
         # Mock the AR engine for EN→AR translation
-        engine.translate_fields.return_value = {
-            "PRODUCT|gid://shopify/Product/1|title": "شامبو مقوي"
-        }
+        engine.translate_fields.return_value = {field_id: "تقوية"}
         problems = [{
             **_make_field(
-                english="Champú fortalecedor",
-                arabic="شامبو مقوي قديم",
+                english="Fortalecedor",
+                arabic="تقوية قديم",
+                key="label",
+                resource_id=gid,
+                resource_type="METAOBJECT",
             ),
             "status": "SOURCE_SPANISH", "detail": "Spanish source",
         }]
         mock_fetch_tr.return_value = {
-            "gid://shopify/Product/1": {
-                "content": {"title": {"digest": "d", "value": "Champú fortalecedor"}},
+            gid: {
+                "content": {"label": {"digest": "d", "value": "Fortalecedor"}},
                 "translations": {},
             },
         }
@@ -1027,10 +1032,62 @@ class TestRunFix:
         # EN engine should have been created and called for ES→EN
         mock_engine_cls.assert_called_once()
         mock_en_engine.translate_fields.assert_called_once()
+        # Metaobject should be updated via update_metaobject
+        client.update_metaobject.assert_called_once_with(
+            gid, [{"key": "label", "value": "Strengthening"}])
         # AR engine should have been called for EN→AR
         engine.translate_fields.assert_called_once()
         # The English source should be updated to the translated value
-        assert problems[0]["english"] == "Strengthening Shampoo"
+        assert problems[0]["english"] == "Strengthening"
+
+    @patch("tara_migrate.tools.review_arabic.time.sleep")
+    @patch("tara_migrate.tools.review_arabic.upload_translations")
+    @patch("tara_migrate.tools.review_arabic.fetch_translatable_resources")
+    @patch("tara_migrate.tools.review_arabic.TranslationEngine")
+    def test_retranslation_source_spanish_product_seo(self, mock_engine_cls,
+                                                       mock_fetch_tr,
+                                                       mock_upload, mock_sleep):
+        """SOURCE_SPANISH on product SEO should update via update_product_seo."""
+        client = MagicMock()
+        engine = MagicMock()
+        engine.model = "gpt-5-nano"
+        engine.reasoning_effort = "minimal"
+        engine.batch_size = 80
+
+        field_id = "PRODUCT|gid://shopify/Product/1|meta_title"
+
+        # Mock the EN engine created for ES→EN translation
+        mock_en_engine = MagicMock()
+        mock_en_engine.translate_fields.return_value = {
+            field_id: "Hydrating Conditioner | TARA"
+        }
+        mock_engine_cls.return_value = mock_en_engine
+
+        # Mock the AR engine for EN→AR translation
+        engine.translate_fields.return_value = {field_id: "بلسم مرطب | TARA"}
+        problems = [{
+            **_make_field(
+                english="Acondicionador Hidratante | TARA",
+                arabic="بلسم قديم",
+                key="meta_title",
+            ),
+            "status": "SOURCE_SPANISH", "detail": "Spanish source",
+        }]
+        mock_fetch_tr.return_value = {
+            "gid://shopify/Product/1": {
+                "content": {"meta_title": {"digest": "d", "value": "Acondicionador Hidratante | TARA"}},
+                "translations": {},
+            },
+        }
+        mock_upload.return_value = (1, 0)
+
+        uploaded, errors, skipped = run_fix(client, engine, problems)
+
+        # Product SEO should be updated
+        client.update_product_seo.assert_called_once_with(
+            "1", "Hydrating Conditioner | TARA", None)
+        # The English source should be updated
+        assert problems[0]["english"] == "Hydrating Conditioner | TARA"
 
     @patch("tara_migrate.tools.review_arabic.time.sleep")
     @patch("tara_migrate.tools.review_arabic.upload_translations")
