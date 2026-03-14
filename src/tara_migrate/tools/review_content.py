@@ -33,48 +33,11 @@ from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
 from tara_migrate.tools.patch_spanish import is_spanish
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Content field definitions — what to audit beyond body_html
-# ─────────────────────────────────────────────────────────────────────────────
-
-PRODUCT_TRANSLATABLE_METAFIELDS = {
-    "custom.tagline",
-    "custom.short_description",
-    "custom.size_ml",
-    "custom.key_benefits_heading",
-    "custom.key_benefits_content",
-    "custom.clinical_results_heading",
-    "custom.clinical_results_content",
-    "custom.how_to_use_heading",
-    "custom.how_to_use_content",
-    "custom.whats_inside_heading",
-    "custom.whats_inside_content",
-    "custom.free_of_heading",
-    "custom.free_of_content",
-    "custom.awards_heading",
-    "custom.awards_content",
-    "custom.fragrance_heading",
-    "custom.fragrance_content",
-    "global.title_tag",
-    "global.description_tag",
-}
-
-ARTICLE_TRANSLATABLE_METAFIELDS = {
-    "custom.blog_summary",
-    "custom.hero_caption",
-    "custom.short_title",
-}
-
-METAOBJECT_TRANSLATABLE_FIELDS = {
-    "benefit": {"title", "description", "category", "icon_label"},
-    "faq_entry": {"question", "answer"},
-    "blog_author": {"name", "bio"},
-    "ingredient": {
-        "name", "one_line_benefit", "description", "source", "origin",
-        "category", "concern",
-    },
-}
+from tara_migrate.translation.translator import (
+    ARTICLE_TRANSLATABLE_METAFIELDS,
+    METAOBJECT_TRANSLATABLE_FIELDS,
+    PRODUCT_TRANSLATABLE_METAFIELDS,
+)
 
 # Metafield types that contain translatable text
 TEXT_METAFIELD_TYPES = {

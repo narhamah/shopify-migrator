@@ -119,7 +119,7 @@ def compare_products(spain, scraped, label):
 
     # Check which metafields are missing from scraped products
     print("\n    Metafield coverage (matched products):")
-    from translator import PRODUCT_TRANSLATABLE_METAFIELDS
+    from tara_migrate.translation.translator import PRODUCT_TRANSLATABLE_METAFIELDS
     mf_coverage = {k: 0 for k in PRODUCT_TRANSLATABLE_METAFIELDS}
     for p in matched:
         for mf in p.get("metafields", []):
@@ -199,7 +199,7 @@ def compare_pages(spain, scraped, label):
 
 
 def compare_metaobjects(spain, scraped, label):
-    from translator import METAOBJECT_TRANSLATABLE_FIELDS
+    from tara_migrate.translation.translator import METAOBJECT_TRANSLATABLE_FIELDS
 
     print(f"\n  {label} Metaobjects:")
 
@@ -244,7 +244,7 @@ def compare_metaobjects(spain, scraped, label):
 
 def _check_if_copy(spain_objs, scraped_objs, mo_type):
     """Check if scraped metaobjects are just copies of Spain data (still Spanish)."""
-    from translator import METAOBJECT_TRANSLATABLE_FIELDS
+    from tara_migrate.translation.translator import METAOBJECT_TRANSLATABLE_FIELDS
     translatable_keys = METAOBJECT_TRANSLATABLE_FIELDS.get(mo_type, set())
 
     # Build handle-based lookup
@@ -281,7 +281,7 @@ def _check_if_copy(spain_objs, scraped_objs, mo_type):
 
 def analyze_translation_cost(gaps, matched_product_count=0):
     """Estimate number of LLM calls needed."""
-    from translator import (
+    from tara_migrate.translation.translator import (
         ARTICLE_TRANSLATABLE_METAFIELDS,
         METAOBJECT_TRANSLATABLE_FIELDS,
         PRODUCT_TRANSLATABLE_METAFIELDS,
