@@ -144,6 +144,12 @@ python fix_prices.py [--update-shopify]
 python fix_status.py
 python fix_images.py
 
+# Content review (strip Magento HTML, translate remaining Spanish)
+python review_content.py --audit                     # Report issues only
+python review_content.py --dry-run                   # Show planned changes
+python review_content.py                             # Apply fixes
+python review_content.py --type pages --skip-spanish # Strip Magento from pages only
+
 # Audit
 python compare_stores.py
 python verify_saudi.py
