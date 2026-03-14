@@ -499,8 +499,10 @@ def translate_spanish_to_english(html, client_openai, model="gpt-4o-mini"):
         "- Keep brand names unchanged: TARA, Kansa Wand, Gua Sha\n"
         "- Keep product range names in English: Onion + Peptides, "
         "Rosemary + Peptides, Black Garlic + Ceramides, etc.\n"
-        "- Translate INCI/scientific names to their English form "
-        "(e.g. 'ácido salicílico' → 'salicylic acid', 'extracto' → 'extract')\n"
+        "- CRITICAL: Translate ALL Spanish words to English. No Spanish may remain "
+        "in the output. This includes scientific terms in Spanish form: "
+        "'ácido salicílico' → 'salicylic acid', 'extracto' → 'extract', "
+        "'carbón activado' → 'activated charcoal'\n"
         "- Use professional, direct tone (no hype, no fluff)\n"
         "- If text is already in English, return it unchanged\n"
         "- Return ONLY the HTML, no explanations\n\n"
@@ -543,8 +545,9 @@ def translate_plain_text(text, client_openai, model="gpt-4o-mini"):
         "Translate this Spanish text to English for TARA, a luxury scalp-care brand.\n"
         "RULES:\n"
         "- Keep brand names unchanged: TARA, Kansa Wand, Gua Sha\n"
-        "- Translate INCI/scientific names to their English form "
-        "(e.g. 'ácido salicílico' → 'salicylic acid', 'extracto' → 'extract')\n"
+        "- CRITICAL: Translate ALL Spanish words to English. No Spanish may remain. "
+        "This includes: 'ácido salicílico' → 'salicylic acid', "
+        "'extracto' → 'extract', 'carbón activado' → 'activated charcoal'\n"
         "- Use professional, direct tone\n"
         "- Return ONLY the translation, no explanations\n\n"
         f"{text}"
@@ -1073,21 +1076,20 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                 print(f"    Stripped HTML bloat ({method}): {before_len:,} -> {after_len:,} chars ({pct:.0f}% reduction)")
 
             if "spanish" in issues:
-                if has_spanish_content(body):
-                    if openai_client is None:
-                        import openai
-                        openai_client = openai.OpenAI()
-                    print(f"    Translating Spanish -> English...")
-                    translated = translate_spanish_to_english(body, openai_client, model=model)
-                    if translated:
-                        body = translated
-                        print(f"    Translated OK ({len(body):,} chars)")
-                    else:
-                        print(f"    Translation FAILED — skipping")
-                        failed += 1
-                        continue
+                # Always translate if audit flagged as Spanish — don't re-check
+                # (re-checking with Haiku can give different answers, causing loops)
+                if openai_client is None:
+                    import openai
+                    openai_client = openai.OpenAI()
+                print(f"    Translating Spanish -> English...")
+                translated = translate_spanish_to_english(body, openai_client, model=model)
+                if translated:
+                    body = translated
+                    print(f"    Translated OK ({len(body):,} chars)")
                 else:
-                    print(f"    Spanish was in stripped HTML blocks (already removed)")
+                    print(f"    Translation FAILED — skipping")
+                    failed += 1
+                    continue
 
             if dry_run:
                 visible = extract_visible_text(body)
@@ -1191,25 +1193,24 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                 print(f"    Stripped HTML bloat from {mf_key} ({method})")
 
             if "spanish" in issues:
-                text = _extract_text_for_check(mf_value, mf_type)
-                if has_spanish_text(text):
-                    if openai_client is None:
-                        import openai
-                        openai_client = openai.OpenAI()
-                    print(f"    Translating {mf_key}...")
-                    if mf_type == "rich_text_field" and is_rich_text_json(mf_value):
-                        translated = _translate_rich_text_json(mf_value, openai_client, model=model)
-                    elif mf_type == "rich_text_field":
-                        translated = translate_spanish_to_english(mf_value, openai_client, model=model)
-                    else:
-                        translated = translate_plain_text(mf_value, openai_client, model=model)
-                    if translated:
-                        mf_value = translated
-                        print(f"    Translated OK")
-                    else:
-                        print(f"    Translation FAILED — skipping")
-                        failed += 1
-                        continue
+                # Always translate if audit flagged — don't re-check with Haiku
+                if openai_client is None:
+                    import openai
+                    openai_client = openai.OpenAI()
+                print(f"    Translating {mf_key}...")
+                if mf_type == "rich_text_field" and is_rich_text_json(mf_value):
+                    translated = _translate_rich_text_json(mf_value, openai_client, model=model)
+                elif mf_type == "rich_text_field":
+                    translated = translate_spanish_to_english(mf_value, openai_client, model=model)
+                else:
+                    translated = translate_plain_text(mf_value, openai_client, model=model)
+                if translated:
+                    mf_value = translated
+                    print(f"    Translated OK")
+                else:
+                    print(f"    Translation FAILED — skipping")
+                    failed += 1
+                    continue
 
             if dry_run:
                 preview = mf_value[:200] + "..." if len(mf_value) > 200 else mf_value
@@ -1250,25 +1251,24 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                 print(f"    Stripped HTML bloat from {tf_key} ({method})")
 
             if "spanish" in issues:
-                text = _extract_text_for_check(tf_value, tf_type)
-                if has_spanish_text(text):
-                    if openai_client is None:
-                        import openai
-                        openai_client = openai.OpenAI()
-                    print(f"    Translating {tf_key}...")
-                    if tf_type == "rich_text_field" and is_rich_text_json(tf_value):
-                        translated = _translate_rich_text_json(tf_value, openai_client, model=model)
-                    elif tf_type == "rich_text_field":
-                        translated = translate_spanish_to_english(tf_value, openai_client, model=model)
-                    else:
-                        translated = translate_plain_text(tf_value, openai_client, model=model)
-                    if translated:
-                        tf_value = translated
-                        print(f"    Translated OK")
-                    else:
-                        print(f"    Translation FAILED — skipping")
-                        failed += 1
-                        continue
+                # Always translate if audit flagged — don't re-check with Haiku
+                if openai_client is None:
+                    import openai
+                    openai_client = openai.OpenAI()
+                print(f"    Translating {tf_key}...")
+                if tf_type == "rich_text_field" and is_rich_text_json(tf_value):
+                    translated = _translate_rich_text_json(tf_value, openai_client, model=model)
+                elif tf_type == "rich_text_field":
+                    translated = translate_spanish_to_english(tf_value, openai_client, model=model)
+                else:
+                    translated = translate_plain_text(tf_value, openai_client, model=model)
+                if translated:
+                    tf_value = translated
+                    print(f"    Translated OK")
+                else:
+                    print(f"    Translation FAILED — skipping")
+                    failed += 1
+                    continue
 
             if dry_run:
                 preview = tf_value[:200] + "..." if len(tf_value) > 200 else tf_value
