@@ -181,38 +181,29 @@ def fetch_translatable_resources(client, gids, locale):
 
 
 def upload_translations(client, gid, translations_input):
-    """Upload translations for a single resource, chunking to Shopify's limit.
+    """Upload translations one key at a time to isolate errors.
 
     Returns (uploaded_count, error_count).
     """
-    # OnlineStoreTheme resources have a stricter per-mutation key limit
-    if "OnlineStoreTheme" in gid:
-        MAX_PER_REQUEST = 20
-    else:
-        MAX_PER_REQUEST = 50
     total_uploaded = 0
     total_errors = 0
 
-    for chunk_start in range(0, len(translations_input), MAX_PER_REQUEST):
-        chunk = translations_input[chunk_start:chunk_start + MAX_PER_REQUEST]
+    for t in translations_input:
         try:
             result = client._graphql(REGISTER_TRANSLATIONS_MUTATION, {
                 "resourceId": gid,
-                "translations": chunk,
+                "translations": [t],
             })
             user_errors = result.get("translationsRegister", {}).get("userErrors", [])
             if user_errors:
                 for ue in user_errors:
                     print(f"    ERROR {gid}: {ue['field']}: {ue['message']}")
-                total_uploaded += len(chunk) - len(user_errors)
-                total_errors += len(user_errors)
+                total_errors += 1
             else:
-                total_uploaded += len(chunk)
+                total_uploaded += 1
         except Exception as e:
-            print(f"    ERROR uploading {gid}: {e}")
-            total_errors += len(chunk)
-        if chunk_start + MAX_PER_REQUEST < len(translations_input):
-            time.sleep(0.3)
+            print(f"    ERROR uploading {gid} [{t.get('key', '?')}]: {e}")
+            total_errors += 1
 
     return total_uploaded, total_errors
 
