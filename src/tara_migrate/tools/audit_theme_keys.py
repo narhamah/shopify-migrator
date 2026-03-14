@@ -14,6 +14,8 @@ Usage:
     python audit_theme_keys.py --remove-junk    # Remove unnecessary keys
     python audit_theme_keys.py --dry-run        # Show what would be removed
     python audit_theme_keys.py --dump keys.json # Dump all keys to JSON for review
+    python audit_theme_keys.py --translate       # Translate missing Arabic theme keys
+    python audit_theme_keys.py --translate --dry-run  # Preview what would be translated
 """
 
 import argparse
@@ -415,12 +417,185 @@ def _get_removal_tiers():
     ]
 
 
+def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
+                         locale=LOCALE):
+    """Translate all theme keys that have English text but no Arabic translation.
+
+    Groups fields by resource_id for efficient digest fetching and upload.
+    Uses AI to translate short UI strings (buttons, labels, headings).
+
+    Returns (translated, uploaded, errors).
+    """
+    from tara_migrate.core.graphql_queries import REGISTER_TRANSLATIONS_MUTATION
+    from tara_migrate.translation.engine import TranslationEngine
+
+    # Find fields that need translation: have English text, no Arabic
+    to_translate = []
+    for f in fields:
+        english = (f.get("english") or "").strip()
+        arabic = (f.get("arabic") or "").strip()
+        if not english:
+            continue
+        # Skip if already has Arabic translation
+        if f["has_translation"] and arabic:
+            continue
+        # Skip junk/non-translatable content
+        cat = f.get("category", "")
+        if cat == "junk":
+            continue
+        # Skip pure Liquid/HTML with no translatable text
+        text_only = re.sub(r"<[^>]+>", "", english).strip()
+        text_only = re.sub(r"\{\{[^}]*\}\}", "", text_only).strip()
+        text_only = re.sub(r"\{%[^%]*%\}", "", text_only).strip()
+        if not text_only or not re.search(r"[a-zA-Z]{2,}", text_only):
+            continue
+        to_translate.append(f)
+
+    if not to_translate:
+        print("\nAll translatable theme keys already have Arabic translations!")
+        return 0, 0, 0
+
+    print(f"\n{'=' * 70}")
+    print(f"TRANSLATE THEME KEYS" + (" (DRY RUN)" if dry_run else ""))
+    print(f"{'=' * 70}")
+    print(f"  Keys needing Arabic translation: {len(to_translate)}")
+
+    # Group by key prefix for context
+    by_prefix = Counter()
+    for f in to_translate:
+        parts = f["key"].split(".")
+        prefix = parts[0] if parts else "unknown"
+        by_prefix[prefix] += 1
+    for prefix, count in by_prefix.most_common(15):
+        print(f"    {prefix}: {count}")
+
+    if dry_run:
+        print(f"\n  Sample keys to translate:")
+        for f in to_translate[:20]:
+            en = f["english"][:60]
+            print(f"    [{f['key'][:50]}]")
+            print(f"      EN: {en}")
+        if len(to_translate) > 20:
+            print(f"    ... and {len(to_translate) - 20} more")
+        return 0, 0, 0
+
+    # Build translation engine with a prompt suited for UI strings
+    prompt = (
+        "You are translating Shopify theme UI strings from English to Arabic "
+        "for a luxury scalp-care brand called TARA.\n"
+        "Rules:\n"
+        "- Use Modern Standard Arabic suitable for a Gulf audience (Saudi Arabia)\n"
+        "- Keep the TARA brand name unchanged\n"
+        "- Keep Liquid template tags ({{ }}, {% %}) unchanged\n"
+        "- Keep HTML tags unchanged — only translate the text content\n"
+        "- Keep placeholders like {{ count }} unchanged\n"
+        "- For short UI labels (1-3 words), provide a natural Arabic equivalent\n"
+        "- Arabic text should read right-to-left naturally\n"
+        "- Use consistent terminology throughout\n"
+    )
+
+    engine = TranslationEngine(
+        prompt,
+        model=model,
+        reasoning_effort="minimal",
+        batch_size=60,
+    )
+
+    # Translate in batches
+    batch_fields = []
+    for i, f in enumerate(to_translate):
+        field_id = f"{f['resource_id']}|{f['key']}"
+        batch_fields.append({"id": field_id, "value": f["english"]})
+
+    print(f"\n  Translating {len(batch_fields)} fields via {model}...")
+    t_map = engine.translate_fields(batch_fields)
+    print(f"  Got {len(t_map)} / {len(batch_fields)} translations")
+
+    if not t_map:
+        print("  ERROR: No translations returned!")
+        return 0, 0, 0
+
+    # Group by resource_id for upload
+    by_resource = defaultdict(list)
+    for f in to_translate:
+        field_id = f"{f['resource_id']}|{f['key']}"
+        arabic = t_map.get(field_id)
+        if arabic:
+            by_resource[f["resource_id"]].append({
+                "key": f["key"],
+                "arabic": arabic,
+                "digest": f["digest"],
+            })
+
+    # Upload translations
+    print(f"\n  Uploading to {len(by_resource)} theme resources...")
+    total_uploaded = 0
+    total_errors = 0
+    hit_limit = False
+
+    for rid, items in by_resource.items():
+        if hit_limit:
+            break
+
+        # Upload in batches of 10 per resource
+        for i in range(0, len(items), 10):
+            batch = items[i:i + 10]
+            translations_input = []
+            for item in batch:
+                translations_input.append({
+                    "locale": locale,
+                    "key": item["key"],
+                    "value": item["arabic"],
+                    "translatableContentDigest": item["digest"],
+                })
+
+            try:
+                result = client._graphql(REGISTER_TRANSLATIONS_MUTATION, {
+                    "resourceId": rid,
+                    "translations": translations_input,
+                })
+                user_errors = result.get("translationsRegister", {}).get(
+                    "userErrors", [])
+                if user_errors:
+                    for ue in user_errors:
+                        msg = ue["message"]
+                        print(f"    ERROR: {msg}")
+                        if "Too many translation keys" in msg:
+                            hit_limit = True
+                    total_errors += len(batch)
+                else:
+                    total_uploaded += len(batch)
+            except Exception as e:
+                print(f"    ERROR uploading to {rid}: {e}")
+                total_errors += len(batch)
+
+            time.sleep(0.3)
+
+        if not hit_limit and total_uploaded % 100 < 10:
+            print(f"    ... uploaded {total_uploaded} so far")
+
+    print(f"\n  RESULTS:")
+    print(f"    Translated: {len(t_map)}")
+    print(f"    Uploaded:   {total_uploaded}")
+    if total_errors:
+        print(f"    Errors:     {total_errors}")
+    if hit_limit:
+        print(f"    WARNING: Hit Shopify's ~3,400 key limit!")
+        print(f"    Run --remove-junk first to free up slots, then --translate again.")
+
+    return len(t_map), total_uploaded, total_errors
+
+
 def main():
     parser = argparse.ArgumentParser(description="Audit theme translation keys")
     parser.add_argument("--remove-junk", action="store_true",
                         help="Remove junk + minimal system translations to get under limit")
+    parser.add_argument("--translate", action="store_true",
+                        help="Translate missing Arabic theme keys via AI")
+    parser.add_argument("--model", default="gpt-5-nano",
+                        help="OpenAI model for translation (default: gpt-5-nano)")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Show what would be removed without doing it")
+                        help="Show what would be removed/translated without doing it")
     parser.add_argument("--dump", metavar="FILE",
                         help="Dump all keys to JSON for manual review")
     parser.add_argument("--target", type=int, default=3400,
@@ -450,6 +625,12 @@ def main():
         with open(args.dump, "w") as f:
             json.dump(fields, f, indent=2, ensure_ascii=False)
         print(f"\nDumped {len(fields)} keys to {args.dump}")
+
+    # Translate missing Arabic theme keys
+    if args.translate:
+        translate_theme_keys(client, fields, model=args.model,
+                             dry_run=args.dry_run)
+        return
 
     # Remove translations in tiers until under the limit
     if args.remove_junk or args.dry_run:

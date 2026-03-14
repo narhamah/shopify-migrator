@@ -205,6 +205,9 @@ python audit_theme_keys.py                           # Audit only — show break
 python audit_theme_keys.py --remove-junk             # Remove unnecessary translations
 python audit_theme_keys.py --dry-run                 # Preview what would be removed
 python audit_theme_keys.py --dump data/theme_keys.json  # Dump all keys to JSON
+python audit_theme_keys.py --translate               # Translate missing Arabic theme keys
+python audit_theme_keys.py --translate --dry-run     # Preview what would be translated
+python audit_theme_keys.py --translate --model gpt-5-mini  # Use a different model
 
 # Unified verify-and-fix (audit -> fix -> verify in one pass)
 python verify_fix_translations.py                           # full pipeline
