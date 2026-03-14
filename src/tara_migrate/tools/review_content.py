@@ -517,6 +517,17 @@ def translate_spanish_to_english(html, client_openai, model="gpt-4o-mini"):
         return None
 
 
+def _slugify(text):
+    """Convert text to a Shopify-compatible handle (lowercase, hyphen-separated)."""
+    import unicodedata
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9\s-]", "", text)
+    text = re.sub(r"[\s_]+", "-", text)
+    text = re.sub(r"-+", "-", text)
+    return text.strip("-")
+
+
 def translate_plain_text(text, client_openai, model="gpt-4o-mini"):
     """Translate a plain Spanish text string to English."""
     prompt = (
@@ -1089,7 +1100,11 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                 print(f"    -> {translated}")
 
                 if dry_run:
-                    print(f"    [DRY RUN] Would update title")
+                    if rtype == "metaobjects":
+                        new_handle = _slugify(translated)
+                        print(f"    [DRY RUN] Would update handle: {item['handle']} -> {new_handle}")
+                    else:
+                        print(f"    [DRY RUN] Would update title")
                     fixed += 1
                     continue
 
@@ -1110,6 +1125,12 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                         blog_id = item.get("blog_id")
                         client._request("PUT", f"blogs/{blog_id}/articles/{rid}.json",
                                         json={"article": {"id": rid, "title": translated}})
+                    elif rtype == "metaobjects":
+                        # For metaobjects, "title" is the handle — slugify and update
+                        new_handle = _slugify(translated)
+                        mo_id = item["id"]  # GID
+                        client.update_metaobject(mo_id, [], handle=new_handle)
+                        print(f"    Handle: {item['handle']} -> {new_handle}")
                     print(f"    Updated on Shopify")
                     fixed += 1
                     time.sleep(0.5)
