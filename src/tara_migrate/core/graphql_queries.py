@@ -207,7 +207,7 @@ def upload_translations(client, gid, translations_input):
                         remaining = len(translations_input) - total_uploaded - total_errors - 1
                         if remaining > 0:
                             print(f"    Aborting {remaining} remaining fields for {gid} "
-                                  f"(resource limit reached)")
+                                  f"(theme key limit ~3,400 exceeded)")
                         total_errors += remaining + 1
                         return total_uploaded, total_errors
                 total_errors += 1
