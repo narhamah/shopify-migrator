@@ -39,7 +39,7 @@ def fetch_sar_prices(site_url, store_code, delay=REQUEST_DELAY):
     while True:
         query = f"""
         {{
-            products(search: "", pageSize: {page_size}, currentPage: {current_page}) {{
+            products(filter: {{}}, pageSize: {page_size}, currentPage: {current_page}) {{
                 total_count
                 items {{
                     sku
