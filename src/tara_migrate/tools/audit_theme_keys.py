@@ -63,17 +63,14 @@ def classify_key(key, value):
     val = (value or "").strip()
 
     # ── SYSTEM: Shopify-managed strings (auto-translated by Shopify) ────
-    # These are built-in checkout, customer account, and system strings.
-    # Shopify provides its own translations for these when Arabic is enabled
-    # as a locale — registering custom translations wastes key slots.
-    _SYSTEM_PREFIXES = (
-        "shopify.checkout.",       # Checkout flow strings
-        "shopify.sentence.",       # Sentence connectors
-        "customer_accounts.",      # Customer account pages
-        "content.",                # Content system strings
-        "sections.global.",        # Theme setting labels (not storefront-visible)
-    )
-    if any(key.startswith(p) for p in _SYSTEM_PREFIXES):
+    # Only keys starting with "section." are merchant-entered theme content
+    # (headings, text blocks, buttons in the theme editor). Everything else
+    # is Shopify's built-in locale system — checkout, customer accounts,
+    # pagination, attributes, accessibility, blog strings, etc. — which
+    # Shopify auto-translates when Arabic is enabled as a store locale.
+    # Registering custom translations for these wastes key slots.
+    _MERCHANT_PREFIXES = ("section.", "general.")
+    if not any(key.startswith(p) for p in _MERCHANT_PREFIXES):
         return "system", "Shopify auto-translated system string"
 
     # ── JUNK: Empty or whitespace-only ──────────────────────────────────
