@@ -636,27 +636,32 @@ query($resourceType: TranslatableResourceType!, $first: Int!, $after: String) {
 _SEO_KEYS = {"meta_title", "meta_description"}
 
 
-def _fetch_product_seo_fields(client):
-    """Fetch SEO title/description for all products via the Translations API.
+def _fetch_seo_fields(client, resource_type):
+    """Fetch SEO title/description via the Translations API.
 
     The REST metafields endpoint and GraphQL seo{} field do NOT reliably
     return global.title_tag/description_tag. The Translations API is the
     only reliable source for these values.
 
-    Returns dict of {numeric_product_id: {title_tag: str, description_tag: str}}.
+    Args:
+        client: ShopifyClient instance
+        resource_type: Shopify translatable resource type
+            (e.g. "PRODUCT", "COLLECTION", "PAGE", "ARTICLE")
+
+    Returns dict of {numeric_id: {title_tag: str, description_tag: str}}.
     """
     seo_map = {}
     cursor = None
     while True:
         data = client._graphql(_SEO_TRANSLATABLE_QUERY, {
-            "resourceType": "PRODUCT",
+            "resourceType": resource_type,
             "first": 50,
             "after": cursor,
         })
         container = data.get("translatableResources", {})
         for edge in container.get("edges", []):
             node = edge["node"]
-            gid = node["resourceId"]  # gid://shopify/Product/12345
+            gid = node["resourceId"]
             numeric_id = int(gid.split("/")[-1])
             for field in node.get("translatableContent", []):
                 key = field["key"]
@@ -671,6 +676,11 @@ def _fetch_product_seo_fields(client):
         cursor = page_info.get("endCursor")
         time.sleep(0.3)
     return seo_map
+
+
+def _fetch_product_seo_fields(client):
+    """Fetch SEO fields for products. Convenience wrapper."""
+    return _fetch_seo_fields(client, "PRODUCT")
 
 
 def _fetch_metafields_for_resource(client, resource_type, resource_id, translatable_keys):
@@ -694,6 +704,41 @@ def _fetch_metafields_for_resource(client, resource_type, resource_id, translata
     return result
 
 
+def _inject_seo_fields(item, seo_map):
+    """Inject SEO title_tag/description_tag as synthetic metafield entries.
+
+    Returns the number of SEO fields injected.
+    """
+    injected = 0
+    seo = seo_map.get(item["id"])
+    if not seo:
+        return 0
+    mfs = item.get("metafields", [])
+    existing_keys = {m["key"] for m in mfs}
+    if "global.title_tag" not in existing_keys and seo.get("title_tag"):
+        mfs.append({
+            "id": f"seo-title-{item['id']}",
+            "key": "global.title_tag",
+            "value": seo["title_tag"],
+            "type": "single_line_text_field",
+            "namespace": "global",
+            "bare_key": "title_tag",
+        })
+        injected += 1
+    if "global.description_tag" not in existing_keys and seo.get("description_tag"):
+        mfs.append({
+            "id": f"seo-desc-{item['id']}",
+            "key": "global.description_tag",
+            "value": seo["description_tag"],
+            "type": "single_line_text_field",
+            "namespace": "global",
+            "bare_key": "description_tag",
+        })
+        injected += 1
+    item["metafields"] = mfs
+    return injected
+
+
 def fetch_all_resources(client):
     """Fetch all content resources from the store, including metafields and metaobjects."""
     resources = {}
@@ -713,66 +758,53 @@ def fetch_all_resources(client):
             "id": p["id"], "title": p.get("title", ""), "handle": p.get("handle", ""),
             "body_html": p.get("body_html", ""), "type": "product",
         }
-        # Fetch metafields
         mfs = _fetch_metafields_for_resource(client, "products", p["id"],
                                              PRODUCT_TRANSLATABLE_METAFIELDS)
-
-        # Inject SEO fields from GraphQL as synthetic metafield entries
-        seo = seo_map.get(p["id"])
-        if seo:
-            # Check if REST already returned them (unlikely but safe)
-            existing_keys = {m["key"] for m in mfs}
-            if "global.title_tag" not in existing_keys and seo.get("title_tag"):
-                mfs.append({
-                    "id": f"seo-title-{p['id']}",
-                    "key": "global.title_tag",
-                    "value": seo["title_tag"],
-                    "type": "single_line_text_field",
-                    "namespace": "global",
-                    "bare_key": "title_tag",
-                })
-                seo_injected += 1
-            if "global.description_tag" not in existing_keys and seo.get("description_tag"):
-                mfs.append({
-                    "id": f"seo-desc-{p['id']}",
-                    "key": "global.description_tag",
-                    "value": seo["description_tag"],
-                    "type": "single_line_text_field",
-                    "namespace": "global",
-                    "bare_key": "description_tag",
-                })
-                seo_injected += 1
-
         item["metafields"] = mfs
+        seo_injected += _inject_seo_fields(item, seo_map)
         product_items.append(item)
     resources["products"] = product_items
     mf_count = sum(len(p["metafields"]) for p in product_items)
     print(f"  {len(product_items)} products ({mf_count} text metafields, {seo_injected} SEO fields via GraphQL)")
 
-    # --- Collections (body_html + title) ---
+    # --- Collections (body_html + title + SEO) ---
     print("Fetching collections...")
     collections = client.get_collections()
-    resources["collections"] = [
-        {"id": c["id"], "title": c.get("title", ""), "handle": c.get("handle", ""),
-         "body_html": c.get("body_html", ""), "type": "collection", "metafields": []}
-        for c in collections
-    ]
-    print(f"  {len(resources['collections'])} collections")
+    collection_seo_map = _fetch_seo_fields(client, "COLLECTION")
+    collection_items = []
+    collection_seo_injected = 0
+    for c in collections:
+        item = {
+            "id": c["id"], "title": c.get("title", ""), "handle": c.get("handle", ""),
+            "body_html": c.get("body_html", ""), "type": "collection", "metafields": [],
+        }
+        collection_seo_injected += _inject_seo_fields(item, collection_seo_map)
+        collection_items.append(item)
+    resources["collections"] = collection_items
+    print(f"  {len(collection_items)} collections ({collection_seo_injected} SEO fields via GraphQL)")
 
-    # --- Pages (body_html + title) ---
+    # --- Pages (body_html + title + SEO) ---
     print("Fetching pages...")
     pages = client.get_pages()
-    resources["pages"] = [
-        {"id": p["id"], "title": p.get("title", ""), "handle": p.get("handle", ""),
-         "body_html": p.get("body_html", ""), "type": "page", "metafields": []}
-        for p in pages
-    ]
-    print(f"  {len(resources['pages'])} pages")
+    page_seo_map = _fetch_seo_fields(client, "PAGE")
+    page_items = []
+    page_seo_injected = 0
+    for p in pages:
+        item = {
+            "id": p["id"], "title": p.get("title", ""), "handle": p.get("handle", ""),
+            "body_html": p.get("body_html", ""), "type": "page", "metafields": [],
+        }
+        page_seo_injected += _inject_seo_fields(item, page_seo_map)
+        page_items.append(item)
+    resources["pages"] = page_items
+    print(f"  {len(page_items)} pages ({page_seo_injected} SEO fields via GraphQL)")
 
-    # --- Articles (body_html + title + metafields) ---
+    # --- Articles (body_html + title + metafields + SEO) ---
     print("Fetching articles...")
     blogs = client.get_blogs()
+    article_seo_map = _fetch_seo_fields(client, "ARTICLE")
     articles = []
+    article_seo_injected = 0
     for blog in blogs:
         blog_articles = client.get_articles(blog["id"])
         for a in blog_articles:
@@ -784,10 +816,11 @@ def fetch_all_resources(client):
             mfs = _fetch_metafields_for_resource(client, "articles", a["id"],
                                                  ARTICLE_TRANSLATABLE_METAFIELDS)
             item["metafields"] = mfs
+            article_seo_injected += _inject_seo_fields(item, article_seo_map)
             articles.append(item)
     resources["articles"] = articles
     mf_count = sum(len(a["metafields"]) for a in articles)
-    print(f"  {len(articles)} articles ({mf_count} text metafields)")
+    print(f"  {len(articles)} articles ({mf_count} text metafields, {article_seo_injected} SEO fields via GraphQL)")
 
     # --- Metaobjects ---
     print("Fetching metaobjects...")
@@ -1321,7 +1354,13 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                 continue
 
             try:
-                gid_type = "Product" if rtype == "products" else "Article"
+                _GID_TYPE_MAP = {
+                    "products": "Product",
+                    "collections": "Collection",
+                    "pages": "Page",
+                    "articles": "Article",
+                }
+                gid_type = _GID_TYPE_MAP.get(rtype, "Product")
                 client.set_metafields([{
                     "ownerId": f"gid://shopify/{gid_type}/{rid}",
                     "namespace": mf.get("namespace", ""),
