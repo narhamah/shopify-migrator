@@ -155,6 +155,10 @@ class TestStepBuildNavigation:
         (en_dir / "pages.json").write_text(json.dumps([]))
 
         client = MagicMock()
+        # _step_build_navigation_from_idmap looks up collections/pages by handle
+        # on the Saudi store — mock to return results with recognizable titles
+        client.get_collections_by_handle.return_value = [{"id": 10, "title": "Skincare"}]
+        client.get_pages_by_handle.return_value = [{"id": 20, "title": "FAQ"}]
         step_build_navigation(client, dry_run=True)
 
         client.create_menu.assert_not_called()
