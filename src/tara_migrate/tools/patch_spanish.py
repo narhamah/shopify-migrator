@@ -45,13 +45,16 @@ _ES_FUNCTION_WORDS = re.compile(
 # Domain-specific Spanish words that should have been translated
 _ES_DOMAIN_WORDS = re.compile(
     r'\b(extracto|aceite|semilla|carbón|efecto|bloqueo|reactivación|'
-    r'calma|densidad|grosor|raíz|fortalecida|estimulación|frena|caída|'
+    r'calma|densidad|grosor|raíz|fortalecid[ao]|estimulación|frena|caída|'
     r'mecánica|folicular|visible|inmediato|olor|ancla|miniaturización|'
     r'ciclo|cabello|cabelludo|cuero|piel|champú|mascarilla|acondicionador|'
-    r'crema|suavizante|fortalecedor|nutritivo|reparador|protección|pérdida|'
+    r'crema|suavizante|fortalecedor[a]?|nutritiv[oa]|reparador[a]?|protección|pérdida|'
     r'cebolla|romero|salvia|dátil|fresa|nopal|aguacate|apio|levadura|'
-    r'oliva|uva|sésamo|argán|soja|vitamínica|crecimiento|capilar|'
-    r'enjuague|aplicación|resultado|beneficio|ingrediente|tratamiento)\b',
+    r'oliva|uva|sésamo|argán|soja|vitamínic[oa]|crecimiento|capilar|'
+    r'enjuague|aplicación|resultado|beneficio|ingrediente|tratamiento|'
+    # SEO / meta title patterns
+    r'rutina|hidratante|revitalizante|ceramidas|ajo negro|negro|'
+    r'anticaída|limpieza profunda|exfoliante)\b',
     re.IGNORECASE,
 )
 

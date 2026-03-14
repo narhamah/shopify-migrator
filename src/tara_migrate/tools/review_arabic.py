@@ -224,6 +224,7 @@ def classify_fields(fields):
         "missing": 0, "identical": 0, "not_arabic": 0,
         "mixed": 0, "corrupted": 0, "outdated": 0,
         "html_bloat": 0, "has_english": 0, "has_spanish": 0,
+        "source_spanish": 0,
     }
 
     for field in fields:
@@ -243,6 +244,17 @@ def classify_fields(fields):
             continue
 
         stats["total"] += 1
+
+        # Check 0: Is the English SOURCE actually Spanish?
+        # This means review_content.py didn't clean it — flag separately.
+        if english and status != "MISSING":
+            en_text = _extract_checkable_text(english)
+            if en_text and len(en_text) >= 15 and is_spanish(en_text):
+                status = "SOURCE_SPANISH"
+                detail = "English source is actually Spanish — run review_content.py first"
+                stats["source_spanish"] += 1
+                results.append({**field, "status": status, "detail": detail})
+                continue
 
         # Enhanced checks for fields that passed basic classification
         if status == "OK":
@@ -270,7 +282,7 @@ def classify_fields(fields):
             "NOT_ARABIC": "not_arabic", "MIXED_LANGUAGE": "mixed",
             "CORRUPTED_JSON": "corrupted", "OUTDATED": "outdated",
             "HTML_BLOAT": "html_bloat", "HAS_ENGLISH": "has_english",
-            "HAS_SPANISH": "has_spanish",
+            "HAS_SPANISH": "has_spanish", "SOURCE_SPANISH": "source_spanish",
         }.get(status, "ok")
         stats[stat_key] += 1
 
@@ -428,6 +440,12 @@ def run_audit(client, resource_types, haiku_client, haiku_model, skip_semantic=F
     print(f"  {'TOTAL':20s} {stats['total']:>5d}")
     print(f"  {'SKIPPED':20s} {stats['skip']:>5d}")
 
+    if stats.get("source_spanish", 0) > 0:
+        print(f"\n  WARNING: {stats['source_spanish']} fields have Spanish as the "
+              f"English source!")
+        print(f"  → Run 'python review_content.py' first to fix the English source.")
+        print(f"  → review_arabic.py will translate them directly to Arabic for now.")
+
     # Step 3b: Semantic correspondence check on OK fields
     if not skip_semantic and stats["ok"] > 0:
         print(f"\n{'=' * 60}")
@@ -505,6 +523,7 @@ _STRIP_ONLY = frozenset({"HTML_BLOAT"})
 _RETRANSLATE = frozenset({
     "MISSING", "IDENTICAL", "NOT_ARABIC", "MIXED_LANGUAGE",
     "CORRUPTED_JSON", "OUTDATED", "HAS_ENGLISH", "HAS_SPANISH",
+    "SOURCE_SPANISH",  # Source is Spanish — translate ES→AR directly
     "SEMANTIC_MISMATCH",
 })
 
