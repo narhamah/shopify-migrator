@@ -505,11 +505,13 @@ def translate_spanish_to_english(html, client_openai, model="gpt-4o-mini"):
         f"{html}"
     )
     try:
-        resp = client_openai.chat.completions.create(
+        kwargs = dict(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-
         )
+        if not model.startswith("gpt-5"):
+            kwargs["temperature"] = 0.2
+        resp = client_openai.chat.completions.create(**kwargs)
         result = resp.choices[0].message.content.strip()
         # Strip markdown code block wrappers if the model added them
         if result.startswith("```"):
@@ -545,11 +547,13 @@ def translate_plain_text(text, client_openai, model="gpt-4o-mini"):
         f"{text}"
     )
     try:
-        resp = client_openai.chat.completions.create(
+        kwargs = dict(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-
         )
+        if not model.startswith("gpt-5"):
+            kwargs["temperature"] = 0.2
+        resp = client_openai.chat.completions.create(**kwargs)
         result = resp.choices[0].message.content.strip()
         # Strip markdown code block wrappers if the model added them
         if result.startswith("```"):
