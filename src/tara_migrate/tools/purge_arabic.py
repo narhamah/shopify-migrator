@@ -4,17 +4,19 @@
 This script:
   1. Fetches ALL Arabic translations across all resource types
   2. Removes them via Shopify's translationsRemove GraphQL mutation
-  3. Re-translates everything EN→AR using TARA tone of voice
-  4. Uploads the fresh translations via translationsRegister
+  3. Restores Arabic content from Magento scrape (data/arabic/) where available
+  4. AI-translates only the gaps (fields not in the scrape) using TARA tone of voice
+  5. Uploads translations via translationsRegister
 
 Usage:
     python purge_arabic.py --purge-only                    # Purge only, no retranslation
     python purge_arabic.py --purge-only --dry-run           # Preview what would be purged
-    python purge_arabic.py --model gpt-5-mini               # Purge + retranslate
+    python purge_arabic.py --model gpt-5-mini               # Purge + retranslate (scrape first, AI for gaps)
     python purge_arabic.py --model gpt-5-mini --dry-run     # Preview full pipeline
     python purge_arabic.py --skip-purge                     # Retranslate only (assumes already purged)
     python purge_arabic.py --type PRODUCT,COLLECTION        # Only specific resource types
     python purge_arabic.py --skip-theme                     # Skip ONLINE_STORE_THEME (4000+ keys)
+    python purge_arabic.py --skip-scraped                   # Skip Magento scrape, AI-translate everything
 """
 
 import argparse
@@ -26,7 +28,8 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
-from tara_migrate.core import config
+from tara_migrate.core import config, load_json
+from tara_migrate.core.config import AR_DIR
 from tara_migrate.core.graphql_queries import (
     TRANSLATABLE_RESOURCES_QUERY,
     fetch_translatable_resources,
@@ -49,6 +52,121 @@ mutation translationsRemove($resourceId: ID!, $translationKeys: [String!]!, $loc
   }
 }
 """
+
+
+def build_scraped_lookup(id_map_path="data/id_map.json"):
+    """Build dest_gid → field_key → arabic_value lookup from Magento scrape.
+
+    Loads scraped Arabic content from data/arabic/ and maps it to destination
+    Shopify GIDs using id_map.json. Returns a dict keyed by destination GID
+    containing field-level Arabic content.
+    """
+    id_map = load_json(id_map_path, {})
+    lookup = {}  # dest_gid -> {field_key: arabic_value}
+
+    # ── Products ──
+    products = load_json(os.path.join(AR_DIR, "products.json"), [])
+    product_map = id_map.get("products", {})
+    for p in products:
+        src_id = str(p.get("id", ""))
+        dest_id = product_map.get(src_id)
+        if not dest_id:
+            continue
+        dest_gid = f"gid://shopify/Product/{dest_id}"
+        fields = {}
+        if p.get("title"):
+            fields["title"] = p["title"]
+        if p.get("body_html"):
+            fields["body_html"] = p["body_html"]
+        if p.get("meta_title"):
+            fields["meta_title"] = p["meta_title"]
+        if p.get("meta_description"):
+            fields["meta_description"] = p["meta_description"]
+        # Metafields (namespace.key is the translation key)
+        for mf in p.get("metafields", []):
+            ns = mf.get("namespace", "")
+            key = mf.get("key", "")
+            val = mf.get("value")
+            mf_type = mf.get("type", "")
+            # Only use text metafields, skip references/numbers/etc.
+            if val and ns and key and mf_type in (
+                "single_line_text_field", "multi_line_text_field",
+                "rich_text_field",
+            ):
+                fields[f"{ns}.{key}"] = val
+        if fields:
+            lookup[dest_gid] = fields
+
+    # ── Collections ──
+    collections = load_json(os.path.join(AR_DIR, "collections.json"), [])
+    collection_map = id_map.get("collections", {})
+    for c in collections:
+        src_id = str(c.get("id", ""))
+        dest_id = collection_map.get(src_id)
+        if not dest_id:
+            continue
+        dest_gid = f"gid://shopify/Collection/{dest_id}"
+        fields = {}
+        if c.get("title"):
+            fields["title"] = c["title"]
+        if c.get("body_html"):
+            fields["body_html"] = c["body_html"]
+        if fields:
+            lookup[dest_gid] = fields
+
+    # ── Pages ──
+    pages = load_json(os.path.join(AR_DIR, "pages.json"), [])
+    page_map = id_map.get("pages", {})
+    for pg in pages:
+        src_id = str(pg.get("id", ""))
+        dest_id = page_map.get(src_id)
+        if not dest_id:
+            continue
+        dest_gid = f"gid://shopify/OnlineStorePage/{dest_id}"
+        fields = {}
+        if pg.get("title"):
+            fields["title"] = pg["title"]
+        if pg.get("body_html"):
+            fields["body_html"] = pg["body_html"]
+        if fields:
+            lookup[dest_gid] = fields
+
+    # ── Articles ──
+    articles = load_json(os.path.join(AR_DIR, "articles.json"), [])
+    article_map = id_map.get("articles", {})
+    for a in articles:
+        src_id = str(a.get("id", ""))
+        dest_id = article_map.get(src_id)
+        if not dest_id:
+            continue
+        dest_gid = f"gid://shopify/OnlineStoreArticle/{dest_id}"
+        fields = {}
+        if a.get("title"):
+            fields["title"] = a["title"]
+        if a.get("body_html"):
+            fields["body_html"] = a["body_html"]
+        if fields:
+            lookup[dest_gid] = fields
+
+    # ── Metaobjects ──
+    metaobjects = load_json(os.path.join(AR_DIR, "metaobjects.json"), {})
+    for mo_type, type_data in metaobjects.items():
+        map_key = f"metaobjects_{mo_type}"
+        mo_map = id_map.get(map_key, {})
+        for obj in type_data.get("objects", []):
+            src_gid = obj.get("id", "")
+            dest_gid = mo_map.get(src_gid)
+            if not dest_gid:
+                continue
+            fields = {}
+            for f in obj.get("fields", []):
+                val = f.get("value")
+                if val and val != "None":
+                    fields[f["key"]] = val
+            if fields:
+                lookup[dest_gid] = fields
+
+    return lookup
 
 
 def fetch_all_translations(client, resource_types, locale=LOCALE):
@@ -178,59 +296,96 @@ def purge_translations(client, fields, dry_run=False, locale=LOCALE):
     return removed, errors
 
 
-def retranslate(client, engine, fields, dry_run=False, locale=LOCALE):
+def retranslate(client, engine, fields, scraped_lookup=None, dry_run=False,
+                locale=LOCALE):
     """Translate all English fields to Arabic and upload.
 
-    Only translates fields that have English content (skips empty fields).
+    Uses scraped Magento Arabic content where available (scraped_lookup),
+    then AI-translates only the remaining gaps.
     """
+    scraped_lookup = scraped_lookup or {}
+
     # Filter to fields with English content worth translating
-    to_translate = []
+    translatable = []
     skipped_reasons = {"empty": 0, "url": 0, "field_pattern": 0}
     for f in fields:
         english = (f.get("english") or "").strip()
         if not english:
             skipped_reasons["empty"] += 1
             continue
-        # Skip non-translatable field patterns (images, URLs, config, etc.)
         if is_skippable_field(f["key"]):
             skipped_reasons["field_pattern"] += 1
             continue
-        # Skip plain URLs
         if english.startswith("http") and not is_rich_text_json(english):
             skipped_reasons["url"] += 1
             continue
-        to_translate.append(f)
+        translatable.append(f)
     print(f"  Skipped: {sum(skipped_reasons.values())} "
           f"(empty={skipped_reasons['empty']}, "
           f"field_pattern={skipped_reasons['field_pattern']}, "
           f"url={skipped_reasons['url']})")
 
-    print(f"\n  {len(to_translate)} fields to translate")
+    # Split into scraped (from Magento) vs gaps (need AI translation)
+    from_scrape = []  # (field, arabic_value) — already have Arabic
+    need_ai = []      # fields that need AI translation
+    for f in translatable:
+        rid = f["resource_id"]
+        key = f["key"]
+        scraped_fields = scraped_lookup.get(rid, {})
+        if key in scraped_fields:
+            from_scrape.append((f, scraped_fields[key]))
+        else:
+            need_ai.append(f)
+
+    print(f"\n  Total translatable: {len(translatable)}")
+    print(f"  From Magento scrape: {len(from_scrape)}")
+    print(f"  Need AI translation: {len(need_ai)}")
 
     if dry_run:
-        by_type = {}
-        for f in to_translate:
+        by_type_scrape = {}
+        by_type_ai = {}
+        for f, _ in from_scrape:
             rtype = f["resource_type"]
-            by_type[rtype] = by_type.get(rtype, 0) + 1
-        for rtype, count in sorted(by_type.items()):
+            by_type_scrape[rtype] = by_type_scrape.get(rtype, 0) + 1
+        for f in need_ai:
+            rtype = f["resource_type"]
+            by_type_ai[rtype] = by_type_ai.get(rtype, 0) + 1
+        print("\n  Scraped content by type:")
+        for rtype, count in sorted(by_type_scrape.items()):
+            print(f"    {rtype}: {count}")
+        print("  AI translation by type:")
+        for rtype, count in sorted(by_type_ai.items()):
             print(f"    {rtype}: {count}")
         return 0, 0, 0
 
-    # Translate in batches using the engine's format: [{id, value}, ...]
-    engine_fields = []
-    for i, f in enumerate(to_translate):
-        engine_fields.append({
-            "id": f"{f['resource_id']}|{f['key']}",
-            "value": f["english"],
-        })
+    # Build combined translation map: field_id → arabic_value
+    t_map = {}
 
-    t_map = engine.translate_fields(engine_fields)
+    # 1) Add scraped content directly
+    for f, arabic_value in from_scrape:
+        field_id = f"{f['resource_id']}|{f['key']}"
+        t_map[field_id] = arabic_value
+    print(f"  Loaded {len(from_scrape)} fields from Magento scrape")
 
-    print(f"  Translated: {len(t_map)} / {len(to_translate)} fields")
+    # 2) AI-translate the gaps
+    if need_ai and engine:
+        engine_fields = []
+        for f in need_ai:
+            engine_fields.append({
+                "id": f"{f['resource_id']}|{f['key']}",
+                "value": f["english"],
+            })
+        ai_map = engine.translate_fields(engine_fields)
+        t_map.update(ai_map)
+        print(f"  AI-translated: {len(ai_map)} / {len(need_ai)} gap fields")
+    elif need_ai:
+        print(f"  WARNING: {len(need_ai)} fields need AI translation "
+              f"but no engine provided")
 
     # Build resource → [(field, arabic_value)] mapping for upload
+    all_fields = translatable
     by_resource = {}
-    for i, f in enumerate(to_translate):
+    for f in all_fields:
         field_id = f"{f['resource_id']}|{f['key']}"
         if field_id not in t_map:
             continue
@@ -310,6 +465,8 @@ def main():
                         help="Translation batch size (default: 80)")
     parser.add_argument("--prompt", type=str,
                         help="Path to developer prompt file")
+    parser.add_argument("--skip-scraped", action="store_true",
+                        help="Skip Magento scrape data, AI-translate everything")
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview without making changes")
     args = parser.parse_args()
@@ -363,12 +520,26 @@ def main():
         print("\n  Done (--purge-only). Run without --purge-only to retranslate.")
         return
 
-    # ── Step 3: Retranslate ──
+    # ── Step 3: Load scraped Arabic content from Magento ──
+    scraped_lookup = {}
+    if not args.skip_scraped:
+        print(f"\n{'=' * 60}")
+        print("Step 3: Loading Magento scraped Arabic content")
+        print("=" * 60)
+        scraped_lookup = build_scraped_lookup()
+        total_scraped_fields = sum(len(v) for v in scraped_lookup.values())
+        print(f"  {len(scraped_lookup)} resources with scraped Arabic content")
+        print(f"  {total_scraped_fields} total scraped fields available")
+    else:
+        print("\n  Skipping Magento scrape (--skip-scraped)")
+
+    # ── Step 4: Retranslate (scrape first, AI for gaps) ──
     print(f"\n{'=' * 60}")
-    print("Step 3: RETRANSLATING with TARA tone of voice")
+    print("Step 4: RETRANSLATING (Magento scrape + AI for gaps)")
     print("=" * 60)
 
     # Find developer prompt
+    engine = None
     prompt_path = args.prompt
     if not prompt_path:
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -396,7 +567,8 @@ def main():
     )
 
     uploaded, upload_errors, skipped = retranslate(
-        client, engine, fields, dry_run=args.dry_run
+        client, engine, fields, scraped_lookup=scraped_lookup,
+        dry_run=args.dry_run,
     )
 
     # ── Summary ──
