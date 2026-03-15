@@ -26,9 +26,21 @@ class ShopifyClient:
     # --- Low-level helpers ---
 
     def _request_raw(self, method: str, url: str, **kwargs: Any) -> requests.Response:
-        """Send request to any URL with rate-limit retry."""
+        """Send request to any URL with rate-limit and connection error retry."""
+        conn_attempts = 0
         while True:
-            resp = self.session.request(method, url, **kwargs)
+            try:
+                resp = self.session.request(method, url, **kwargs)
+            except (ConnectionError, OSError) as e:
+                conn_attempts += 1
+                if conn_attempts < 4:
+                    wait = 2 ** conn_attempts
+                    logger.warning("  Connection error (attempt %d/4), retrying in %ds: %s",
+                                   conn_attempts, wait, e)
+                    time.sleep(wait)
+                    continue
+                raise
+            conn_attempts = 0  # reset on successful connection
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", 2))
                 logger.warning("  Rate limited. Retrying after %ss...", retry_after)
@@ -75,12 +87,22 @@ class ShopifyClient:
         return all_items
 
     def _graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Execute a GraphQL query/mutation with rate-limit handling."""
+        """Execute a GraphQL query/mutation with rate-limit and connection error handling."""
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
-        while True:
-            resp = self.session.post(self.graphql_url, json=payload)
+        max_retries = 4
+        for attempt in range(max_retries):
+            try:
+                resp = self.session.post(self.graphql_url, json=payload)
+            except (ConnectionError, OSError) as e:
+                if attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    logger.warning("  Connection error (attempt %d/%d), retrying in %ds: %s",
+                                   attempt + 1, max_retries, wait, e)
+                    time.sleep(wait)
+                    continue
+                raise
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", 2))
                 logger.warning("  Rate limited (GraphQL). Retrying after %ss...", retry_after)
