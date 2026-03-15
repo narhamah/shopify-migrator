@@ -241,6 +241,9 @@ python audit_theme_keys.py --dedup-translations      # Remove duplicate Arabic t
 python audit_theme_keys.py --dedup-translations --dry-run  # Preview dedup plan
 python audit_theme_keys.py --clean-locale --dry-run        # Preview ar.json locale file cleanup
 python audit_theme_keys.py --clean-locale                  # Remove junk from theme ar.json file
+python audit_theme_keys.py --populate-locale --dry-run     # Preview: translate ALL missing theme keys into ar.json
+python audit_theme_keys.py --populate-locale               # Translate ALL missing → ar.json (bypasses API limit!)
+python audit_theme_keys.py --populate-locale --model gpt-5.4 --reasoning xhigh  # Highest quality
 
 # Crawl-based theme translation (only translate what's visible on the site)
 python crawl_and_translate.py                              # Full pipeline: crawl → match → translate

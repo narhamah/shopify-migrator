@@ -987,14 +987,231 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
     return len(t_map), total_uploaded, total_errors
 
 
+def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
+                    dry_run=False):
+    """Translate ALL missing theme keys by writing directly to ar.json.
+
+    This completely bypasses the Shopify Translations API ~3,400 key limit.
+    Theme locale files (ar.json) have no such limit.
+
+    Strategy:
+    1. Fetch en.default.json — all English source strings
+    2. Fetch ar.json — existing Arabic translations
+    3. Find all keys in English that are missing from Arabic
+    4. Classify: skip junk (colors, URLs, Liquid-only, etc.)
+    5. Translate the remaining English text with AI
+    6. Merge translations into ar.json and upload
+
+    This is the COMPLETE solution for theme string translation — no crawling
+    needed, no API limit risk, covers every possible UI state including
+    "Sold out", "Unavailable", error messages, search, filters, etc.
+    """
+    from tara_migrate.translation.engine import TranslationEngine
+
+    theme_id = client.get_main_theme_id()
+    if not theme_id:
+        print("ERROR: No active theme found.")
+        return
+
+    print(f"\n{'=' * 70}")
+    print(f"POPULATE LOCALE FILE (ar.json)" + (" (DRY RUN)" if dry_run else ""))
+    print(f"{'=' * 70}")
+
+    # Fetch en.default.json
+    try:
+        en_asset = client.get_asset(theme_id, "locales/en.default.json")
+        en_data = json.loads(en_asset.get("value", "{}"))
+    except Exception as e:
+        print(f"  ERROR fetching en.default.json: {e}")
+        return
+
+    # Fetch ar.json (may not exist yet)
+    try:
+        ar_asset = client.get_asset(theme_id, "locales/ar.json")
+        ar_data = json.loads(ar_asset.get("value", "{}"))
+    except Exception:
+        print("  ar.json not found — creating from scratch")
+        ar_data = {}
+
+    # Flatten both to dotted key paths
+    def flatten(d, prefix=""):
+        items = {}
+        for k, v in d.items():
+            full = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                items.update(flatten(v, full))
+            else:
+                items[full] = v
+        return items
+
+    en_flat = flatten(en_data)
+    ar_flat = flatten(ar_data)
+
+    print(f"  English keys (en.default.json): {len(en_flat)}")
+    print(f"  Arabic keys (ar.json):          {len(ar_flat)}")
+
+    # Find missing keys (in English but not in Arabic, or Arabic is empty)
+    missing = {}
+    already_translated = 0
+    for key, en_val in en_flat.items():
+        ar_val = ar_flat.get(key)
+        if ar_val and str(ar_val).strip():
+            already_translated += 1
+            continue
+        if not en_val or not str(en_val).strip():
+            continue
+        missing[key] = str(en_val)
+
+    print(f"  Already translated:             {already_translated}")
+    print(f"  Missing translations:           {len(missing)}")
+
+    if not missing:
+        print("\n  All theme locale keys are translated!")
+        return
+
+    # Classify missing keys — skip junk
+    to_translate = {}
+    skipped = Counter()
+    for key, val in missing.items():
+        cat, reason = classify_key(key, val)
+        if cat == "junk":
+            skipped[reason] += 1
+            continue
+        # Also skip pure Liquid/HTML
+        text_only = re.sub(r"<[^>]+>", "", val).strip()
+        text_only = re.sub(r"\{\{[^}]*\}\}", "", text_only).strip()
+        text_only = re.sub(r"\{%[^%]*%\}", "", text_only).strip()
+        if not text_only or not re.search(r"[a-zA-Z]{2,}", text_only):
+            skipped["no translatable text"] += 1
+            continue
+        to_translate[key] = val
+
+    print(f"  Translatable (after filtering): {len(to_translate)}")
+    print(f"  Skipped (junk):                 {sum(skipped.values())}")
+    if skipped:
+        for reason, count in skipped.most_common(10):
+            print(f"    {count:>4}  {reason}")
+
+    # Group by key prefix for context
+    by_prefix = Counter()
+    for key in to_translate:
+        parts = key.split(".")
+        prefix = parts[0] if parts else "unknown"
+        by_prefix[prefix] += 1
+    print(f"\n  Keys by namespace:")
+    for prefix, count in by_prefix.most_common():
+        print(f"    {prefix}: {count}")
+
+    if dry_run:
+        print(f"\n  Sample keys to translate:")
+        for i, (key, val) in enumerate(to_translate.items()):
+            if i >= 25:
+                print(f"    ... and {len(to_translate) - 25} more")
+                break
+            print(f"    {key}")
+            print(f"      EN: {val[:80]}")
+        return
+
+    # Translate with AI
+    print(f"\n  Translating {len(to_translate)} keys with {model} "
+          f"(reasoning={reasoning})...")
+
+    prompt = (
+        "You are translating Shopify theme UI strings from English to Arabic "
+        "for a luxury scalp-care brand called TARA.\n"
+        "Rules:\n"
+        "- Use Modern Standard Arabic suitable for a Gulf audience (Saudi Arabia)\n"
+        "- Keep the TARA brand name unchanged\n"
+        "- Keep product names (Kansa Wand, Gua Sha, Scalp Massager) unchanged\n"
+        "- Keep Liquid template tags ({{ }}, {% %}) unchanged\n"
+        "- Keep HTML tags unchanged — only translate the text content\n"
+        "- Keep placeholders like {{ count }} unchanged\n"
+        "- For short UI labels (1-3 words), provide a natural Arabic equivalent\n"
+        "- Arabic text should read right-to-left naturally\n"
+        "- Use consistent terminology:\n"
+        "  - 'Add to cart' = 'أضف إلى السلة'\n"
+        "  - 'Sold out' = 'نفدت الكمية'\n"
+        "  - 'Unavailable' = 'غير متوفر'\n"
+        "  - 'Sign up' = 'اشترك'\n"
+        "  - 'Subscribe' = 'اشترك'\n"
+        "  - 'Search' = 'بحث'\n"
+        "  - 'Filter' = 'تصفية'\n"
+        "  - 'Sort by' = 'ترتيب حسب'\n"
+        "  - 'You may also like' = 'قد يعجبك أيضاً'\n"
+        "  - 'Free shipping' = 'شحن مجاني'\n"
+        "  - double shampoo / double shampooing = 'غسل الشعر مرتين'\n"
+    )
+
+    engine = TranslationEngine(
+        prompt,
+        model=model,
+        reasoning_effort=reasoning,
+        batch_size=60,
+    )
+
+    # Build translation fields
+    fields = [{"id": key, "value": val} for key, val in to_translate.items()]
+    t_map = engine.translate_fields(fields)
+
+    print(f"  Got {len(t_map)} / {len(to_translate)} translations")
+
+    if not t_map:
+        print("  ERROR: No translations returned")
+        return
+
+    # Merge into ar_data
+    def set_nested(d, dotted_key, value):
+        """Set a value in a nested dict using a dotted key path."""
+        parts = dotted_key.split(".")
+        current = d
+        for part in parts[:-1]:
+            if part not in current or not isinstance(current[part], dict):
+                current[part] = {}
+            current = current[part]
+        current[parts[-1]] = value
+
+    merged = json.loads(json.dumps(ar_data))  # deep copy
+    new_count = 0
+    for key, arabic in t_map.items():
+        if arabic and arabic.strip():
+            set_nested(merged, key, arabic.strip())
+            new_count += 1
+
+    print(f"  New translations to add: {new_count}")
+
+    # Upload
+    merged_json = json.dumps(merged, indent=2, ensure_ascii=False)
+    try:
+        client.put_asset(theme_id, "locales/ar.json", merged_json)
+        print(f"\n  Uploaded ar.json with {new_count} new translations")
+    except Exception as e:
+        print(f"\n  ERROR uploading ar.json: {e}")
+        backup_path = os.path.join("data", "ar_populated.json")
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(merged_json)
+        print(f"  Saved to {backup_path} (upload manually)")
+
+    # Summary
+    final_flat = flatten(merged)
+    print(f"\n  RESULTS:")
+    print(f"    English keys:        {len(en_flat)}")
+    print(f"    Arabic keys before:  {len(ar_flat)}")
+    print(f"    Arabic keys after:   {len(final_flat)}")
+    print(f"    Coverage:            {len(final_flat)}/{len(en_flat)} "
+          f"({100 * len(final_flat) / len(en_flat):.1f}%)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Audit theme translation keys")
     parser.add_argument("--remove-junk", action="store_true",
                         help="Remove ALL junk + system translations (keep only useful)")
     parser.add_argument("--translate", action="store_true",
                         help="Translate missing Arabic theme keys via AI")
-    parser.add_argument("--model", default="gpt-5",
+    parser.add_argument("--model", default="gpt-5-nano",
                         help="OpenAI model for translation (default: gpt-5-nano)")
+    parser.add_argument("--reasoning", default="minimal",
+                        choices=["none", "minimal", "low", "medium", "high", "xhigh"],
+                        help="Reasoning effort (default: minimal)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be removed/translated without doing it")
     parser.add_argument("--dump", metavar="FILE",
@@ -1009,6 +1226,8 @@ def main():
                         help="Run all analyses: audit + duplicates + sections")
     parser.add_argument("--clean-locale", action="store_true",
                         help="Fetch ar.json from theme, remove junk entries, re-upload")
+    parser.add_argument("--populate-locale", action="store_true",
+                        help="Translate ALL missing theme keys into ar.json (bypasses API limit)")
     args = parser.parse_args()
 
     load_dotenv()
@@ -1020,6 +1239,12 @@ def main():
     # Clean ar.json locale file
     if args.clean_locale:
         clean_locale_file(client, dry_run=args.dry_run)
+        return
+
+    # Populate ar.json with ALL missing translations (bypasses API limit)
+    if args.populate_locale:
+        populate_locale(client, model=args.model, reasoning=args.reasoning,
+                        dry_run=args.dry_run)
         return
 
     # Fetch all theme keys
