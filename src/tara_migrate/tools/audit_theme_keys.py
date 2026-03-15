@@ -692,11 +692,17 @@ def clean_locale_file(client, dry_run=False):
     # Classify each ar.json entry
     junk_keys = []
     identical_keys = []
+    orphan_keys = []
     useful_keys = []
 
     for key, ar_val in ar_flat.items():
         ar_str = str(ar_val).strip() if ar_val is not None else ""
         en_str = str(en_flat.get(key, "")).strip()
+
+        # Check for orphaned keys — in ar.json but NOT in en.default.json
+        if key not in en_flat:
+            orphan_keys.append((key, ar_str, "no matching English key"))
+            continue
 
         # Check if the Arabic value is identical to English (not translated)
         if ar_str and en_str and ar_str == en_str:
@@ -721,8 +727,20 @@ def clean_locale_file(client, dry_run=False):
             useful_keys.append(key)
 
     print(f"\n  Useful entries:       {len(useful_keys)}")
+    print(f"  Orphaned (no EN key): {len(orphan_keys)}")
     print(f"  Junk entries:         {len(junk_keys)}")
     print(f"  Identical to English: {len(identical_keys)}")
+
+    # Show orphaned keys
+    if orphan_keys:
+        print(f"\n{'─' * 70}")
+        print(f"ORPHANED KEYS ({len(orphan_keys)} — in ar.json but NOT in en.default.json)")
+        print(f"{'─' * 70}")
+        for key, val, _ in orphan_keys[:20]:
+            print(f"  {key}")
+            print(f"    ar: {str(val)[:60]!r}")
+        if len(orphan_keys) > 20:
+            print(f"  ... and {len(orphan_keys) - 20} more")
 
     # Show junk breakdown
     if junk_keys:
@@ -751,7 +769,7 @@ def clean_locale_file(client, dry_run=False):
         if len(identical_keys) > 15:
             print(f"  ... and {len(identical_keys) - 15} more")
 
-    to_remove_keys = set(k for k, _, _ in junk_keys + identical_keys)
+    to_remove_keys = set(k for k, _, _ in junk_keys + identical_keys + orphan_keys)
     if not to_remove_keys:
         print("\n  ar.json is clean — no junk to remove.")
         return
