@@ -387,12 +387,15 @@ def _estimate_tokens(text):
     return max(1, len(text) // 3)
 
 
-def adaptive_batch(fields, max_tokens=12000):
+def adaptive_batch(fields, max_tokens=12000, max_fields=250):
     """Split fields into batches sized by estimated token count, not fixed count.
 
     Prevents oversized batches when fields contain long HTML/JSON bodies.
     Short fields (headings, taglines) get packed densely.
     Long fields (body_html, rich_text JSON) get smaller batches.
+
+    Also caps at max_fields per batch to avoid exceeding the model's output
+    token limit — even short fields require one output line each.
     """
     batches = []
     current_batch = []
@@ -400,8 +403,9 @@ def adaptive_batch(fields, max_tokens=12000):
 
     for field in fields:
         field_tokens = _estimate_tokens(field["value"])
-        # If a single field exceeds max, it gets its own batch
-        if current_batch and (current_tokens + field_tokens > max_tokens):
+        # Split if we'd exceed token budget OR field count cap
+        if current_batch and (current_tokens + field_tokens > max_tokens
+                              or len(current_batch) >= max_fields):
             batches.append(current_batch)
             current_batch = []
             current_tokens = 0
@@ -521,6 +525,13 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
             # Validate we got the right number back
             if len(translated) != len(fields):
                 print(f"    WARNING: Expected {len(fields)} fields, got {len(translated)}.")
+                if len(translated) == 0:
+                    # Debug: show what the model actually returned
+                    preview = result[:500] if len(result) > 500 else result
+                    print(f"    DEBUG raw response ({len(result)} chars): {preview!r}")
+                    finish = response.choices[0].finish_reason
+                    if finish != "stop":
+                        print(f"    DEBUG finish_reason={finish} — output was truncated!")
                 # Accept if we got at least 90% — save what we have, retry missing later
                 if len(translated) >= len(fields) * 0.9:
                     print(f"    Accepting partial result ({len(translated)}/{len(fields)})")
