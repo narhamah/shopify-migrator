@@ -458,6 +458,9 @@ def process_resource_type(
         for gap_id, translated_value in ai_translations.items():
             gid, key = gap_id.split("|", 1)
             digest = digest_by_gap_id.get(gap_id, "")
+            # Sanitize AI output for rich text / JSON values
+            if isinstance(translated_value, str) and translated_value.strip().startswith(("{", "[")):
+                translated_value = sanitize_rich_text_json(translated_value)
             by_gid.setdefault(gid, []).append({
                 "key": key,
                 "value": translated_value,
@@ -571,6 +574,9 @@ def _process_metaobjects(client, lookup, progress, progress_file,
         for gap_id, translated_value in ai_translations.items():
             gid, key = gap_id.split("|", 1)
             digest = digest_by_gap_id.get(gap_id, "")
+            # Sanitize AI output for rich text / JSON values
+            if isinstance(translated_value, str) and translated_value.strip().startswith(("{", "[")):
+                translated_value = sanitize_rich_text_json(translated_value)
             by_gid.setdefault(gid, []).append({
                 "key": key,
                 "value": translated_value,
