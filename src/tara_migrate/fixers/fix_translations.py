@@ -587,7 +587,7 @@ def main():
     parser.add_argument("--model", default="gpt-5-nano",
                         help="OpenAI model (default: gpt-5-nano)")
     parser.add_argument("--reasoning", default="minimal",
-                        choices=["minimal", "low", "medium", "high"],
+                        choices=["none", "minimal", "low", "medium", "high", "xhigh"],
                         help="Reasoning effort (default: minimal)")
     parser.add_argument("--batch-size", type=int, default=80,
                         help="Fields per translation batch (default: 80)")

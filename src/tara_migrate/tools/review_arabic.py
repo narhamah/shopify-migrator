@@ -890,7 +890,7 @@ def main():
     )
     parser.add_argument(
         "--reasoning", default="minimal",
-        choices=["minimal", "low", "medium", "high"],
+        choices=["none", "minimal", "low", "medium", "high", "xhigh"],
         help="Reasoning effort for translation model (default: minimal)",
     )
     parser.add_argument(

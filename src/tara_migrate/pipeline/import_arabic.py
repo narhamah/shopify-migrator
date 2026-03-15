@@ -1085,8 +1085,8 @@ def main():
                         help="Use AI (TOON batch) to translate missing fields")
     parser.add_argument("--no-ai-fallback", action="store_true",
                         help="Disable AI fallback (default behavior)")
-    parser.add_argument("--model", default="gpt-5-mini",
-                        help="OpenAI model for AI translation (default: gpt-5-mini)")
+    parser.add_argument("--model", default="gpt-5-nano",
+                        help="OpenAI model for AI translation (default: gpt-5-nano)")
     parser.add_argument("--resource-type", type=str, default=None,
                         choices=list(RESOURCE_TYPE_CONFIG.keys()),
                         help="Only process a single resource type")

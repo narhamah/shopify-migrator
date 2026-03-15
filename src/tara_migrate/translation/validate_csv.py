@@ -1527,7 +1527,7 @@ def main():
                         help="Keep non-translatable rows (clean mode)")
     parser.add_argument("--samples", type=int, default=30,
                         help="AI spot-check sample count (verify mode)")
-    parser.add_argument("--model", default="gpt-5-nano",
+    parser.add_argument("--model", default="gpt-5-mini",
                         help="AI spot-check model (verify mode)")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Show all issue details")

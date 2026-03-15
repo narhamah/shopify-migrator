@@ -1081,8 +1081,8 @@ def main():
                         help="Target language: en or ar")
     parser.add_argument("--dry", action="store_true",
                         help="Dry run: show what would be translated without calling API")
-    parser.add_argument("--model", default="gpt-5-mini",
-                        help="OpenAI model (default: gpt-5-mini)")
+    parser.add_argument("--model", default="gpt-5-nano",
+                        help="OpenAI model (default: gpt-5-nano)")
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE,
                         help=f"Fields per batch (default: {BATCH_SIZE})")
     parser.add_argument("--tpm", type=int, default=TPM_LIMIT,

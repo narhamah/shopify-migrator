@@ -98,8 +98,8 @@ data/
 - **Rich text safety**: translates at text-node level inside JSON, sanitizes corrupted output
 - **CRITICAL — rich_text_field metafields**: NEVER pass rich_text JSON through a plain-text or HTML translator. Always use `extract_text_nodes()` + `rebuild()` from `core.rich_text` to translate individual text nodes while preserving the JSON structure. Shopify rejects raw HTML uploads to rich_text_field metafields.
 - **Progress tracking**: `_translation_progress_{lang}.json` — safe to interrupt and resume
-- **Models**: Uses OpenAI (gpt-5-nano default with minimal reasoning)
-- **IMPORTANT — GPT-5 family API constraints**: Do NOT pass `max_tokens` (use `max_completion_tokens` if needed) and do NOT pass `temperature` (only default value 1 is supported). These apply to gpt-5-nano, gpt-5-mini, gpt-4o-mini, and all GPT-5 variants.
+- **Models**: Uses OpenAI (gpt-5-nano default with minimal reasoning; pass `--model gpt-5.4 --reasoning xhigh` for highest quality)
+- **IMPORTANT — GPT-5 family API constraints**: `temperature`, `top_p`, `logprobs` are only supported with reasoning effort `none`. For other reasoning levels use `reasoning.effort` and `text.verbosity`. These constraints apply to gpt-5.4, gpt-5.2, gpt-5-mini, gpt-5-nano, and all GPT-5 variants.
 
 ### Key Translation Constants (in `src/tara_migrate/translation/translator.py`)
 

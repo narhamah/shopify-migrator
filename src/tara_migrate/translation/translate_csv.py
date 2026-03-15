@@ -2144,7 +2144,7 @@ def main():
                         help="Output directory (default: Arabic/)")
     parser.add_argument("--output", default=None,
                         help="Explicit output CSV path (overrides --output-dir)")
-    parser.add_argument("--model", default="gpt-5-nano",
+    parser.add_argument("--model", default="gpt-5",
                         help="OpenAI model (default: gpt-5-nano)")
     parser.add_argument("--batch-size", type=int, default=120,
                         help="Max tokens per batch (default: 120)")
@@ -2164,9 +2164,9 @@ def main():
                         help="Skip to batch N (0-indexed, for resume/parallel runs)")
     parser.add_argument("--max-batches", type=int, default=0,
                         help="Stop after N batches (0 = unlimited)")
-    parser.add_argument("--reasoning", default="medium",
-                        choices=["minimal", "low", "medium", "high"],
-                        help="Reasoning effort for Responses API (default: medium)")
+    parser.add_argument("--reasoning", default="minimal",
+                        choices=["none", "minimal", "low", "medium", "high", "xhigh"],
+                        help="Reasoning effort for Responses API (default: minimal)")
     parser.add_argument("--agents", type=int, default=1,
                         help="Number of parallel translation workers (default: 1)")
     parser.add_argument("--overwrite", action="store_true",

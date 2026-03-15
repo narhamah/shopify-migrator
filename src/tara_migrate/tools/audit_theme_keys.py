@@ -993,7 +993,7 @@ def main():
                         help="Remove ALL junk + system translations (keep only useful)")
     parser.add_argument("--translate", action="store_true",
                         help="Translate missing Arabic theme keys via AI")
-    parser.add_argument("--model", default="gpt-5-nano",
+    parser.add_argument("--model", default="gpt-5",
                         help="OpenAI model for translation (default: gpt-5-nano)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be removed/translated without doing it")

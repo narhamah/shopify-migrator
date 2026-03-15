@@ -759,7 +759,7 @@ def main():
                         help="Show plan without making changes")
 
     # Translation options
-    parser.add_argument("--model", default="gpt-5-nano",
+    parser.add_argument("--model", default="gpt-5",
                         help="Translation model (default: gpt-5-nano)")
 
     # Data files
