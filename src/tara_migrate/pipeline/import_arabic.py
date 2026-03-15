@@ -146,7 +146,32 @@ FIELD_BUILDERS = {
 # Local lookup builder
 # =====================================================================
 
-def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=None):
+def _build_handle_remap(ar_items, en_items):
+    """Build Arabic-handle → English-handle mapping via shared source ID.
+
+    The Arabic JSON has Arabic handles (e.g. سيروم-مقوي-لفروة-الرأس) while the
+    store uses English handles (e.g. strengthening-scalp-serum). Both share the
+    same source ID, so we can cross-reference them.
+    """
+    if not ar_items or not en_items:
+        return {}
+    en_by_id = {}
+    for item in en_items:
+        item_id = str(item.get("id", ""))
+        if item_id:
+            en_by_id[item_id] = item.get("handle", "")
+    remap = {}
+    for item in ar_items:
+        ar_handle = item.get("handle", "")
+        item_id = str(item.get("id", ""))
+        en_handle = en_by_id.get(item_id)
+        if ar_handle and en_handle and ar_handle != en_handle:
+            remap[ar_handle] = en_handle
+    return remap
+
+
+def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=None,
+                       handle_remap=None):
     """Build {english_handle: {field_key: arabic_value}} from progress + full JSON.
 
     Args:
@@ -154,7 +179,9 @@ def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=No
         type_prefix: "prod", "coll", "page", "art", "blog", "mo"
         ar_items: optional list of full Arabic JSON objects (for body_html fallback)
         field_builder: function to extract fields from full JSON objects
+        handle_remap: optional dict mapping Arabic handles → English handles
     """
+    handle_remap = handle_remap or {}
     lookup = {}
     # 1. From progress file: group by handle
     prefix = f"{type_prefix}."
@@ -170,16 +197,18 @@ def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=No
     # 2. From full JSON: add body_html and other large fields not in progress file
     if ar_items and field_builder:
         for item in ar_items:
-            handle = item.get("handle", "")
-            if not handle:
+            ar_handle = item.get("handle", "")
+            if not ar_handle:
                 continue
+            # Remap Arabic handle to English handle for store matching
+            en_handle = handle_remap.get(ar_handle, ar_handle)
             extra = field_builder(item)
-            if handle in lookup:
+            if en_handle in lookup:
                 for k, v in extra.items():
-                    if k not in lookup[handle]:  # progress file takes priority
-                        lookup[handle][k] = v
+                    if k not in lookup[en_handle]:  # progress file takes priority
+                        lookup[en_handle][k] = v
             else:
-                lookup[handle] = extra
+                lookup[en_handle] = extra
     return lookup
 
 
@@ -857,8 +886,17 @@ def main():
         ar_items = load_json(ar_path) if os.path.exists(ar_path) else []
         if isinstance(ar_items, dict):
             ar_items = []
+        # Build handle remap: Arabic handles → English handles (via shared source ID)
+        en_path = os.path.join(EN_DIR, filename)
+        en_items = load_json(en_path) if os.path.exists(en_path) else []
+        if isinstance(en_items, dict):
+            en_items = []
+        handle_remap = _build_handle_remap(ar_items, en_items)
+        if handle_remap:
+            print(f"  {type_prefix}: remapped {len(handle_remap)} Arabic→English handles")
         lookups[type_prefix] = build_local_lookup(
-            progress_ar, type_prefix, ar_items, builder
+            progress_ar, type_prefix, ar_items, builder,
+            handle_remap=handle_remap,
         )
 
     # Process each resource type
