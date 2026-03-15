@@ -988,7 +988,7 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
 
 
 def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
-                    dry_run=False):
+                    dry_run=False, force=False):
     """Translate ALL missing theme keys by writing directly to ar.json.
 
     This completely bypasses the Shopify Translations API ~3,400 key limit.
@@ -1050,20 +1050,22 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
     print(f"  English keys (en.default.json): {len(en_flat)}")
     print(f"  Arabic keys (ar.json):          {len(ar_flat)}")
 
-    # Find missing keys (in English but not in Arabic, or Arabic is empty)
+    # Find keys to translate
     missing = {}
     already_translated = 0
     for key, en_val in en_flat.items():
-        ar_val = ar_flat.get(key)
-        if ar_val and str(ar_val).strip():
-            already_translated += 1
-            continue
         if not en_val or not str(en_val).strip():
+            continue
+        ar_val = ar_flat.get(key)
+        if ar_val and str(ar_val).strip() and not force:
+            already_translated += 1
             continue
         missing[key] = str(en_val)
 
+    if force:
+        print(f"  FORCE MODE: Re-translating ALL keys (overwriting existing Arabic)")
     print(f"  Already translated:             {already_translated}")
-    print(f"  Missing translations:           {len(missing)}")
+    print(f"  To translate:                   {len(missing)}")
 
     if not missing:
         print("\n  All theme locale keys are translated!")
@@ -1228,6 +1230,8 @@ def main():
                         help="Fetch ar.json from theme, remove junk entries, re-upload")
     parser.add_argument("--populate-locale", action="store_true",
                         help="Translate ALL missing theme keys into ar.json (bypasses API limit)")
+    parser.add_argument("--force", action="store_true",
+                        help="With --populate-locale: overwrite ALL existing Arabic translations")
     args = parser.parse_args()
 
     load_dotenv()
@@ -1244,7 +1248,7 @@ def main():
     # Populate ar.json with ALL missing translations (bypasses API limit)
     if args.populate_locale:
         populate_locale(client, model=args.model, reasoning=args.reasoning,
-                        dry_run=args.dry_run)
+                        dry_run=args.dry_run, force=args.force)
         return
 
     # Fetch all theme keys
