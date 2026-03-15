@@ -31,12 +31,13 @@ from tara_migrate.core.config import AR_DIR, EN_DIR, ID_MAP_FILE, get_dest_acces
 ARABIC_LOCALE = "ar"
 
 # Resource type → (GID prefix, progress prefix, type_prefix in progress file)
+# Note: Shopify TranslatableResourceType uses PAGE/BLOG/ARTICLE (not ONLINE_STORE_*)
 RESOURCE_TYPE_CONFIG = {
     "PRODUCT": ("gid://shopify/Product/", "product", "prod"),
     "COLLECTION": ("gid://shopify/Collection/", "collection", "coll"),
-    "ONLINE_STORE_PAGE": ("gid://shopify/Page/", "page", "page"),
-    "ONLINE_STORE_ARTICLE": ("gid://shopify/Article/", "article", "art"),
-    "ONLINE_STORE_BLOG": ("gid://shopify/Blog/", "blog", "blog"),
+    "PAGE": ("gid://shopify/Page/", "page", "page"),
+    "ARTICLE": ("gid://shopify/Article/", "article", "art"),
+    "BLOG": ("gid://shopify/Blog/", "blog", "blog"),
     "METAOBJECT": ("gid://shopify/Metaobject/", "metaobject", "mo"),
 }
 
@@ -903,9 +904,9 @@ def main():
     resource_types = [
         ("PRODUCT", lookups.get("prod", {})),
         ("COLLECTION", lookups.get("coll", {})),
-        ("ONLINE_STORE_PAGE", lookups.get("page", {})),
-        ("ONLINE_STORE_ARTICLE", lookups.get("art", {})),
-        ("ONLINE_STORE_BLOG", lookups.get("blog", {})),
+        ("PAGE", lookups.get("page", {})),
+        ("ARTICLE", lookups.get("art", {})),
+        ("BLOG", lookups.get("blog", {})),
         ("METAOBJECT", metaobject_lookup),
     ]
 
