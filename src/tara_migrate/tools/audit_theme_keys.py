@@ -631,6 +631,174 @@ def dedup_translations(client, fields, dry_run=False, locale=LOCALE):
 
 
 
+def clean_locale_file(client, dry_run=False):
+    """Fetch ar.json from the active theme, remove junk entries, and re-upload.
+
+    The ar.json locale file contains Arabic translations for theme locale keys
+    (accessibility.*, actions.*, content.*, tara.*, sections.*, etc.).
+    Unlike the Translations API, this file has no hard key limit, but bloated
+    locale files slow down the theme and can cause issues.
+
+    This function:
+    1. Fetches locales/ar.json from the active theme
+    2. Walks every key-value pair
+    3. Removes entries where the value is junk (identical to English, empty,
+       pure Liquid, URLs, CSS, etc.)
+    4. Re-uploads the cleaned file
+    """
+    theme_id = client.get_main_theme_id()
+    if not theme_id:
+        print("ERROR: No active theme found.")
+        return
+
+    # Fetch ar.json
+    print(f"\n{'=' * 70}")
+    print(f"CLEAN LOCALE FILE (ar.json)" + (" (DRY RUN)" if dry_run else ""))
+    print(f"{'=' * 70}")
+
+    try:
+        asset = client.get_asset(theme_id, "locales/ar.json")
+    except Exception as e:
+        print(f"  ERROR fetching locales/ar.json: {e}")
+        return
+
+    raw = asset.get("value", "{}")
+    locale_data = json.loads(raw)
+
+    # Also fetch en.default.json for comparison
+    try:
+        en_asset = client.get_asset(theme_id, "locales/en.default.json")
+        en_data = json.loads(en_asset.get("value", "{}"))
+    except Exception:
+        en_data = {}
+
+    # Flatten both locale dicts to dotted key paths
+    def flatten(d, prefix=""):
+        items = {}
+        for k, v in d.items():
+            full_key = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                items.update(flatten(v, full_key))
+            else:
+                items[full_key] = v
+        return items
+
+    ar_flat = flatten(locale_data)
+    en_flat = flatten(en_data)
+
+    print(f"  Total ar.json keys: {len(ar_flat)}")
+    print(f"  Total en.default.json keys: {len(en_flat)}")
+
+    # Classify each ar.json entry
+    junk_keys = []
+    identical_keys = []
+    useful_keys = []
+
+    for key, ar_val in ar_flat.items():
+        ar_str = str(ar_val).strip() if ar_val is not None else ""
+        en_str = str(en_flat.get(key, "")).strip()
+
+        # Check if the Arabic value is identical to English (not translated)
+        if ar_str and en_str and ar_str == en_str:
+            # Some values SHOULD be identical (brand names, numbers, Liquid)
+            cat, reason = classify_key(key, en_str)
+            if cat == "junk":
+                junk_keys.append((key, ar_str, reason))
+            elif not re.search(r"[\u0600-\u06FF]", ar_str):
+                # No Arabic characters — likely untranslated
+                # But skip if it's a brand name, number, or technical value
+                if re.search(r"[a-zA-Z]{3,}", ar_str) and cat != "useful":
+                    identical_keys.append((key, ar_str, "identical to English"))
+            else:
+                useful_keys.append(key)
+            continue
+
+        # Check if the value itself is junk
+        cat, reason = classify_key(key, ar_str)
+        if cat == "junk":
+            junk_keys.append((key, ar_str, reason))
+        else:
+            useful_keys.append(key)
+
+    print(f"\n  Useful entries:       {len(useful_keys)}")
+    print(f"  Junk entries:         {len(junk_keys)}")
+    print(f"  Identical to English: {len(identical_keys)}")
+
+    # Show junk breakdown
+    if junk_keys:
+        by_reason = defaultdict(list)
+        for key, val, reason in junk_keys:
+            by_reason[reason].append((key, val))
+        print(f"\n{'─' * 70}")
+        print(f"JUNK ENTRIES ({len(junk_keys)} — will be removed)")
+        print(f"{'─' * 70}")
+        for reason, items in sorted(by_reason.items(), key=lambda x: -len(x[1])):
+            print(f"\n  [{reason}] — {len(items)} keys")
+            for key, val in items[:3]:
+                print(f"    {key}")
+                print(f"      ar: {str(val)[:60]!r}")
+            if len(items) > 3:
+                print(f"    ... and {len(items) - 3} more")
+
+    # Show identical-to-English
+    if identical_keys:
+        print(f"\n{'─' * 70}")
+        print(f"IDENTICAL TO ENGLISH ({len(identical_keys)} — will be removed)")
+        print(f"{'─' * 70}")
+        for key, val, _ in identical_keys[:15]:
+            print(f"  {key}")
+            print(f"    = {str(val)[:60]!r}")
+        if len(identical_keys) > 15:
+            print(f"  ... and {len(identical_keys) - 15} more")
+
+    to_remove_keys = set(k for k, _, _ in junk_keys + identical_keys)
+    if not to_remove_keys:
+        print("\n  ar.json is clean — no junk to remove.")
+        return
+
+    print(f"\n  Total keys to remove: {len(to_remove_keys)}")
+    print(f"  Keys remaining after: {len(ar_flat) - len(to_remove_keys)}")
+
+    if dry_run:
+        print(f"\n  (Dry run — no changes made)")
+        return
+
+    # Rebuild locale dict without junk keys
+    def remove_keys_from_nested(d, keys_to_remove, prefix=""):
+        """Remove dotted keys from a nested dict, pruning empty parents."""
+        result = {}
+        for k, v in d.items():
+            full_key = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                cleaned = remove_keys_from_nested(v, keys_to_remove, full_key)
+                if cleaned:  # Only keep non-empty dicts
+                    result[k] = cleaned
+            else:
+                if full_key not in keys_to_remove:
+                    result[k] = v
+        return result
+
+    cleaned = remove_keys_from_nested(locale_data, to_remove_keys)
+    cleaned_flat = flatten(cleaned)
+
+    print(f"\n  Original keys: {len(ar_flat)}")
+    print(f"  Cleaned keys:  {len(cleaned_flat)}")
+    print(f"  Removed:       {len(ar_flat) - len(cleaned_flat)}")
+
+    # Upload cleaned ar.json
+    cleaned_json = json.dumps(cleaned, indent=2, ensure_ascii=False)
+    try:
+        client.put_asset(theme_id, "locales/ar.json", cleaned_json)
+        print(f"\n  Uploaded cleaned ar.json to theme {theme_id}")
+    except Exception as e:
+        print(f"\n  ERROR uploading cleaned ar.json: {e}")
+        # Save locally as backup
+        backup_path = os.path.join("data", "ar_cleaned.json")
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(cleaned_json)
+        print(f"  Saved cleaned version to {backup_path}")
+
+
 def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
                          locale=LOCALE):
     """Translate all theme keys that have English text but no Arabic translation.
@@ -820,6 +988,8 @@ def main():
                         help="Remove duplicate Arabic translations (keep 1 per string)")
     parser.add_argument("--full-analysis", action="store_true",
                         help="Run all analyses: audit + duplicates + sections")
+    parser.add_argument("--clean-locale", action="store_true",
+                        help="Fetch ar.json from theme, remove junk entries, re-upload")
     args = parser.parse_args()
 
     load_dotenv()
@@ -827,6 +997,11 @@ def main():
         os.environ["SAUDI_SHOP_URL"],
         os.environ["SAUDI_ACCESS_TOKEN"],
     )
+
+    # Clean ar.json locale file
+    if args.clean_locale:
+        clean_locale_file(client, dry_run=args.dry_run)
+        return
 
     # Fetch all theme keys
     fields = fetch_theme_keys(client)

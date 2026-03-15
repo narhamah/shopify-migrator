@@ -214,6 +214,8 @@ python audit_theme_keys.py --analyze-duplicates      # Show duplicated strings a
 python audit_theme_keys.py --analyze-sections        # Show key count per template (find key hogs)
 python audit_theme_keys.py --dedup-translations      # Remove duplicate Arabic translations (keep 1 per string)
 python audit_theme_keys.py --dedup-translations --dry-run  # Preview dedup plan
+python audit_theme_keys.py --clean-locale --dry-run        # Preview ar.json locale file cleanup
+python audit_theme_keys.py --clean-locale                  # Remove junk from theme ar.json file
 
 # Crawl-based theme translation (only translate what's visible on the site)
 python crawl_and_translate.py                              # Full pipeline: crawl → match → translate
