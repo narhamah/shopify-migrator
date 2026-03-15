@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import ALL collections from Spain to Saudi store.
+"""Import ALL collections from source to destination store.
 
 Creates both smart (automatic) and custom (manual) collections,
 remaps smart collection rules (metafield definition GIDs and metaobject
@@ -18,7 +18,7 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import ID_MAP_FILE, load_json, save_json
+from tara_migrate.core import ID_MAP_FILE, config, load_json, save_json
 
 
 def deduplicate_collections(collections):
@@ -45,14 +45,14 @@ def build_metafield_def_remap(spain, saudi):
     """
     remap = {}  # Spain numeric ID → Saudi numeric ID
 
-    spain_defs_file = "data/spain_export/product_metafield_definitions.json"
-    spain_defs = load_json(spain_defs_file) if os.path.exists(spain_defs_file) else []
+    source_defs_file = "data/source_export/product_metafield_definitions.json"
+    source_defs = load_json(source_defs_file) if os.path.exists(source_defs_file) else []
 
-    if not spain_defs:
-        # Fetch live from Spain
+    if not source_defs:
+        # Fetch live from source
         try:
-            spain_defs_raw = spain.get_metafield_definitions("PRODUCT")
-            spain_defs = spain_defs_raw
+            source_defs_raw = source.get_metafield_definitions("PRODUCT")
+            source_defs = source_defs_raw
         except Exception as e:
             print(f"  Warning: Could not fetch Spain metafield definitions: {e}")
             return remap
@@ -71,7 +71,7 @@ def build_metafield_def_remap(spain, saudi):
         numeric = int(gid.split("/")[-1]) if "/" in gid else gid
         saudi_by_nk[nk] = numeric
 
-    for sd in spain_defs:
+    for sd in source_defs:
         nk = (sd["namespace"], sd["key"])
         spain_gid = sd["id"]
         spain_numeric = int(spain_gid.split("/")[-1]) if isinstance(spain_gid, str) and "/" in spain_gid else spain_gid
@@ -83,7 +83,7 @@ def build_metafield_def_remap(spain, saudi):
 
 
 def remap_rules(rules, metafield_def_remap, metaobject_id_map):
-    """Remap smart collection rules from Spain GIDs to Saudi GIDs.
+    """Remap smart collection rules from source GIDs to destination GIDs.
 
     Returns (remapped_rules, skip_reason) where skip_reason is None on success.
     """
@@ -124,22 +124,22 @@ def remap_rules(rules, metafield_def_remap, metaobject_id_map):
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Import all collections from Spain to Saudi store")
+        description="Import all collections from source to destination store")
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview without making changes")
     args = parser.parse_args()
 
-    spain_url = os.environ.get("SPAIN_SHOP_URL")
-    spain_token = os.environ.get("SPAIN_ACCESS_TOKEN")
-    saudi_url = os.environ.get("SAUDI_SHOP_URL")
-    saudi_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    source_url = config.get_source_shop_url()
+    source_token = config.get_source_access_token()
+    dest_url = config.get_dest_shop_url()
+    dest_token = config.get_dest_access_token()
 
-    if not all([spain_url, spain_token, saudi_url, saudi_token]):
-        print("ERROR: Set SPAIN_SHOP_URL, SPAIN_ACCESS_TOKEN, SAUDI_SHOP_URL, SAUDI_ACCESS_TOKEN in .env")
+    if not all([source_url, source_token, dest_url, saudi_token]):
+        print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         return
 
-    spain = ShopifyClient(spain_url, spain_token)
-    saudi = ShopifyClient(saudi_url, saudi_token)
+    source = ShopifyClient(source_url, source_token)
+    saudi = ShopifyClient(dest_url, dest_token)
 
     id_map = load_json(ID_MAP_FILE) if os.path.exists(ID_MAP_FILE) else {}
 
@@ -152,7 +152,7 @@ def main():
     collections = deduplicate_collections(collections)
 
     print("=" * 60)
-    print("COLLECTION IMPORT: Spain → Saudi")
+    print("COLLECTION IMPORT: Source → Destination")
     print("=" * 60)
 
     smart = [c for c in collections if c.get("rules") is not None]
@@ -254,7 +254,7 @@ def main():
             created_smart += 1
             continue
 
-        # Check if already exists by handle on Saudi
+        # Check if already exists by handle on destination
         # For smart collections, get_collections_by_handle only checks custom,
         # so also try fetching all smart collections
         existing = saudi.get_collections_by_handle(handle)
@@ -307,7 +307,7 @@ def main():
     # --- Phase 3: Link products to custom collections ---
     print("\n--- Phase 3: Product-Collection Links ---")
 
-    collects = load_json("data/spain_export/collects.json")
+    collects = load_json("data/source_export/collects.json")
     if not collects:
         print("  No collects data found — skipping product links")
     else:

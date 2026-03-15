@@ -108,13 +108,13 @@ class TestMain:
         mock_client.create_metaobject_definition.return_value = {"id": "gid://mo/1", "type": "benefit"}
         mock_client.create_metafield_definition.return_value = {"id": "gid://mf/1", "namespace": "custom", "key": "k", "name": "K"}
 
-        os.environ["SAUDI_SHOP_URL"] = "test.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         assert mock_client.create_metaobject_definition.call_count == 4
         # 19 product + 12 article = 31 metafield definitions
@@ -150,13 +150,13 @@ class TestMain:
             existing_mfs.append({"namespace": d["namespace"], "key": d["key"]})
         mock_client.get_metafield_definitions.return_value = existing_mfs
 
-        os.environ["SAUDI_SHOP_URL"] = "test.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mock_client.create_metaobject_definition.assert_not_called()
         mock_client.create_metafield_definition.assert_not_called()
@@ -172,13 +172,13 @@ class TestMain:
         mock_client.create_metaobject_definition.side_effect = Exception("API error")
         mock_client.create_metafield_definition.return_value = {"id": "gid://1", "namespace": "custom", "key": "k", "name": "K"}
 
-        os.environ["SAUDI_SHOP_URL"] = "test.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         captured = capsys.readouterr()
         assert "error" in captured.out.lower()
@@ -195,10 +195,10 @@ class TestMain:
         mock_client.create_metaobject_definition.return_value = None
         mock_client.create_metafield_definition.return_value = None
 
-        os.environ["SAUDI_SHOP_URL"] = "test.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]

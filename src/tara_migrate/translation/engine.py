@@ -186,6 +186,9 @@ class TranslationEngine:
 def load_developer_prompt(prompt_path, fallback=None):
     """Load a developer/system prompt from file.
 
+    If the prompt file doesn't exist, tries to build it from the Arabic TOV
+    file (tara_tov_ar.txt) found in the project root or parent directories.
+
     Args:
         prompt_path: Path to the prompt text file.
         fallback: Optional fallback prompt if file not found.
@@ -199,6 +202,11 @@ def load_developer_prompt(prompt_path, fallback=None):
         print(f"Loaded developer prompt ({len(prompt):,} chars)")
         return prompt
 
+    # Try to build from TOV file
+    tov_prompt = _build_developer_prompt_from_tov(prompt_path)
+    if tov_prompt:
+        return tov_prompt
+
     if fallback:
         print(f"WARNING: Prompt not found at {prompt_path}, using fallback")
         return fallback
@@ -211,3 +219,60 @@ def load_developer_prompt(prompt_path, fallback=None):
     )
     print(f"WARNING: Prompt not found at {prompt_path}, using default")
     return default
+
+
+def _build_developer_prompt_from_tov(prompt_path):
+    """Build and cache the developer prompt from the Arabic TOV file.
+
+    Searches for tara_tov_ar.txt in parent directories, combines it with
+    translation instructions, and saves to prompt_path for future runs.
+
+    Returns the prompt string, or None if TOV file not found.
+    """
+    import os
+
+    # Search for TOV file in parent directories
+    tov_file = None
+    search_dir = os.path.dirname(os.path.abspath(prompt_path))
+    for _ in range(5):  # up to 5 levels
+        candidate = os.path.join(search_dir, "tara_tov_ar.txt")
+        if os.path.exists(candidate):
+            tov_file = candidate
+            break
+        parent = os.path.dirname(search_dir)
+        if parent == search_dir:
+            break
+        search_dir = parent
+
+    if not tov_file:
+        return None
+
+    with open(tov_file, "r", encoding="utf-8") as f:
+        tov_text = f.read()
+
+    prompt = (
+        "You are a professional Arabic translator for TARA, a luxury scalp-care brand.\n"
+        "You translate English (or Spanish) product content into Modern Standard Arabic "
+        "for a Gulf audience (Saudi Arabia, Kuwait, UAE).\n\n"
+        "## Rules\n"
+        "- Return TOON format only: each line is `numeric_id§translated_value`\n"
+        "- Keep numeric IDs exactly as given — never translate or modify them\n"
+        "- Translate ALL content values into Arabic\n"
+        "- Keep INCI/scientific names as-is (e.g., Sodium Hyaluronate, Tocopherol)\n"
+        "- Keep brand name \"TARA\" as-is, never translate it\n"
+        "- Keep product names as-is (e.g., Kansa Wand, Gua Sha)\n"
+        "- Translate ingredient common names into Arabic "
+        "(e.g., Rosemary → إكليل الجبل, Onion → البصل)\n"
+        "- For rich_text JSON: translate only text content, preserve all JSON structure\n"
+        "- Use right-to-left punctuation where appropriate\n\n"
+        "## TARA Arabic Tone of Voice\n\n"
+        f"{tov_text}\n"
+    )
+
+    # Cache for future runs
+    os.makedirs(os.path.dirname(prompt_path) or ".", exist_ok=True)
+    with open(prompt_path, "w", encoding="utf-8") as f:
+        f.write(prompt)
+    print(f"Built developer prompt from {tov_file} ({len(prompt):,} chars) → saved to {prompt_path}")
+
+    return prompt

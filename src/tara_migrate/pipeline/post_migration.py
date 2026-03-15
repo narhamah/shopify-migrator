@@ -29,14 +29,14 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import load_json, save_json
+from tara_migrate.core import config, load_json, save_json
 
 # =============================================
 # Step 1: Enable Arabic locale
 # =============================================
 
 def step_enable_arabic(client, dry_run=False):
-    """Enable Arabic (ar) locale on the Saudi store."""
+    """Enable Arabic (ar) locale on the destination store."""
     print("\n=== Step 1: Enable Arabic Locale ===")
 
     if dry_run:
@@ -73,7 +73,7 @@ def step_link_products_to_collections(client, dry_run=False):
     progress = load_json("data/collects_progress.json", default={})
 
     # Try exported collects first
-    collects = load_json("data/spain_export/collects.json")
+    collects = load_json("data/source_export/collects.json")
     if not collects:
         # Fallback: try to infer from english data
         collects = load_json("data/english/collects.json")
@@ -136,11 +136,11 @@ def step_link_products_to_collections(client, dry_run=False):
 # Step 3: Build navigation menus
 # =============================================
 
-def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
+def _resolve_menu_item_for_dest(item, saudi, source_shop_url, dest_shop_url):
     """Resolve a Spain menu item to a Saudi menu item.
 
-    Maps collection/page/product URLs from Spain to Saudi by looking up
-    resources by handle on the Saudi store.
+    Maps collection/page/product URLs from source to destination by looking up
+    resources by handle on the destination store.
     """
     title = item.get("title", "")
     url = item.get("url", "")
@@ -150,7 +150,7 @@ def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
 
     # Try to resolve by resource type
     if "/Collection/" in resource_id:
-        # Find collection by handle on Saudi
+        # Find collection by handle on destination
         # Extract handle from URL
         handle = ""
         if url:
@@ -168,7 +168,7 @@ def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
 
         # Fallback: use URL path
         if url:
-            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            path = url.replace(source_shop_url, "").replace(dest_shop_url, "")
             if not path.startswith("/"):
                 path = "/" + path
             result["url"] = path
@@ -188,7 +188,7 @@ def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
                 result["resourceId"] = f"gid://shopify/OnlineStorePage/{saudi_pages[0]['id']}"
                 return result
         if url:
-            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            path = url.replace(source_shop_url, "").replace(dest_shop_url, "")
             if not path.startswith("/"):
                 path = "/" + path
             result["url"] = path
@@ -208,7 +208,7 @@ def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
                 result["resourceId"] = f"gid://shopify/Product/{saudi_prods[0]['id']}"
                 return result
         if url:
-            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            path = url.replace(source_shop_url, "").replace(dest_shop_url, "")
             if not path.startswith("/"):
                 path = "/" + path
             result["url"] = path
@@ -217,7 +217,7 @@ def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
     else:
         # Generic URL-based item (HTTP link, frontpage, search, etc.)
         if url:
-            path = url.replace(spain_shop_url, "").replace(saudi_shop_url, "")
+            path = url.replace(source_shop_url, "").replace(dest_shop_url, "")
             if not path.startswith("/") and not path.startswith("http"):
                 path = "/" + path
             result["url"] = path
@@ -225,86 +225,89 @@ def _resolve_menu_item_for_saudi(item, saudi, spain_shop_url, saudi_shop_url):
 
 
 def step_build_navigation(client, dry_run=False):
-    """Mirror Spain's navigation menus to Saudi store.
+    """Mirror Spain's navigation menus to destination store.
 
-    Strategy: read Spain's menus, resolve each item's target on Saudi
+    Strategy: read Spain's menus, resolve each item's target on destination
     (by handle lookup), and create matching menus.
     Falls back to id_map-based approach if Spain client unavailable.
     """
     print("\n=== Step 3: Build Navigation Menus ===")
 
-    spain_url = os.environ.get("SPAIN_SHOP_URL", "")
-    spain_token = os.environ.get("SPAIN_ACCESS_TOKEN", "")
-    saudi_url = os.environ.get("SAUDI_SHOP_URL", "")
+    try:
+        source_url = config.get_source_shop_url()
+        source_token = config.get_source_access_token()
+        dest_url = config.get_dest_shop_url()
+    except KeyError:
+        source_url = source_token = dest_url = ""
 
-    if not spain_url or not spain_token:
-        print("  No Spain credentials — falling back to id_map approach")
+    if not source_url or not source_token:
+        print("  No Source store credentials — falling back to id_map approach")
         _step_build_navigation_from_idmap(client, dry_run)
         return
 
-    spain = ShopifyClient(spain_url, spain_token)
+    source = ShopifyClient(source_url, source_token)
 
     try:
-        spain_menus = spain.get_menus()
+        source_menus = source.get_menus()
     except Exception as e:
-        print(f"  Error reading Spain menus: {e}")
+        print(f"  Error reading source menus: {e}")
         _step_build_navigation_from_idmap(client, dry_run)
         return
 
-    if not spain_menus:
-        print("  No menus found on Spain store")
+    if not source_menus:
+        print("  No menus found on source store")
         return
 
-    print(f"  Found {len(spain_menus)} menus on Spain store")
+    print(f"  Found {len(source_menus)} menus on source store")
 
     # Check existing Saudi menus
     try:
-        saudi_menus = client.get_menus()
-        saudi_handles = {m.get("handle"): m for m in saudi_menus}
+        dest_menus = client.get_menus()
+        dest_handles = {m.get("handle"): m for m in dest_menus}
     except Exception:
-        saudi_handles = {}
+        dest_handles = {}
 
-    for menu in spain_menus:
+    for menu in source_menus:
         title = menu.get("title", "")
         handle = menu.get("handle", "")
-        spain_items = menu.get("items", [])
+        source_items = menu.get("items", [])
 
-        print(f"\n  Menu: '{title}' ({handle}) — {len(spain_items)} items")
+        print(f"\n  Menu: '{title}' ({handle}) — {len(source_items)} items")
 
-        if handle in saudi_handles:
-            print(f"    Already exists on Saudi (id: {saudi_handles[handle]['id']})")
+        if handle in dest_handles:
+            print(f"    Already exists on destination (id: {dest_handles[handle]['id']})")
             continue
 
         # Resolve each item
-        saudi_items = []
-        for item in spain_items:
-            resolved = _resolve_menu_item_for_saudi(item, client, spain_url, saudi_url)
+        dest_items = []
+        for item in source_items:
+            resolved = _resolve_menu_item_for_dest(item, client, source_url, dest_url)
             if resolved:
                 # Handle sub-items
                 sub_items = item.get("items", [])
                 if sub_items:
                     resolved_subs = []
                     for sub in sub_items:
-                        resolved_sub = _resolve_menu_item_for_saudi(sub, client, spain_url, saudi_url)
+                        resolved_sub = _resolve_menu_item_for_dest(sub, client, source_url, dest_url)
                         if resolved_sub:
                             resolved_subs.append(resolved_sub)
                     if resolved_subs:
                         resolved["items"] = resolved_subs
 
-                saudi_items.append(resolved)
+                dest_items.append(resolved)
                 has_target = resolved.get("resourceId") or resolved.get("url")
                 print(f"    {'✓' if has_target else '?'} {resolved['title']}")
 
-        if not saudi_items:
+        if not dest_items:
             print("    No items resolved — skipping")
             continue
 
         if dry_run:
-            print(f"    Would create menu '{title}' with {len(saudi_items)} items")
+            print(f"    Would create menu '{title}' with {len(dest_items)} items")
             continue
 
         try:
-            result = client.create_menu(title, handle, saudi_items)
+            result = client.create_menu(title, handle, dest_items)
             if result:
                 print(f"    Created menu '{title}' (id: {result['id']})")
             else:
@@ -317,7 +320,7 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
     """Fallback: Build menus by looking up Saudi collections/pages by handle.
 
     Reads the English export data for collection/page handles, then queries
-    the Saudi store directly to find matching resources — no id_map needed.
+    the destination store directly to find matching resources — no id_map needed.
     """
     collections = load_json("data/english/collections.json")
     pages = load_json("data/english/pages.json")
@@ -342,7 +345,7 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
         "accessories",
     ]
 
-    # Build main menu by looking up collections on Saudi by handle
+    # Build main menu by looking up collections on destination by handle
     print("  Building main menu from Saudi collections...")
     main_items = []
 
@@ -388,7 +391,7 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
         print("    Ingredients (page)")
 
     if not main_items:
-        print("  No collections/pages found on Saudi store for main menu")
+        print("  No collections/pages found on destination store for main menu")
         print("  Run import_collections.py first, then re-run this step")
     else:
         print(f"  Main menu: {len(main_items)} items")
@@ -404,7 +407,7 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
             except Exception as e:
                 print(f"  Error creating main menu: {e}")
 
-    # Build footer menu from pages on Saudi
+    # Build footer menu from pages on destination
     print("\n  Building footer menu from Saudi pages...")
     footer_items = []
 
@@ -426,7 +429,7 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
             print(f"    {title}")
 
     if not footer_items:
-        print("  No pages found on Saudi store for footer menu")
+        print("  No pages found on destination store for footer menu")
     else:
         print(f"  Footer menu: {len(footer_items)} items")
         if dry_run:
@@ -586,7 +589,7 @@ def step_set_seo_tags(client, dry_run=False):
 # =============================================
 
 def _build_handle_remap():
-    """Build old_handle → new_handle maps from Spain export vs English data.
+    """Build old_handle → new_handle maps from source export vs English data.
 
     Returns a dict mapping old URL paths (e.g. /products/old-handle) to new
     paths (e.g. /products/new-handle) for products, collections, pages, blogs,
@@ -596,9 +599,9 @@ def _build_handle_remap():
     remap = {}  # "/products/old-handle" → "/products/new-handle"
 
     # Products
-    spain_products = load_json("data/spain_export/products.json")
+    source_products = load_json("data/source_export/products.json")
     english_products = load_json("data/english/products.json")
-    spain_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (spain_products if isinstance(spain_products, list) else [])}
+    spain_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (source_products if isinstance(source_products, list) else [])}
     eng_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (english_products if isinstance(english_products, list) else [])}
     for src_id, old_handle in spain_prod_by_id.items():
         new_handle = eng_prod_by_id.get(src_id, "")
@@ -606,9 +609,9 @@ def _build_handle_remap():
             remap[f"/products/{old_handle}"] = f"/products/{new_handle}"
 
     # Collections
-    spain_collections = load_json("data/spain_export/collections.json")
+    source_collections = load_json("data/source_export/collections.json")
     english_collections = load_json("data/english/collections.json")
-    spain_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (spain_collections if isinstance(spain_collections, list) else [])}
+    spain_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (source_collections if isinstance(source_collections, list) else [])}
     eng_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (english_collections if isinstance(english_collections, list) else [])}
     for src_id, old_handle in spain_coll_by_id.items():
         new_handle = eng_coll_by_id.get(src_id, "")
@@ -616,9 +619,9 @@ def _build_handle_remap():
             remap[f"/collections/{old_handle}"] = f"/collections/{new_handle}"
 
     # Pages
-    spain_pages = load_json("data/spain_export/pages.json")
+    source_pages = load_json("data/source_export/pages.json")
     english_pages = load_json("data/english/pages.json")
-    spain_page_by_id = {str(p["id"]): p.get("handle", "") for p in (spain_pages if isinstance(spain_pages, list) else [])}
+    spain_page_by_id = {str(p["id"]): p.get("handle", "") for p in (source_pages if isinstance(source_pages, list) else [])}
     eng_page_by_id = {str(p["id"]): p.get("handle", "") for p in (english_pages if isinstance(english_pages, list) else [])}
     for src_id, old_handle in spain_page_by_id.items():
         new_handle = eng_page_by_id.get(src_id, "")
@@ -626,9 +629,9 @@ def _build_handle_remap():
             remap[f"/pages/{old_handle}"] = f"/pages/{new_handle}"
 
     # Blogs
-    spain_blogs = load_json("data/spain_export/blogs.json")
+    source_blogs = load_json("data/source_export/blogs.json")
     english_blogs = load_json("data/english/blogs.json")
-    spain_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (spain_blogs if isinstance(spain_blogs, list) else [])}
+    spain_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (source_blogs if isinstance(source_blogs, list) else [])}
     eng_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (english_blogs if isinstance(english_blogs, list) else [])}
     blog_handle_map = {}  # old_blog_handle → new_blog_handle
     for src_id, old_handle in spain_blog_by_id.items():
@@ -638,11 +641,11 @@ def _build_handle_remap():
             blog_handle_map[old_handle] = new_handle
 
     # Articles (need blog handle context)
-    spain_articles = load_json("data/spain_export/articles.json")
+    source_articles = load_json("data/source_export/articles.json")
     english_articles = load_json("data/english/articles.json")
-    if isinstance(spain_articles, list) and isinstance(english_articles, list):
+    if isinstance(source_articles, list) and isinstance(english_articles, list):
         spain_art_by_id = {}
-        for a in spain_articles:
+        for a in source_articles:
             blog_id = str(a.get("blog_id", ""))
             old_blog_handle = spain_blog_by_id.get(blog_id, "")
             spain_art_by_id[str(a["id"])] = (old_blog_handle, a.get("handle", ""))
@@ -704,7 +707,7 @@ def step_create_redirects(client, dry_run=False):
     """
     print("\n=== Step 5: Create URL Redirects ===")
 
-    redirects = load_json("data/spain_export/redirects.json")
+    redirects = load_json("data/source_export/redirects.json")
     if not redirects:
         print("  No redirects found in export data")
         return
@@ -895,7 +898,7 @@ def step_migrate_discounts(client, dry_run=False):
     """Migrate price rules and discount codes from exported data."""
     print("\n=== Step 8: Migrate Discount Codes ===")
 
-    price_rules = load_json("data/spain_export/price_rules.json")
+    price_rules = load_json("data/source_export/price_rules.json")
     if not price_rules:
         print("  No price rules found in export data")
         return
@@ -1007,7 +1010,7 @@ def step_create_policies(client, dry_run=False):
     """Create store policies from exported policy data or defaults."""
     print("\n=== Step 10: Store Policies ===")
 
-    policies = load_json("data/spain_export/policies.json")
+    policies = load_json("data/source_export/policies.json")
     english_policies = load_json("data/english/policies.json")
 
     source = english_policies if english_policies else policies
@@ -1025,8 +1028,8 @@ def step_create_policies(client, dry_run=False):
         print(f"    - {title} ({body_len} chars)")
 
     print("\n  NOTE: Store policies must be set manually in Shopify admin.")
-    print("  The exported policy text has been saved to data/spain_export/policies.json")
-    print("  Copy the content to: Settings → Policies in the Saudi store admin.")
+    print("  The exported policy text has been saved to data/source_export/policies.json")
+    print("  Copy the content to: Settings → Policies in the destination store admin.")
 
 
 # =============================================
@@ -1042,8 +1045,8 @@ def step_update_handles(client, dry_run=False):
 
     # Products
     products = load_json("data/english/products.json")
-    spain_products = load_json("data/spain_export/products.json")
-    spain_handles = {str(p["id"]): p.get("handle", "") for p in spain_products}
+    source_products = load_json("data/source_export/products.json")
+    spain_handles = {str(p["id"]): p.get("handle", "") for p in source_products}
     product_map = id_map.get("products", {})
 
     updated = 0
@@ -1077,8 +1080,8 @@ def step_update_handles(client, dry_run=False):
 
     # Collections
     collections = load_json("data/english/collections.json")
-    spain_collections = load_json("data/spain_export/collections.json")
-    spain_coll_handles = {str(c["id"]): c.get("handle", "") for c in spain_collections}
+    source_collections = load_json("data/source_export/collections.json")
+    spain_coll_handles = {str(c["id"]): c.get("handle", "") for c in source_collections}
     collection_map = id_map.get("collections", {})
 
     for coll in collections:
@@ -1124,15 +1127,15 @@ def step_update_handles(client, dry_run=False):
 # =============================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Post-migration setup for Saudi store")
+    parser = argparse.ArgumentParser(description="Post-migration setup for destination store")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done")
     parser.add_argument("--step", type=int, action="append", help="Run specific step(s) only")
     parser.add_argument("--inventory-qty", type=int, default=100, help="Default inventory quantity (default: 100)")
     args = parser.parse_args()
 
     load_dotenv()
-    shop_url = os.environ["SAUDI_SHOP_URL"]
-    access_token = os.environ["SAUDI_ACCESS_TOKEN"]
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     client = ShopifyClient(shop_url, access_token)
 
     steps = args.step or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -1170,7 +1173,7 @@ def main():
     print("  5. Install and configure theme (Online Store → Themes)")
     print("  6. Set up email notifications (Settings → Notifications)")
     print("  7. Install third-party apps (Klaviyo, reviews, etc.)")
-    print("  8. Recreate Shopify Flows (export .flow from Spain, import to Saudi)")
+    print("  8. Recreate Shopify Flows (export .flow from source, import to destination)")
     print("  9. Test checkout flow end-to-end")
 
 

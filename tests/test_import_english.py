@@ -178,13 +178,13 @@ class TestMainPhases:
         mc.set_metafields.return_value = []
         mc.update_metaobject.return_value = {"id": "gid://1"}
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mc.create_product.assert_called_once()
         mc.create_custom_collection.assert_called_once()
@@ -215,13 +215,13 @@ class TestMainExistingResources:
         mc.set_metafields.return_value = []
         mc.update_metaobject.return_value = {"id": "gid://1"}
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         # Products should NOT be created — they already exist
         mc.create_product.assert_not_called()
@@ -249,13 +249,13 @@ class TestMainExistingResources:
         mc.set_metafields.return_value = []
         mc.update_metaobject.return_value = {"id": "gid://1"}
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         # Phase 6 should call update_metaobject for ingredient→benefit remapping
         # and set_metafields for product→ingredient and article→author remapping
@@ -281,13 +281,13 @@ class TestMainExistingResources:
         mc.set_metafields.return_value = []
         mc.update_metaobject.return_value = {"id": "gid://1"}
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         captured = capsys.readouterr()
         assert "Could not fetch" in captured.out

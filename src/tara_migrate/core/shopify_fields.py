@@ -13,6 +13,19 @@ SKIP_FIELD_PATTERNS = [
     r"\.logo", r"\.favicon", r"google_maps", r"form_id", r"portal_id",
     r"anchor_id", r"worker_url", r"default_lat", r"default_lng",
     r"max_height", r"max_width",
+    # Theme-specific non-translatable field key patterns
+    r"color_scheme",         # color_schemes.scheme_1.settings.*
+    r"\.color$", r"\.colors$",  # color fields
+    r"gradient",             # button_gradient_1, background_gradient, etc.
+    r"\.shadow_", r"shadow_opacity",  # shadow config
+    r"\.opacity$",           # opacity values
+    r"card_style", r"badge_position",  # style/layout config
+    r"crop_position",        # image crop
+    r"section_width", r"column_count", r"row_count",  # layout numerics
+    r"social_facebook$", r"social_twitter$", r"social_pinterest$",
+    r"social_instagram$", r"social_tiktok$", r"social_tumblr$",
+    r"social_snapchat$", r"social_youtube$",  # social handles (not URLs, just usernames)
+    r"^handle$",  # resource handles are URL slugs, not translatable text
 ]
 
 # Metafield types that contain translatable text
@@ -71,5 +84,17 @@ def is_skippable_value(value):
             pass
     # JSON config objects (reviewCount, etc.)
     if v.startswith("{") and '"reviewCount"' in v:
+        return True
+    # CSS hex colors (#fff, #1a2b3c, #1a2b3cff)
+    if re.match(r"^#[0-9a-fA-F]{3,8}$", v):
+        return True
+    # CSS rgba/hsla values
+    if re.match(r"^(?:rgba?|hsla?)\(", v):
+        return True
+    # Boolean strings
+    if v.lower() in ("true", "false"):
+        return True
+    # CSS/config dimension values (e.g. "16px", "1.5rem", "100%", "50vh")
+    if re.match(r"^-?\d+\.?\d*(px|rem|em|vh|vw|%)$", v):
         return True
     return False

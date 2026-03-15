@@ -71,7 +71,7 @@ class TestStepLinkProducts:
         monkeypatch.chdir(tmp_path)
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        export_dir = data_dir / "spain_export"
+        export_dir = data_dir / "source_export"
         export_dir.mkdir()
 
         # id_map with product and collection mappings
@@ -96,11 +96,11 @@ class TestStepLinkProducts:
         monkeypatch.chdir(tmp_path)
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "spain_export").mkdir()
+        (data_dir / "source_export").mkdir()
 
         id_map = {"products": {}, "collections": {}}
         (data_dir / "id_map.json").write_text(json.dumps(id_map))
-        (data_dir / "spain_export" / "collects.json").write_text(
+        (data_dir / "source_export" / "collects.json").write_text(
             json.dumps([{"product_id": 100, "collection_id": 10}])
         )
 
@@ -155,6 +155,10 @@ class TestStepBuildNavigation:
         (en_dir / "pages.json").write_text(json.dumps([]))
 
         client = MagicMock()
+        # _step_build_navigation_from_idmap looks up collections/pages by handle
+        # on the destination store — mock to return results with recognizable titles
+        client.get_collections_by_handle.return_value = [{"id": 10, "title": "Skincare"}]
+        client.get_pages_by_handle.return_value = [{"id": 20, "title": "FAQ"}]
         step_build_navigation(client, dry_run=True)
 
         client.create_menu.assert_not_called()
@@ -216,7 +220,7 @@ class TestStepCreateRedirects:
     def test_creates_redirects(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         data_dir = tmp_path / "data"
-        export_dir = data_dir / "spain_export"
+        export_dir = data_dir / "source_export"
         export_dir.mkdir(parents=True)
 
         redirects = [{"path": "/old-page", "target": "/new-page"}]
@@ -231,7 +235,7 @@ class TestStepCreateRedirects:
 
     def test_no_redirects(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "data" / "spain_export").mkdir(parents=True)
+        (tmp_path / "data" / "source_export").mkdir(parents=True)
 
         client = MagicMock()
         step_create_redirects(client)
@@ -361,7 +365,7 @@ class TestStepMigrateDiscounts:
     def test_creates_price_rules_and_codes(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         data_dir = tmp_path / "data"
-        export_dir = data_dir / "spain_export"
+        export_dir = data_dir / "source_export"
         export_dir.mkdir(parents=True)
 
         price_rules = [{
@@ -389,7 +393,7 @@ class TestStepMigrateDiscounts:
 
     def test_no_price_rules(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "data" / "spain_export").mkdir(parents=True)
+        (tmp_path / "data" / "source_export").mkdir(parents=True)
 
         client = MagicMock()
         step_migrate_discounts(client)
@@ -399,7 +403,7 @@ class TestStepMigrateDiscounts:
 
     def test_dry_run(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
-        export_dir = tmp_path / "data" / "spain_export"
+        export_dir = tmp_path / "data" / "source_export"
         export_dir.mkdir(parents=True)
         (export_dir / "price_rules.json").write_text(json.dumps([{
             "id": 1, "title": "Test", "value_type": "percentage", "value": "-10",
@@ -452,7 +456,7 @@ class TestStepActivateProducts:
 class TestStepCreatePolicies:
     def test_with_policies(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
-        export_dir = tmp_path / "data" / "spain_export"
+        export_dir = tmp_path / "data" / "source_export"
         export_dir.mkdir(parents=True)
 
         policies = [{"title": "Privacy Policy", "body": "<p>We protect your data.</p>"}]
@@ -466,7 +470,7 @@ class TestStepCreatePolicies:
 
     def test_no_policies(self, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
-        (tmp_path / "data" / "spain_export").mkdir(parents=True)
+        (tmp_path / "data" / "source_export").mkdir(parents=True)
 
         client = MagicMock()
         step_create_policies(client)
@@ -485,7 +489,7 @@ class TestMain:
     def test_runs_all_steps(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         (tmp_path / "data" / "english").mkdir(parents=True)
-        (tmp_path / "data" / "spain_export").mkdir(parents=True)
+        (tmp_path / "data" / "source_export").mkdir(parents=True)
         (tmp_path / "data" / "id_map.json").write_text("{}")
         (tmp_path / "data" / "english" / "products.json").write_text("[]")
         (tmp_path / "data" / "english" / "collections.json").write_text("[]")
@@ -500,14 +504,14 @@ class TestMain:
         client.get_publications.return_value = []
         client.update_product.return_value = {}
 
-        os.environ.update({"SAUDI_SHOP_URL": "saudi.myshopify.com", "SAUDI_ACCESS_TOKEN": "tok"})
+        os.environ.update({"DEST_SHOP_URL": "dest-test.myshopify.com", "DEST_ACCESS_TOKEN": "tok"})
         try:
             import sys
             monkeypatch.setattr(sys, "argv", ["tara_migrate.pipeline.post_migration.py"])
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         client.enable_locale.assert_called_once_with("ar")
 
@@ -522,14 +526,14 @@ class TestMain:
         MockClient.return_value = client
         client.get_locales.return_value = [{"locale": "ar", "primary": False, "published": True}]
 
-        os.environ.update({"SAUDI_SHOP_URL": "saudi.myshopify.com", "SAUDI_ACCESS_TOKEN": "tok"})
+        os.environ.update({"DEST_SHOP_URL": "dest-test.myshopify.com", "DEST_ACCESS_TOKEN": "tok"})
         try:
             import sys
             monkeypatch.setattr(sys, "argv", ["tara_migrate.pipeline.post_migration.py", "--step", "1"])
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         # Should have checked locales but not called enable since ar already exists
         client.get_locales.assert_called_once()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enable ingredient metaobject pages on the Saudi store.
+"""Enable ingredient metaobject pages on the destination store.
 
 In Shopify, metaobjects can have their own web pages when the definition
 has the 'renderable' capability enabled. This gives each ingredient a URL
@@ -21,6 +21,7 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
+from tara_migrate.core import config
 
 
 def enable_renderable(client, dry_run=False):
@@ -36,7 +37,7 @@ def enable_renderable(client, dry_run=False):
             break
 
     if not ingredient_def:
-        print("  ERROR: No 'ingredient' metaobject definition found on Saudi store")
+        print("  ERROR: No 'ingredient' metaobject definition found on destination store")
         return None
 
     def_id = ingredient_def["id"]
@@ -182,19 +183,19 @@ def check_theme_template(client):
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Enable ingredient metaobject pages on Saudi store")
+        description="Enable ingredient metaobject pages on destination store")
     parser.add_argument("--dry-run", action="store_true",
                         help="Preview without making changes")
     args = parser.parse_args()
 
-    saudi_url = os.environ.get("SAUDI_SHOP_URL")
-    saudi_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    dest_url = config.get_dest_shop_url()
+    dest_token = config.get_dest_access_token()
 
-    if not saudi_url or not saudi_token:
-        print("ERROR: Set SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN in .env")
+    if not dest_url or not saudi_token:
+        print("ERROR: Set DEST_SHOP_URL and DEST_ACCESS_TOKEN in .env")
         return
 
-    saudi = ShopifyClient(saudi_url, saudi_token)
+    saudi = ShopifyClient(dest_url, dest_token)
 
     print("=" * 60)
     print("ENABLE INGREDIENT PAGES")

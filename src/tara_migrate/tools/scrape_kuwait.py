@@ -31,7 +31,7 @@ import time
 import requests as http_requests
 
 from tara_migrate.core import load_json, save_json
-from tara_migrate.core.config import AR_DIR, EN_DIR, SPAIN_DIR
+from tara_migrate.core.config import AR_DIR, EN_DIR, SOURCE_DIR
 from tara_migrate.core.utils import unicode_slugify as slugify
 
 BASE_URL_US = "https://taraformula.com"
@@ -453,33 +453,33 @@ class KuwaitScraper:
         self.output_dir_en = output_dir_en or OUTPUT_DIR_EN
         self.output_dir_ar = output_dir_ar or OUTPUT_DIR_AR
         self.lang = lang  # None = both, "en" = English only, "ar" = Arabic only
-        self.spain_products = load_json(os.path.join(SPAIN_DIR, "products.json"))
-        self.spain_collections = load_json(os.path.join(SPAIN_DIR, "collections.json"))
-        self.spain_pages = load_json(os.path.join(SPAIN_DIR, "pages.json"))
-        self.spain_articles = load_json(os.path.join(SPAIN_DIR, "articles.json"))
-        self.spain_metaobjects = load_json(os.path.join(SPAIN_DIR, "metaobjects.json"))
-        self.spain_blogs = load_json(os.path.join(SPAIN_DIR, "blogs.json"))
+        self.source_products = load_json(os.path.join(SOURCE_DIR, "products.json"))
+        self.source_collections = load_json(os.path.join(SOURCE_DIR, "collections.json"))
+        self.source_pages = load_json(os.path.join(SOURCE_DIR, "pages.json"))
+        self.source_articles = load_json(os.path.join(SOURCE_DIR, "articles.json"))
+        self.source_metaobjects = load_json(os.path.join(SOURCE_DIR, "metaobjects.json"))
+        self.source_blogs = load_json(os.path.join(SOURCE_DIR, "blogs.json"))
 
         # Build lookup indices
-        self.spain_products_by_handle = {p.get("handle", ""): p for p in self.spain_products}
-        self.spain_products_by_sku = {}
-        for p in self.spain_products:
+        self.source_products_by_handle = {p.get("handle", ""): p for p in self.source_products}
+        self.source_products_by_sku = {}
+        for p in self.source_products:
             for v in p.get("variants", []):
                 sku = v.get("sku", "")
                 if sku:
-                    self.spain_products_by_sku[sku] = p
+                    self.source_products_by_sku[sku] = p
 
-        self.spain_collections_by_handle = {c.get("handle", ""): c for c in self.spain_collections}
+        self.source_collections_by_handle = {c.get("handle", ""): c for c in self.source_collections}
 
         # Build collection→SKU membership from collects.json
         # This enables matching Spain collections to Magento categories by product overlap
-        self.spain_collects = load_json(os.path.join(SPAIN_DIR, "collects.json"))
+        self.spain_collects = load_json(os.path.join(SOURCE_DIR, "collects.json"))
         self.spain_collection_skus = {}  # collection_id → set of SKUs
-        spain_products_by_id = {str(p.get("id", "")): p for p in self.spain_products}
+        source_products_by_id = {str(p.get("id", "")): p for p in self.source_products}
         for collect in self.spain_collects:
             cid = str(collect.get("collection_id", ""))
             pid = str(collect.get("product_id", ""))
-            product = spain_products_by_id.get(pid)
+            product = source_products_by_id.get(pid)
             if product:
                 if cid not in self.spain_collection_skus:
                     self.spain_collection_skus[cid] = set()
@@ -488,17 +488,17 @@ class KuwaitScraper:
                     if sku:
                         self.spain_collection_skus[cid].add(sku)
         # Also build reverse lookup: collection_id → collection object
-        self.spain_collections_by_id = {str(c.get("id", "")): c for c in self.spain_collections}
+        self.source_collections_by_id = {str(c.get("id", "")): c for c in self.source_collections}
 
         # Build product image URL index for fallback matching
-        self.spain_products_by_image = {}
-        for p in self.spain_products:
+        self.source_products_by_image = {}
+        for p in self.source_products:
             for img in p.get("images", []):
                 src = img.get("src", "")
                 if src:
                     # Normalize: strip query params, use filename only
                     fname = src.split("?")[0].split("/")[-1].lower()
-                    self.spain_products_by_image[fname] = p
+                    self.source_products_by_image[fname] = p
 
         # Populated during scrape_products(), used by scrape_collections()
         self.magento_category_skus = {}  # magento_category_url_key → set of SKUs
@@ -565,7 +565,7 @@ class KuwaitScraper:
 
         # Copy non-translatable files
         for fname in ["blogs.json", "metaobject_definitions.json"]:
-            src = os.path.join(SPAIN_DIR, fname)
+            src = os.path.join(SOURCE_DIR, fname)
             if os.path.exists(src):
                 data = load_json(src)
                 if self._scrape_en():
@@ -697,16 +697,16 @@ class KuwaitScraper:
             min_price = price_range.get("minimum_price", {})
 
             # Match with Spain product: SKU → handle → image URL
-            spain_product = self.spain_products_by_sku.get(sku)
+            spain_product = self.source_products_by_sku.get(sku)
             if not spain_product:
-                spain_product = self.spain_products_by_handle.get(url_key)
+                spain_product = self.source_products_by_handle.get(url_key)
             if not spain_product:
                 # Fallback: match by image filename
                 for img in mp.get("media_gallery", []):
                     img_url = img.get("url", "")
                     if img_url:
                         fname = img_url.split("?")[0].split("/")[-1].lower()
-                        spain_product = self.spain_products_by_image.get(fname)
+                        spain_product = self.source_products_by_image.get(fname)
                         if spain_product:
                             print(f"    Matched by image: {name} → {spain_product.get('title', '')}")
                             break
@@ -743,8 +743,8 @@ class KuwaitScraper:
                     product["tags"] = ", ".join(cat_names)
 
             else:
-                # No Spain match — create from scratch
-                print(f"    No Spain match for: {name} (sku: {sku}, url_key: {url_key})")
+                # No source match — create from scratch
+                print(f"    No source match for: {name} (sku: {sku}, url_key: {url_key})")
                 product = {
                     "id": mp.get("id", 0),
                     "handle": handle,
@@ -863,7 +863,7 @@ class KuwaitScraper:
             handle = slugify(cat_name) if cat_name else url_key
 
             # Match with Spain collection: handle → SKU overlap
-            spain_coll = self.spain_collections_by_handle.get(url_key)
+            spain_coll = self.source_collections_by_handle.get(url_key)
 
             if not spain_coll:
                 # Fallback: match by product SKU overlap (Jaccard similarity)
@@ -913,7 +913,7 @@ class KuwaitScraper:
 
             if score > best_score:
                 best_score = score
-                best_match = self.spain_collections_by_id.get(cid)
+                best_match = self.source_collections_by_id.get(cid)
 
         # Require at least 30% overlap to consider it a match
         if best_score >= 0.3 and best_match:
@@ -928,8 +928,8 @@ class KuwaitScraper:
         print("SCRAPING PAGES")
         print("=" * 60)
 
-        # Try to fetch CMS pages by known identifiers from Spain export
-        spain_handles = [p.get("handle", "") for p in self.spain_pages if p.get("handle")]
+        # Try to fetch CMS pages by known identifiers from source export
+        spain_handles = [p.get("handle", "") for p in self.source_pages if p.get("handle")]
         # Add common Magento CMS identifiers
         identifiers = list(set(spain_handles + [
             "home", "about", "about-us", "contact", "faq",
@@ -947,11 +947,11 @@ class KuwaitScraper:
                 save_json(ar_pages, os.path.join(self.output_dir_ar, "pages.json"))
                 print(f"  Saved {len(ar_pages)} Arabic pages")
             else:
-                save_json(self.spain_pages, os.path.join(self.output_dir_ar, "pages.json"))
+                save_json(self.source_pages, os.path.join(self.output_dir_ar, "pages.json"))
 
     def _fetch_cms_pages(self, identifiers, gql, store_code):
         pages = []
-        spain_by_handle = {p.get("handle", ""): p for p in self.spain_pages}
+        spain_by_handle = {p.get("handle", ""): p for p in self.source_pages}
 
         for ident in identifiers:
             result = gql.query(f"""
@@ -1008,12 +1008,12 @@ class KuwaitScraper:
         print("  Copying Spain articles as base — these will need LLM translation.")
 
         if self._scrape_en():
-            save_json(self.spain_articles, os.path.join(self.output_dir_en, "articles.json"))
-            save_json(self.spain_blogs, os.path.join(self.output_dir_en, "blogs.json"))
+            save_json(self.source_articles, os.path.join(self.output_dir_en, "articles.json"))
+            save_json(self.source_blogs, os.path.join(self.output_dir_en, "blogs.json"))
         if self._scrape_ar():
-            save_json(self.spain_articles, os.path.join(self.output_dir_ar, "articles.json"))
-            save_json(self.spain_blogs, os.path.join(self.output_dir_ar, "blogs.json"))
-        print(f"  Copied {len(self.spain_articles)} articles")
+            save_json(self.source_articles, os.path.join(self.output_dir_ar, "articles.json"))
+            save_json(self.source_blogs, os.path.join(self.output_dir_ar, "blogs.json"))
+        print(f"  Copied {len(self.source_articles)} articles")
 
     # ------------------------------------------------------------------
     # Metaobjects (ingredients, benefits, FAQs)
@@ -1027,7 +1027,7 @@ class KuwaitScraper:
         print("\n--- Scraping ingredients from HTML pages ---")
 
         if self._scrape_en():
-            en_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
+            en_metaobjects = json.loads(json.dumps(self.source_metaobjects))
             _slugify_metaobject_handles(en_metaobjects)
             en_ingredients = self._scrape_ingredients_page(
                 f"{self.gql_en.base_url}/kw-en/ingredients",
@@ -1047,7 +1047,7 @@ class KuwaitScraper:
             print(f"  Saved {total} EN metaobjects across {len(en_metaobjects)} types")
 
         if self._scrape_ar():
-            ar_metaobjects = json.loads(json.dumps(self.spain_metaobjects))
+            ar_metaobjects = json.loads(json.dumps(self.source_metaobjects))
             _slugify_metaobject_handles(ar_metaobjects)
             ar_ingredients = self._scrape_ingredients_page(
                 f"{self.gql_ar.base_url}/ae-ar/ingredients",

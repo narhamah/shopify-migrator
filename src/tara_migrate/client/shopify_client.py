@@ -405,8 +405,9 @@ class ShopifyClient:
             raise Exception(f"MetaobjectCreate errors: {errors}")
         return result["metaobject"]
 
-    def update_metaobject(self, metaobject_id: str, fields: list[dict[str, Any]]) -> dict[str, Any]:
-        """Update a metaobject's fields."""
+    def update_metaobject(self, metaobject_id: str, fields: list[dict[str, Any]],
+                         handle: str | None = None) -> dict[str, Any]:
+        """Update a metaobject's fields and/or handle."""
         query = """
         mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
           metaobjectUpdate(id: $id, metaobject: $metaobject) {
@@ -421,7 +422,12 @@ class ShopifyClient:
           }
         }
         """
-        data = self._graphql(query, {"id": metaobject_id, "metaobject": {"fields": fields}})
+        metaobject_input: dict[str, Any] = {}
+        if fields:
+            metaobject_input["fields"] = fields
+        if handle is not None:
+            metaobject_input["handle"] = handle
+        data = self._graphql(query, {"id": metaobject_id, "metaobject": metaobject_input})
         result = data["metaobjectUpdate"]
         if result["userErrors"]:
             raise Exception(f"MetaobjectUpdate errors: {result['userErrors']}")

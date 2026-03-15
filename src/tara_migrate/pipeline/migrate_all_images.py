@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Unified image migration: Spain store → Saudi store.
+"""Unified image migration: source store → destination store.
 
 Orchestrates ALL image migration in the correct order:
 
-  Phase 1: Product images (from Magento EN/AR or Spain Shopify)
+  Phase 1: Product images (from Magento EN/AR or source Shopify)
   Phase 2: Collection images (passed through via src URL)
   Phase 3: Homepage / theme section images (shopify://shop_images/...)
   Phase 4: Metaobject file_reference fields (avatar, image, icon, science_images)
@@ -43,17 +43,18 @@ from tara_migrate.pipeline.image_helpers import (
     resolve_shopify_image_to_url as _resolve_shopify_image_to_url,
 )
 from tara_migrate.tools.optimize_images import download_and_optimize
+from tara_migrate.core import config
 
 # ---------------------------------------------------------------------------
 # Phase 1: Product images
 # ---------------------------------------------------------------------------
 
 def phase1_product_images(spain, saudi, id_map, file_map, dry_run=False):
-    """Ensure all products on Saudi store have images.
+    """Ensure all products on destination store have images.
 
     Products created by import_english.py should already have images via src
     URL passthrough. This phase checks for products with missing images and
-    re-uploads from Spain.
+    re-uploads from source.
     """
     print("\n" + "=" * 60)
     print("PHASE 1: Product Images")
@@ -201,34 +202,34 @@ def phase2_collection_images(spain, saudi, id_map, file_map, dry_run=False):
 
 
 def phase3_homepage_images(spain, saudi, id_map, file_map, dry_run=False):
-    """Migrate homepage section images from Spain theme to Saudi theme."""
+    """Migrate homepage section images from source theme to destination theme."""
     print("\n" + "=" * 60)
     print("PHASE 3: Homepage / Theme Section Images")
     print("=" * 60)
 
-    spain_theme_id = spain.get_main_theme_id()
-    saudi_theme_id = saudi.get_main_theme_id()
-    if not spain_theme_id or not saudi_theme_id:
+    source_theme_id = source.get_main_theme_id()
+    dest_theme_id = saudi.get_main_theme_id()
+    if not source_theme_id or not dest_theme_id:
         print("  ERROR: Could not find main theme on one or both stores")
         return
 
     # Read templates from both stores
     try:
-        spain_asset = spain.get_asset(spain_theme_id, "templates/index.json")
-        spain_template = json.loads(spain_asset.get("value", "{}"))
+        source_asset = source.get_asset(source_theme_id, "templates/index.json")
+        source_template = json.loads(source_asset.get("value", "{}"))
     except Exception as e:
-        print(f"  ERROR reading Spain homepage template: {e}")
+        print(f"  ERROR reading source homepage template: {e}")
         return
 
     try:
-        saudi_asset = saudi.get_asset(saudi_theme_id, "templates/index.json")
-        saudi_template = json.loads(saudi_asset.get("value", "{}"))
+        saudi_asset = saudi.get_asset(dest_theme_id, "templates/index.json")
+        dest_template = json.loads(saudi_asset.get("value", "{}"))
     except Exception as e:
         print(f"  ERROR reading Saudi homepage template: {e}")
         return
 
-    spain_images = _extract_template_images(spain_template)
-    print(f"  Found {len(spain_images)} image settings on Spain homepage")
+    spain_images = _extract_template_images(source_template)
+    print(f"  Found {len(spain_images)} image settings on source homepage")
 
     if not spain_images:
         return
@@ -249,17 +250,17 @@ def phase3_homepage_images(spain, saudi, id_map, file_map, dry_run=False):
         label = f"{section_id}.blocks.{block_id}.{key}" if block_id else f"{section_id}.settings.{key}"
 
         # Check section exists in Saudi template
-        saudi_sections = saudi_template.get("sections", {})
-        if section_id not in saudi_sections:
+        dest_sections = dest_template.get("sections", {})
+        if section_id not in dest_sections:
             print(f"  SKIP {label}: section not in Saudi template")
             continue
 
         # Check if already set
-        saudi_section = saudi_sections[section_id]
+        dest_section = dest_sections[section_id]
         if block_id:
-            existing = saudi_section.get("blocks", {}).get(block_id, {}).get("settings", {}).get(key)
+            existing = dest_section.get("blocks", {}).get(block_id, {}).get("settings", {}).get(key)
         else:
-            existing = saudi_section.get("settings", {}).get(key)
+            existing = dest_section.get("settings", {}).get(key)
 
         if existing and _is_shopify_image_ref(existing):
             continue  # Already set
@@ -314,15 +315,15 @@ def phase3_homepage_images(spain, saudi, id_map, file_map, dry_run=False):
 
         # Update Saudi template
         if block_id:
-            saudi_sections[section_id].setdefault("blocks", {}).setdefault(
+            dest_sections[section_id].setdefault("blocks", {}).setdefault(
                 block_id, {}).setdefault("settings", {})[key] = shopify_ref
         else:
-            saudi_sections[section_id].setdefault("settings", {})[key] = shopify_ref
+            dest_sections[section_id].setdefault("settings", {})[key] = shopify_ref
         updated += 1
 
     if updated > 0 and not dry_run:
-        template_str = json.dumps(saudi_template, ensure_ascii=False, indent=2)
-        saudi.put_asset(saudi_theme_id, "templates/index.json", template_str)
+        template_str = json.dumps(dest_template, ensure_ascii=False, indent=2)
+        saudi.put_asset(dest_theme_id, "templates/index.json", template_str)
         print(f"\n  Updated Saudi homepage template with {updated} images")
     else:
         print(f"\n  {'Would update' if dry_run else 'Updated'} {updated} images, {errors} errors")
@@ -381,7 +382,7 @@ def phase4_metaobject_files(spain, saudi, id_map, file_map, dry_run=False):
 
     # Get all metaobject definitions from Saudi to discover file fields dynamically
     saudi_defs = saudi.get_metaobject_definitions()
-    print(f"  Found {len(saudi_defs)} metaobject definitions on Saudi store")
+    print(f"  Found {len(saudi_defs)} metaobject definitions on destination store")
 
     for defn in saudi_defs:
         mo_type = defn.get("type", "")
@@ -724,11 +725,11 @@ def phase6_verify(spain, saudi, id_map, file_map, dry_run=False):
 
     # Check homepage
     try:
-        saudi_theme_id = saudi.get_main_theme_id()
-        if saudi_theme_id:
-            saudi_asset = saudi.get_asset(saudi_theme_id, "templates/index.json")
-            saudi_template = json.loads(saudi_asset.get("value", "{}"))
-            images = _extract_template_images(saudi_template)
+        dest_theme_id = saudi.get_main_theme_id()
+        if dest_theme_id:
+            saudi_asset = saudi.get_asset(dest_theme_id, "templates/index.json")
+            dest_template = json.loads(saudi_asset.get("value", "{}"))
+            images = _extract_template_images(dest_template)
             for img in images:
                 if _is_shopify_image_ref(img["value"]):
                     report["homepage_images_set"] += 1
@@ -763,7 +764,7 @@ PHASES = {
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Unified image migration: Spain → Saudi Shopify store")
+        description="Unified image migration: Source → Destination Shopify store")
     parser.add_argument("--inspect", action="store_true",
                         help="Show what would be migrated across all phases")
     parser.add_argument("--dry-run", action="store_true",
@@ -772,17 +773,17 @@ def main():
                         help="Run specific phases only (e.g., '4' or '3,4,5')")
     args = parser.parse_args()
 
-    spain_url = os.environ.get("SPAIN_SHOP_URL")
-    spain_token = os.environ.get("SPAIN_ACCESS_TOKEN")
-    saudi_url = os.environ.get("SAUDI_SHOP_URL")
-    saudi_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    source_url = config.get_source_shop_url()
+    source_token = config.get_source_access_token()
+    dest_url = config.get_dest_shop_url()
+    dest_token = config.get_dest_access_token()
 
-    if not all([spain_url, spain_token, saudi_url, saudi_token]):
-        print("ERROR: Set SPAIN_SHOP_URL, SPAIN_ACCESS_TOKEN, SAUDI_SHOP_URL, SAUDI_ACCESS_TOKEN in .env")
+    if not all([source_url, source_token, dest_url, saudi_token]):
+        print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         return
 
-    spain = ShopifyClient(spain_url, spain_token)
-    saudi = ShopifyClient(saudi_url, saudi_token)
+    source = ShopifyClient(source_url, source_token)
+    saudi = ShopifyClient(dest_url, dest_token)
 
     id_map = load_json("data/id_map.json") if os.path.exists("data/id_map.json") else {}
     file_map_file = FILE_MAP_FILE
@@ -799,7 +800,7 @@ def main():
     dry_run = args.dry_run or args.inspect
 
     print("=" * 60)
-    print("UNIFIED IMAGE MIGRATION: Spain → Saudi")
+    print("UNIFIED IMAGE MIGRATION: Source → Destination")
     print("=" * 60)
     print(f"  Mode:   {'DRY RUN' if dry_run else 'LIVE'}")
     print(f"  Phases: {phases_to_run}")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare and resolve metaobject differences between Spain and Saudi stores.
+"""Compare and resolve metaobject differences between Spain and destination stores.
 
 Detects schema mismatches (missing definitions, field differences), entry
 gaps (objects in Spain but not Saudi), and broken references. Then fixes them.
@@ -18,7 +18,7 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import DEFINITION_ORDER, load_json, save_json
+from tara_migrate.core import DEFINITION_ORDER, config, load_json, save_json
 
 # ---------------------------------------------------------------------------
 # Step 1: Compare definitions (schema)
@@ -33,10 +33,10 @@ def compare_definitions(spain, saudi):
           field_diffs: dict of {type: {missing_fields: [...], type_mismatches: [...]}}
           matching: list of types that match perfectly
     """
-    spain_defs = spain.get_metaobject_definitions()
+    source_defs = source.get_metaobject_definitions()
     saudi_defs = saudi.get_metaobject_definitions()
 
-    spain_by_type = {d["type"]: d for d in spain_defs}
+    spain_by_type = {d["type"]: d for d in source_defs}
     saudi_by_type = {d["type"]: d for d in saudi_defs}
 
     result = {
@@ -104,7 +104,7 @@ def compare_entries(spain, saudi, mo_type, id_map):
           unmapped: list of {id, handle} in Spain with no mapping
           orphaned_in_saudi: list of handles in Saudi not matching any Spain entry
     """
-    spain_entries = spain.get_metaobjects(mo_type)
+    spain_entries = source.get_metaobjects(mo_type)
     saudi_entries = saudi.get_metaobjects(mo_type)
 
     spain_by_handle = {e["handle"]: e for e in spain_entries}
@@ -254,8 +254,8 @@ def check_references(saudi, id_map):
 # Fixes
 # ---------------------------------------------------------------------------
 
-def fix_missing_definitions(spain, saudi, missing_types, spain_defs, saudi_defs, dry_run=False):
-    """Create missing metaobject definitions in Saudi store."""
+def fix_missing_definitions(spain, saudi, missing_types, source_defs, saudi_defs, dry_run=False):
+    """Create missing metaobject definitions in destination store."""
     # Dependency order: benefit/faq_entry before ingredient
     DEP_ORDER = DEFINITION_ORDER
     # Skip Shopify-reserved types (shopify-- prefix) — these are managed by
@@ -270,7 +270,7 @@ def fix_missing_definitions(spain, saudi, missing_types, spain_defs, saudi_defs,
         print(f"  Skipping Shopify-managed definitions: {skipped}")
 
     for mo_type in ordered:
-        spain_def = spain_defs[mo_type]
+        spain_def = source_defs[mo_type]
         field_defs = []
         for f in spain_def.get("fieldDefinitions", []):
             field_def = {
@@ -285,7 +285,7 @@ def fix_missing_definitions(spain, saudi, missing_types, spain_defs, saudi_defs,
                     if v["name"] == "metaobject_definition_id" and v.get("value"):
                         # Find the referenced type
                         ref_type = None
-                        for sd in spain_defs.values():
+                        for sd in source_defs.values():
                             if sd["id"] == v["value"]:
                                 ref_type = sd["type"]
                                 break
@@ -335,7 +335,7 @@ def fix_missing_definitions(spain, saudi, missing_types, spain_defs, saudi_defs,
             print(f"  ERROR creating '{mo_type}': {e}")
 
 
-def fix_missing_fields(spain, saudi, field_diffs, spain_defs, saudi_defs, dry_run=False):
+def fix_missing_fields(spain, saudi, field_diffs, source_defs, saudi_defs, dry_run=False):
     """Add missing fields to existing Saudi definitions."""
     for mo_type, diff in field_diffs.items():
         missing = diff.get("missing_fields", [])
@@ -368,7 +368,7 @@ def fix_missing_fields(spain, saudi, field_diffs, spain_defs, saudi_defs, dry_ru
 
 
 def fix_missing_entries(spain, saudi, mo_type, missing, id_map, dry_run=False):
-    """Create missing metaobject entries in Saudi store."""
+    """Create missing metaobject entries in destination store."""
     id_map_file = "data/id_map.json"
     map_key = f"metaobjects_{mo_type}"
 
@@ -376,7 +376,7 @@ def fix_missing_entries(spain, saudi, mo_type, missing, id_map, dry_run=False):
         source_gid = entry_info["id"]
         handle = entry_info["handle"]
 
-        # Fetch full entry from Spain
+        # Fetch full entry from source
         try:
             source_obj = spain._graphql("""
                 query getMetaobject($id: ID!) {
@@ -388,7 +388,7 @@ def fix_missing_entries(spain, saudi, mo_type, missing, id_map, dry_run=False):
             """, {"id": source_gid})
             source_mo = source_obj.get("metaobject")
             if not source_mo:
-                print(f"  SKIP {handle}: could not fetch from Spain")
+                print(f"  SKIP {handle}: could not fetch from source")
                 continue
         except Exception as e:
             print(f"  SKIP {handle}: {e}")
@@ -588,7 +588,7 @@ def fix_references(spain, saudi, id_map, dry_run=False):
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(
-        description="Compare and resolve metaobject differences between Spain and Saudi stores")
+        description="Compare and resolve metaobject differences between Spain and destination stores")
     parser.add_argument("--inspect", action="store_true",
                         help="Show differences without fixing")
     parser.add_argument("--dry-run", action="store_true",
@@ -599,17 +599,17 @@ def main():
                         help="Skip reference relinking")
     args = parser.parse_args()
 
-    spain_url = os.environ.get("SPAIN_SHOP_URL")
-    spain_token = os.environ.get("SPAIN_ACCESS_TOKEN")
-    saudi_url = os.environ.get("SAUDI_SHOP_URL")
-    saudi_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    source_url = config.get_source_shop_url()
+    source_token = config.get_source_access_token()
+    dest_url = config.get_dest_shop_url()
+    dest_token = config.get_dest_access_token()
 
-    if not all([spain_url, spain_token, saudi_url, saudi_token]):
-        print("ERROR: Set SPAIN_SHOP_URL, SPAIN_ACCESS_TOKEN, SAUDI_SHOP_URL, SAUDI_ACCESS_TOKEN in .env")
+    if not all([source_url, source_token, dest_url, saudi_token]):
+        print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         return
 
-    spain = ShopifyClient(spain_url, spain_token)
-    saudi = ShopifyClient(saudi_url, saudi_token)
+    source = ShopifyClient(source_url, source_token)
+    saudi = ShopifyClient(dest_url, dest_token)
 
     id_map = load_json("data/id_map.json") if os.path.exists("data/id_map.json") else {}
     dry_run = args.dry_run or args.inspect
@@ -620,7 +620,7 @@ def main():
 
     # --- Step 1: Schema comparison ---
     print("\n--- Step 1: Schema Comparison ---")
-    diffs, spain_defs, saudi_defs = compare_definitions(spain, saudi)
+    diffs, source_defs, saudi_defs = compare_definitions(spain, saudi)
 
     if diffs["missing_in_saudi"]:
         print(f"\n  MISSING definitions in Saudi: {diffs['missing_in_saudi']}")
@@ -640,17 +640,17 @@ def main():
     if diffs["missing_in_saudi"]:
         print("\n  Fixing missing definitions...")
         fix_missing_definitions(spain, saudi, diffs["missing_in_saudi"],
-                                spain_defs, saudi_defs, dry_run=dry_run)
+                                source_defs, saudi_defs, dry_run=dry_run)
 
     if diffs["field_diffs"]:
         print("\n  Fixing missing fields...")
         fix_missing_fields(spain, saudi, diffs["field_diffs"],
-                           spain_defs, saudi_defs, dry_run=dry_run)
+                           source_defs, saudi_defs, dry_run=dry_run)
 
     # --- Step 2: Entry comparison ---
     print("\n--- Step 2: Entry Comparison ---")
 
-    types_to_check = [args.type] if args.type else list(spain_defs.keys())
+    types_to_check = [args.type] if args.type else list(source_defs.keys())
     DEP_ORDER = DEFINITION_ORDER
     types_to_check = sorted(types_to_check,
                             key=lambda t: DEP_ORDER.index(t) if t in DEP_ORDER else 999)

@@ -1,8 +1,8 @@
-# CLAUDE.md — TARA Shopify Store Migration
+# CLAUDE.md — Shopify Store Migration Toolkit
 
 ## Project Overview
 
-Python CLI pipeline migrating the **TARA luxury scalp-care** Shopify store from **Spain (Spanish)** to **Saudi Arabia (English primary + Arabic secondary)**. Handles products, collections, pages, blogs, articles, metaobjects, translations, images, menus, redirects, and post-migration config.
+Generic Python CLI pipeline for **Shopify store-to-store migration**. Originally built for TARA luxury scalp-care (Spain → Saudi Arabia), now supports migrating any Shopify store to multiple destinations. Handles products, collections, pages, blogs, articles, metaobjects, translations, images, menus, redirects, and post-migration config. Env vars `SOURCE_SHOP_URL`/`DEST_SHOP_URL` control which stores are source and destination.
 
 ## Architecture
 
@@ -19,7 +19,9 @@ src/tara_migrate/          ← Production library (all logic lives here)
   setup/                   ← Schema creation: setup_store, setup_collections, setup_menus, setup_homepage
   fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status,
                              fix_redirects, fix_translations (GraphQL translation fixer)
-  tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images
+  tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images,
+                             review_content (English content review), review_arabic (Arabic translation review),
+                             crawl_and_translate (Playwright crawl → match → translate visible theme strings)
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -57,18 +59,25 @@ All logic lives in `src/tara_migrate/`. Tests import from there too. No standalo
 ## Environment Variables
 
 ```
-SPAIN_SHOP_URL=xxx.myshopify.com
-SPAIN_ACCESS_TOKEN=shpat_xxx
-SAUDI_SHOP_URL=xxx.myshopify.com
-SAUDI_ACCESS_TOKEN=shpat_xxx
+# Source store (migrating FROM)
+SOURCE_SHOP_URL=xxx.myshopify.com
+SOURCE_ACCESS_TOKEN=shpat_xxx
+
+# Destination store (migrating TO)
+DEST_SHOP_URL=xxx.myshopify.com
+DEST_ACCESS_TOKEN=shpat_xxx
+
 OPENAI_API_KEY=sk-xxx
+ANTHROPIC_API_KEY=sk-ant-xxx
 ```
+
+Legacy env var names (`SPAIN_SHOP_URL`/`SPAIN_ACCESS_TOKEN`, `SAUDI_SHOP_URL`/`SAUDI_ACCESS_TOKEN`) are still supported for backwards compatibility.
 
 ## Data Pipeline
 
 ```
 data/
-  spain_export/    ← Raw export from Spain store (products, collections, metaobjects, etc.)
+  source_export/   ← Raw export from source store (products, collections, metaobjects, etc.)
   english/         ← Translated English content (39 products, 122 benefits, 122 FAQs, 34 ingredients)
   arabic/          ← Translated Arabic content
   id_map.json      ← Source GID → Destination GID mapping (critical for reference remapping)
@@ -83,8 +92,10 @@ data/
 - **TARA tone-of-voice** prompts from `tara_tov_en.txt` / `tara_tov_ar.txt`
 - **Never-translate rules**: brand name "TARA", product names ("Kansa Wand", "Gua Sha"), INCI names
 - **Rich text safety**: translates at text-node level inside JSON, sanitizes corrupted output
+- **CRITICAL — rich_text_field metafields**: NEVER pass rich_text JSON through a plain-text or HTML translator. Always use `extract_text_nodes()` + `rebuild()` from `core.rich_text` to translate individual text nodes while preserving the JSON structure. Shopify rejects raw HTML uploads to rich_text_field metafields.
 - **Progress tracking**: `_translation_progress_{lang}.json` — safe to interrupt and resume
 - **Models**: Uses OpenAI (gpt-5-nano default with minimal reasoning)
+- **IMPORTANT — GPT-5 family API constraints**: Do NOT pass `max_tokens` (use `max_completion_tokens` if needed) and do NOT pass `temperature` (only default value 1 is supported). These apply to gpt-5-nano, gpt-5-mini, gpt-4o-mini, and all GPT-5 variants.
 
 ### Key Translation Constants (in `src/tara_migrate/translation/translator.py`)
 
@@ -144,6 +155,30 @@ python fix_prices.py [--update-shopify]
 python fix_status.py
 python fix_images.py
 
+# Content review (strip HTML bloat, translate remaining Spanish)
+python review_content.py --audit                       # Report issues only (Haiku 4.5 detection)
+python review_content.py --dry-run                     # Show planned changes
+python review_content.py                               # Apply fixes (regex stripping + gpt-4o-mini translation)
+python review_content.py --ai-clean                    # Use Sonnet 4.6 to clean HTML (instead of regex)
+python review_content.py --ai-clean --dry-run          # Preview AI-cleaned HTML
+python review_content.py --scan-bloat                  # AI bloat scan: log patterns to data/html_bloat_debug.jsonl
+python review_content.py --type pages --skip-spanish   # Strip HTML bloat from pages only
+python review_content.py --skip-html-cleanup           # Only fix Spanish (no HTML stripping)
+python review_content.py --audit-model MODEL           # Override audit model (default: claude-haiku-4-5-20251001)
+python review_content.py --model MODEL                 # Override translation model (default: gpt-4o-mini)
+
+# Arabic translation review (7-step pipeline: fetch → classify → semantic check → fix → verify)
+python review_arabic.py --audit                        # Audit only, no changes
+python review_arabic.py --dry-run                      # Show planned changes
+python review_arabic.py                                # Full pipeline: audit + fix + verify
+python review_arabic.py --type PRODUCT                 # Only audit products
+python review_arabic.py --type PRODUCT,METAFIELD       # Multiple types
+python review_arabic.py --skip-semantic                # Skip Haiku correspondence check (faster)
+python review_arabic.py --model gpt-5-mini             # Override translation model
+python review_arabic.py --audit-model MODEL            # Override Haiku audit model
+python review_arabic.py --no-verify                    # Skip post-fix re-audit
+python review_arabic.py --save-report FILE.json        # Save audit report
+
 # Audit
 python compare_stores.py
 python verify_saudi.py
@@ -171,6 +206,32 @@ python audit_site.py --url https://sa.taraformula.com/ar/products/some-product
 
 # Translation fixers
 python fix_translations.py --audit audit_fix.json --locale ar
+
+# Theme translation key audit (Shopify ~3,400 key limit per locale)
+python audit_theme_keys.py                           # Audit only — show breakdown
+python audit_theme_keys.py --remove-junk             # Remove unnecessary translations
+python audit_theme_keys.py --dry-run                 # Preview what would be removed
+python audit_theme_keys.py --dump data/theme_keys.json  # Dump all keys to JSON
+python audit_theme_keys.py --translate               # Translate missing Arabic theme keys
+python audit_theme_keys.py --translate --dry-run     # Preview what would be translated
+python audit_theme_keys.py --translate --model gpt-5-mini  # Use a different model
+python audit_theme_keys.py --full-analysis           # Audit + duplicates + sections
+python audit_theme_keys.py --analyze-duplicates      # Show duplicated strings across section keys
+python audit_theme_keys.py --analyze-sections        # Show key count per template (find key hogs)
+python audit_theme_keys.py --dedup-translations      # Remove duplicate Arabic translations (keep 1 per string)
+python audit_theme_keys.py --dedup-translations --dry-run  # Preview dedup plan
+python audit_theme_keys.py --clean-locale --dry-run        # Preview ar.json locale file cleanup
+python audit_theme_keys.py --clean-locale                  # Remove junk from theme ar.json file
+
+# Crawl-based theme translation (only translate what's visible on the site)
+python crawl_and_translate.py                              # Full pipeline: crawl → match → translate
+python crawl_and_translate.py --crawl-only                 # Crawl only, save to data/crawl_english.json
+python crawl_and_translate.py --skip-crawl                 # Reuse saved crawl data
+python crawl_and_translate.py --dry-run                    # Show plan, no uploads
+python crawl_and_translate.py --include-checkout           # Also crawl checkout pages
+python crawl_and_translate.py --max-pages 300              # Crawl more pages
+python crawl_and_translate.py --model gpt-5-mini           # Override translation model
+python crawl_and_translate.py --skip-remove                # Don't remove unmatched translations
 
 # Unified verify-and-fix (audit -> fix -> verify in one pass)
 python verify_fix_translations.py                           # full pipeline

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive Saudi store audit — API checks + storefront scraping.
+"""Comprehensive destination store audit — API checks + storefront scraping.
 
 Tests every aspect of the store against the Complete Store Build Guide:
 - Products, collections, pages, blogs, articles
@@ -31,6 +31,7 @@ import requests
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
+from tara_migrate.core import config
 
 # ─── Expected configuration from the Complete Store Build Guide ───
 
@@ -887,16 +888,16 @@ def fix_homepage_products(client, report, theme_id):
 
 def main():
     load_dotenv()
-    parser = argparse.ArgumentParser(description="Comprehensive Saudi store audit")
+    parser = argparse.ArgumentParser(description="Comprehensive destination store audit")
     parser.add_argument("--section", type=str, help="Run only a specific section")
     parser.add_argument("--fix", action="store_true", help="Auto-fix known issues")
     parser.add_argument("--no-scrape", action="store_true", help="Skip storefront scraping")
     args = parser.parse_args()
 
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN must be set in .env")
         return
 
     client = ShopifyClient(shop_url, access_token)

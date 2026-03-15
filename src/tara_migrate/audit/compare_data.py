@@ -12,7 +12,7 @@ import json
 import os
 import sys
 
-from tara_migrate.core import AR_DIR, EN_DIR, SPAIN_DIR, load_json
+from tara_migrate.core import AR_DIR, EN_DIR, SOURCE_DIR, load_json
 
 
 def _image_filenames(product):
@@ -119,7 +119,7 @@ def compare_products(spain, scraped, label):
 
     # Check which metafields are missing from scraped products
     print("\n    Metafield coverage (matched products):")
-    from translator import PRODUCT_TRANSLATABLE_METAFIELDS
+    from tara_migrate.translation.translator import PRODUCT_TRANSLATABLE_METAFIELDS
     mf_coverage = {k: 0 for k in PRODUCT_TRANSLATABLE_METAFIELDS}
     for p in matched:
         for mf in p.get("metafields", []):
@@ -199,7 +199,7 @@ def compare_pages(spain, scraped, label):
 
 
 def compare_metaobjects(spain, scraped, label):
-    from translator import METAOBJECT_TRANSLATABLE_FIELDS
+    from tara_migrate.translation.translator import METAOBJECT_TRANSLATABLE_FIELDS
 
     print(f"\n  {label} Metaobjects:")
 
@@ -214,7 +214,7 @@ def compare_metaobjects(spain, scraped, label):
         has_translatable = mo_type in METAOBJECT_TRANSLATABLE_FIELDS
 
         # If this type has translatable fields, check if scraped data is
-        # actually translated or just copied from Spain (still Spanish)
+        # actually translated or just copied from source (still Spanish)
         if has_translatable and scraped_objs:
             # Check first object: if scraped text matches Spain text, it's a copy
             is_copy = _check_if_copy(spain_objs, scraped_objs, mo_type)
@@ -244,7 +244,7 @@ def compare_metaobjects(spain, scraped, label):
 
 def _check_if_copy(spain_objs, scraped_objs, mo_type):
     """Check if scraped metaobjects are just copies of Spain data (still Spanish)."""
-    from translator import METAOBJECT_TRANSLATABLE_FIELDS
+    from tara_migrate.translation.translator import METAOBJECT_TRANSLATABLE_FIELDS
     translatable_keys = METAOBJECT_TRANSLATABLE_FIELDS.get(mo_type, set())
 
     # Build handle-based lookup
@@ -281,7 +281,7 @@ def _check_if_copy(spain_objs, scraped_objs, mo_type):
 
 def analyze_translation_cost(gaps, matched_product_count=0):
     """Estimate number of LLM calls needed."""
-    from translator import (
+    from tara_migrate.translation.translator import (
         ARTICLE_TRANSLATABLE_METAFIELDS,
         METAOBJECT_TRANSLATABLE_FIELDS,
         PRODUCT_TRANSLATABLE_METAFIELDS,
@@ -350,19 +350,19 @@ def main():
     print("=" * 60)
 
     # Load Spain data
-    spain_products = load_json(os.path.join(SPAIN_DIR, "products.json"))
-    spain_collections = load_json(os.path.join(SPAIN_DIR, "collections.json"))
-    spain_pages = load_json(os.path.join(SPAIN_DIR, "pages.json"))
-    spain_articles = load_json(os.path.join(SPAIN_DIR, "articles.json"))
-    spain_metaobjects = load_json(os.path.join(SPAIN_DIR, "metaobjects.json"))
+    source_products = load_json(os.path.join(SOURCE_DIR, "products.json"))
+    source_collections = load_json(os.path.join(SOURCE_DIR, "collections.json"))
+    source_pages = load_json(os.path.join(SOURCE_DIR, "pages.json"))
+    source_articles = load_json(os.path.join(SOURCE_DIR, "articles.json"))
+    source_metaobjects = load_json(os.path.join(SOURCE_DIR, "metaobjects.json"))
 
-    print(f"\nSpain Export: {len(spain_products)} products, {len(spain_collections)} collections, "
-          f"{len(spain_pages)} pages, {len(spain_articles)} articles")
-    if isinstance(spain_metaobjects, dict):
-        mo_total = sum(len(v.get("objects", [])) for v in spain_metaobjects.values())
-        print(f"  Metaobjects: {mo_total} across {len(spain_metaobjects)} types")
+    print(f"\nSpain Export: {len(source_products)} products, {len(source_collections)} collections, "
+          f"{len(source_pages)} pages, {len(source_articles)} articles")
+    if isinstance(source_metaobjects, dict):
+        mo_total = sum(len(v.get("objects", [])) for v in source_metaobjects.values())
+        print(f"  Metaobjects: {mo_total} across {len(source_metaobjects)} types")
 
-    if not spain_products:
+    if not source_products:
         print("\nERROR: Spain export is empty. Run export_spain.py first.")
         sys.exit(1)
 
@@ -383,26 +383,26 @@ def main():
             print(f"\n  WARNING: No scraped {label} data found. Run scrape_kuwait.py --scrape first.")
             # All Spain data needs translation
             gaps[lang] = {
-                "products": spain_products,
-                "collections": spain_collections,
-                "pages": spain_pages,
-                "articles": spain_articles,
-                "metaobjects": spain_metaobjects if isinstance(spain_metaobjects, dict) else {},
+                "products": source_products,
+                "collections": source_collections,
+                "pages": source_pages,
+                "articles": source_articles,
+                "metaobjects": source_metaobjects if isinstance(source_metaobjects, dict) else {},
             }
             continue
 
-        missing_products, matched_products = compare_products(spain_products, scraped_products, label)
-        missing_collections, _ = compare_collections(spain_collections, scraped_collections, label)
-        missing_pages, _ = compare_pages(spain_pages, scraped_pages, label)
+        missing_products, matched_products = compare_products(source_products, scraped_products, label)
+        missing_collections, _ = compare_collections(source_collections, scraped_collections, label)
+        missing_pages, _ = compare_pages(source_pages, scraped_pages, label)
 
         # Articles — always need translation (not in Magento)
         print(f"\n  {label} Articles:")
-        print(f"    Spain: {len(spain_articles)} — ALL need LLM translation (no Magento source)")
+        print(f"    Spain: {len(source_articles)} — ALL need LLM translation (no Magento source)")
 
         # Metaobjects — types with translatable fields always need LLM
         # (scraper copies Spain data, doesn't translate)
-        if isinstance(spain_metaobjects, dict):
-            missing_metaobjects = compare_metaobjects(spain_metaobjects, scraped_metaobjects, label)
+        if isinstance(source_metaobjects, dict):
+            missing_metaobjects = compare_metaobjects(source_metaobjects, scraped_metaobjects, label)
         else:
             missing_metaobjects = {}
 
@@ -411,7 +411,7 @@ def main():
             "matched_product_count": len(matched_products),
             "collections": missing_collections,
             "pages": missing_pages,
-            "articles": spain_articles,  # All articles need translation
+            "articles": source_articles,  # All articles need translation
             "metaobjects": missing_metaobjects,
         }
 

@@ -13,12 +13,13 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
+from tara_migrate.core import config
 
 
 def main():
     load_dotenv()
-    shop_url = os.environ["SAUDI_SHOP_URL"]
-    access_token = os.environ["SAUDI_ACCESS_TOKEN"]
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     client = ShopifyClient(shop_url, access_token)
 
     # 1. Find the MetafieldDefinition ID for custom.ingredients on PRODUCT

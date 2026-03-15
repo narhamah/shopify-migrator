@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from tara_migrate.core import load_json, save_json
-from tara_migrate.core.config import AR_DIR, EN_DIR, SPAIN_DIR
+from tara_migrate.core.config import AR_DIR, EN_DIR, SOURCE_DIR
 from tara_migrate.core.utils import unicode_slugify as _slugify
 from tara_migrate.translation.field_extractors import (  # noqa: F401
     TEXT_METAFIELD_TYPES,
@@ -418,10 +418,15 @@ def _retry_missing(client, model, missing_fields, source_lang, target_lang, is_r
 
     Uses a direct, focused prompt. Returns (translation_map, tokens_used).
     """
-    toon_input = to_toon(missing_fields)
+    # Use opaque numeric IDs — only send content to the model
+    idx_to_real_id = {str(i): f["id"] for i, f in enumerate(missing_fields)}
+    opaque_fields = [{"id": str(i), "value": f["value"]}
+                     for i, f in enumerate(missing_fields)]
+    toon_input = to_toon(opaque_fields)
     prompt = (
         f"Translate the following TOON data from {source_lang} to {target_lang}. "
-        f"Keep all IDs unchanged. Translate only the values.\n\n{toon_input}"
+        f"Translate only the values (text after §). Keep the numeric IDs unchanged.\n\n"
+        f"{toon_input}"
     )
     try:
         api_kwargs = {
@@ -446,10 +451,12 @@ def _retry_missing(client, model, missing_fields, source_lang, target_lang, is_r
                 result = "\n".join(lines[1:])
 
         translated = from_toon(result)
-        t_map = {e["id"]: e["value"] for e in translated}
-        # Remove hallucinated IDs
-        valid_ids = {f["id"] for f in missing_fields}
-        t_map = {k: v for k, v in t_map.items() if k in valid_ids}
+        # Map opaque IDs back to real field IDs
+        t_map = {}
+        for e in translated:
+            real_id = idx_to_real_id.get(e["id"])
+            if real_id:
+                t_map[real_id] = e["value"]
         tokens = response.usage.prompt_tokens + response.usage.completion_tokens
         print(f"    Retry got {len(t_map)}/{len(missing_fields)} translations ({tokens} tokens)")
         return t_map, tokens
@@ -463,11 +470,15 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
 
     Returns (translation_map, total_tokens_used).
     """
-    toon_input = to_toon(fields)
+    # Use opaque numeric IDs so the model only sees content to translate
+    idx_to_real_id = {str(i): f["id"] for i, f in enumerate(fields)}
+    opaque_fields = [{"id": str(i), "value": f["value"]}
+                     for i, f in enumerate(fields)]
+    toon_input = to_toon(opaque_fields)
 
     prompt = (
         f"Translate the following TOON data from {source_lang} to {target_lang}. "
-        f"Keep all IDs unchanged. Translate only the values. "
+        f"Translate only the values (text after §). Keep the numeric IDs unchanged. "
         f"Follow the TARA {target_lang} tone of voice.\n\n"
         f"{toon_input}"
     )
@@ -518,20 +529,16 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
                     time.sleep(2)
                     continue
 
-            # Build translation map
+            # Build translation map — map opaque IDs back to real field IDs
             t_map = {}
             for entry in translated:
-                t_map[entry["id"]] = entry["value"]
+                real_id = idx_to_real_id.get(entry["id"])
+                if real_id:
+                    t_map[real_id] = entry["value"]
 
-            # Verify IDs match
-            input_ids = {f["id"] for f in fields}
-            output_ids = set(t_map.keys())
-            missing = input_ids - output_ids
-            extra = output_ids - input_ids
-            if extra:
-                # Model fabricated IDs — remove them
-                for eid in extra:
-                    del t_map[eid]
+            # Check for missing translations
+            real_ids = set(idx_to_real_id.values())
+            missing = real_ids - set(t_map.keys())
             usage = response.usage
             total_tokens = usage.prompt_tokens + usage.completion_tokens
 
@@ -578,10 +585,10 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
 # load_json, save_json imported from tara_migrate.core
 
 
-def find_gaps(spain_items, scraped_items, key_field="handle"):
+def find_gaps(source_items, scraped_items, key_field="handle"):
     """Find Spain items not present in scraped data."""
     if not scraped_items:
-        return spain_items  # Everything needs translation
+        return source_items  # Everything needs translation
 
     if key_field == "sku":
         scraped_skus = set()
@@ -593,7 +600,7 @@ def find_gaps(spain_items, scraped_items, key_field="handle"):
                     scraped_skus.add(v["sku"])
 
         missing = []
-        for p in spain_items:
+        for p in source_items:
             skus = [v.get("sku", "") for v in p.get("variants", []) if v.get("sku")]
             handle = p.get("handle", "")
             if not any(s in scraped_skus for s in skus) and handle not in scraped_handles:
@@ -601,7 +608,7 @@ def find_gaps(spain_items, scraped_items, key_field="handle"):
         return missing
 
     scraped_keys = {item.get(key_field, "") for item in scraped_items}
-    return [item for item in spain_items if item.get(key_field, "") not in scraped_keys]
+    return [item for item in source_items if item.get(key_field, "") not in scraped_keys]
 
 
 def match_products_by_sku(source_products, scraped_products):
@@ -713,7 +720,7 @@ def translate_with_gaps(
     Products are matched by SKU between source and scraped data.
 
     Args:
-        source_dir: Directory with source data (SPAIN_DIR for ES→EN, EN_DIR for EN→AR)
+        source_dir: Directory with source data (SOURCE_DIR for ES→EN, EN_DIR for EN→AR)
         output_dir: Directory for output (EN_DIR or AR_DIR), also read for scraped data
         source_lang: Source language name ("Spanish" or "English")
         target_lang: Target language name ("English" or "Arabic")
@@ -1077,7 +1084,7 @@ def main():
 
     if args.lang == "en":
         translate_with_gaps(
-            source_dir=SPAIN_DIR, output_dir=EN_DIR,
+            source_dir=SOURCE_DIR, output_dir=EN_DIR,
             source_lang="Spanish", target_lang="English", lang_code="en",
             dry=args.dry, model=args.model, batch_size=args.batch_size, tpm=args.tpm,
         )

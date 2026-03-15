@@ -25,7 +25,7 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import load_json, sanitize_rich_text_json
+from tara_migrate.core import config, load_json, sanitize_rich_text_json
 
 # Metafield keys that are text-based (not references, not file_reference)
 TEXT_METAFIELD_KEYS = {
@@ -57,10 +57,10 @@ def main():
                         help="Only set metafields that are currently empty on Shopify")
     args = parser.parse_args()
 
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN must be set in .env")
         return
 
     client = ShopifyClient(shop_url, access_token)

@@ -21,20 +21,20 @@ def main():
     print("  (Offline analysis from local data files)")
     print("=" * 70)
 
-    spain_products = load_json("data/spain_export/products.json") or []
+    source_products = load_json("data/source_export/products.json") or []
     english_products = load_json("data/english/products.json") or []
-    spain_collections = load_json("data/spain_export/collections.json") or []
+    source_collections = load_json("data/source_export/collections.json") or []
     english_collections = load_json("data/english/collections.json") or []
-    spain_pages = load_json("data/spain_export/pages.json") or []
+    source_pages = load_json("data/source_export/pages.json") or []
     english_pages = load_json("data/english/pages.json") or []
-    spain_metaobjects = load_json("data/spain_export/metaobjects.json") or []
+    source_metaobjects = load_json("data/source_export/metaobjects.json") or []
     english_metaobjects = load_json("data/english/metaobjects.json") or []
-    spain_defs = load_json("data/spain_export/metaobject_definitions.json") or []
+    source_defs = load_json("data/source_export/metaobject_definitions.json") or []
     id_map = load_json("data/id_map.json") or {}
 
-    spain_blogs = load_json("data/spain_export/blogs.json") or []
+    source_blogs = load_json("data/source_export/blogs.json") or []
     english_blogs = load_json("data/english/blogs.json") or []
-    spain_articles = load_json("data/spain_export/articles.json") or []
+    source_articles = load_json("data/source_export/articles.json") or []
     english_articles = load_json("data/english/articles.json") or []
 
     total_issues = 0
@@ -45,7 +45,7 @@ def main():
     print(f"\n{'='*70}")
     print("  1. PRODUCTS")
     print(f"{'='*70}")
-    print(f"  Spain:   {len(spain_products)} products")
+    print(f"  Spain:   {len(source_products)} products")
     print(f"  English: {len(english_products)} products")
     migrated = id_map.get("products", {})
     print(f"  Saudi (migrated): {len(migrated)} products")
@@ -58,7 +58,7 @@ def main():
             not_migrated.append(p)
 
     if not_migrated:
-        msg = f"{len(not_migrated)} products NOT migrated to Saudi"
+        msg = f"{len(not_migrated)} products NOT migrated to destination"
         critical_issues.append(msg)
         print(f"\n  CRITICAL: {msg}:")
         for p in not_migrated:
@@ -121,7 +121,7 @@ def main():
     print(f"\n{'='*70}")
     print("  2. COLLECTIONS")
     print(f"{'='*70}")
-    print(f"  Spain:   {len(spain_collections)} collections")
+    print(f"  Spain:   {len(source_collections)} collections")
     print(f"  English: {len(english_collections)} collections")
 
     # Check for duplicates
@@ -134,7 +134,7 @@ def main():
         total_issues += len(dupes)
 
     eng_unique = set(eng_handles)
-    sp_handles = set(c["handle"] for c in spain_collections)
+    sp_handles = set(c["handle"] for c in source_collections)
 
     # Expected collections from Build Guide
     expected_range_collections = [
@@ -187,10 +187,10 @@ def main():
     print(f"\n{'='*70}")
     print("  3. PAGES")
     print(f"{'='*70}")
-    print(f"  Spain:   {len(spain_pages)} pages")
+    print(f"  Spain:   {len(source_pages)} pages")
     print(f"  English: {len(english_pages)} pages")
 
-    sp_page_handles = {p["handle"]: p for p in spain_pages}
+    sp_page_handles = {p["handle"]: p for p in source_pages}
     eng_page_handles = {p["handle"]: p for p in english_pages}
 
     expected_pages = {
@@ -222,7 +222,7 @@ def main():
     print(f"\n{'='*70}")
     print("  4. BLOGS & ARTICLES")
     print(f"{'='*70}")
-    print(f"  Spain:   {len(spain_blogs)} blogs, {len(spain_articles)} articles")
+    print(f"  Spain:   {len(source_blogs)} blogs, {len(source_articles)} articles")
     print(f"  English: {len(english_blogs)} blogs, {len(english_articles)} articles")
 
     for b in english_blogs:
@@ -245,11 +245,11 @@ def main():
 
     # metaobjects.json is dict keyed by type → {definition, objects}
     sp_by_type = {}
-    if isinstance(spain_metaobjects, dict):
-        for t, data in spain_metaobjects.items():
+    if isinstance(source_metaobjects, dict):
+        for t, data in source_metaobjects.items():
             sp_by_type[t] = data.get("objects", []) if isinstance(data, dict) else []
-    elif isinstance(spain_metaobjects, list):
-        for mo in spain_metaobjects:
+    elif isinstance(source_metaobjects, list):
+        for mo in source_metaobjects:
             t = mo.get("type", "unknown")
             sp_by_type.setdefault(t, []).append(mo)
 
@@ -280,7 +280,7 @@ def main():
         print(f"  {icon} {t}: Spain={sp_count}, English={eng_count}, Saudi={mig_count} [{status}]")
 
         if status == "NOT MIGRATED":
-            critical_issues.append(f"Metaobject type '{t}' not migrated to Saudi")
+            critical_issues.append(f"Metaobject type '{t}' not migrated to destination")
             total_issues += 1
         elif status == "NO DATA":
             warnings.append(f"Metaobject type '{t}' has 0 entries in source data")
@@ -391,7 +391,7 @@ def main():
     print(f"{'='*70}")
 
     # Check Spain capabilities
-    for d in spain_defs:
+    for d in source_defs:
         if d["type"] == "ingredient":
             caps = d.get("capabilities", {})
             sp_renderable = caps.get("renderable", {}).get("enabled", False)
@@ -399,7 +399,7 @@ def main():
             print(f"  Spain: renderable={sp_renderable}, publishable={sp_publishable}")
             if not sp_renderable:
                 print("    NOTE: Spain ALSO doesn't have renderable enabled!")
-                print("    The ingredient cards are NOT clickable on Spain either")
+                print("    The ingredient cards are NOT clickable on source either")
                 print("    Saudi needs enable_ingredient_pages.py to enable this")
 
     ingredients = eng_by_type.get("ingredient", [])
@@ -442,7 +442,7 @@ def main():
         "Shipping zones/rates for Saudi Arabia",
         "Domain & DNS configuration",
         "Email notification templates",
-        "Shopify Flows (export from Spain, import to Saudi)",
+        "Shopify Flows (export from source, import to destination)",
         "End-to-end checkout test",
     ]
 
@@ -463,7 +463,7 @@ def main():
         print(f"    {i}. {w}")
 
     print("\n  DATA COVERAGE:")
-    print(f"    Products: {len(migrated)}/{len(english_products)} migrated to Saudi ({len(migrated)/len(english_products)*100:.0f}%)")
+    print(f"    Products: {len(migrated)}/{len(english_products)} migrated to destination ({len(migrated)/len(english_products)*100:.0f}%)")
     print(f"    Collections: {len(english_collections)} in data ({len(dupes)} duplicates)")
     print(f"    Pages: {len(english_pages)} in data")
     print(f"    Ingredients: {len(eng_by_type.get('ingredient', []))} entries")
@@ -473,7 +473,7 @@ def main():
 
     print("\n  NEXT STEPS:")
     print("    1. Run 'python compare_stores.py' locally to check live store rendering")
-    print("    2. Run 'python audit_store.py' locally to verify Saudi store state")
+    print("    2. Run 'python audit_store.py' locally to verify destination store state")
     print(f"    3. Migrate the {len(not_migrated)} missing products")
     print("    4. Fix ingredient card links (theme section edit)")
     print("    5. Configure homepage product section with collection")

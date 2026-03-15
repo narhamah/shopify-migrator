@@ -32,6 +32,7 @@ from dotenv import load_dotenv
 
 from tara_migrate.core import AR_DIR, EN_DIR, REQUEST_DELAY, load_json, save_json
 from tara_migrate.core import MAGENTO_HEADERS as HEADERS
+from tara_migrate.core import config
 
 
 def magento_gql(session, site_url, query, store_code, retries=3):
@@ -173,10 +174,10 @@ def _get_shopify_client_and_maps():
     """Shared setup: Shopify client, id_map, SKU→source mapping."""
     from tara_migrate.client import ShopifyClient
 
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN must be set in .env")
         return None, None, None
 
     client = ShopifyClient(shop_url, access_token)
