@@ -9,6 +9,9 @@ import pytest
 
 from tara_migrate.tools.audit_theme_keys import (
     _parse_json_with_comments,
+    _is_non_text,
+    _normalize_for_lookup,
+    _find_in_lookup,
     classify_key,
     extract_hardcoded_strings,
     extract_template_json_strings,
@@ -370,3 +373,107 @@ class TestExtractTemplateJsonStrings:
         theme = self._make_theme(tmp_path, {"templates/.gitkeep": ""})
         results = extract_template_json_strings(theme)
         assert results == []
+
+
+class TestIsNonText:
+    """Tests for _is_non_text — identifying non-translatable values."""
+
+    def test_shopify_image_ref(self):
+        assert _is_non_text("shopify://shop_images/hero.jpg") is True
+
+    def test_gid_ref(self):
+        assert _is_non_text("gid://shopify/Collection/12345") is True
+
+    def test_url(self):
+        assert _is_non_text("https://example.com/page") is True
+
+    def test_internal_path(self):
+        assert _is_non_text("/collections/all") is True
+
+    def test_hex_color(self):
+        assert _is_non_text("#1a2b3c") is True
+
+    def test_rgba_color(self):
+        assert _is_non_text("rgba(0,0,0,0.5)") is True
+
+    def test_number(self):
+        assert _is_non_text("12345") is True
+
+    def test_css_dimension(self):
+        assert _is_non_text("48px") is True
+
+    def test_boolean(self):
+        assert _is_non_text("true") is True
+        assert _is_non_text("False") is True
+
+    def test_json_blob(self):
+        assert _is_non_text('{"key": "value"}') is True
+
+    def test_real_text(self):
+        assert _is_non_text("Add to cart") is False
+
+    def test_html_text(self):
+        assert _is_non_text("<p>Free shipping on all orders</p>") is False
+
+    def test_short_label(self):
+        assert _is_non_text("Sold out") is False
+
+
+class TestNormalizeForLookup:
+    """Tests for _normalize_for_lookup."""
+
+    def test_strips_html(self):
+        assert _normalize_for_lookup("<p>Hello</p>") == "hello"
+
+    def test_strips_liquid(self):
+        assert _normalize_for_lookup("{{ count }} items") == "items"
+
+    def test_strips_ruby_placeholders(self):
+        assert _normalize_for_lookup("%{count} items") == "items"
+
+    def test_collapses_whitespace(self):
+        assert _normalize_for_lookup("  hello   world  ") == "hello world"
+
+
+class TestFindInLookup:
+    """Tests for _find_in_lookup — matching keys to crawled text."""
+
+    def setup_method(self):
+        self.site_texts = {
+            "Add to cart": ["/products/kansa"],
+            "Free shipping": ["/", "/collections/all"],
+            "Sold out": ["/products/serum"],
+            "Your Personalized Routine": ["/pages/quiz-results"],
+        }
+        self.norm_index = {}
+        for text in self.site_texts:
+            norm = _normalize_for_lookup(text)
+            if norm:
+                self.norm_index[norm] = text
+
+    def test_exact_match(self):
+        result = _find_in_lookup("Add to cart", self.site_texts, self.norm_index)
+        assert result is not None
+        assert result["type"] == "exact"
+
+    def test_normalized_match(self):
+        # Case difference
+        result = _find_in_lookup("FREE SHIPPING", self.site_texts, self.norm_index)
+        assert result is not None
+        assert result["type"] == "normalized"
+
+    def test_substring_match(self):
+        result = _find_in_lookup("Personalized Routine",
+                                  self.site_texts, self.norm_index)
+        assert result is not None
+        assert result["type"] == "substring"
+
+    def test_no_match(self):
+        result = _find_in_lookup("Something not on site",
+                                  self.site_texts, self.norm_index)
+        assert result is None
+
+    def test_short_text_no_false_positive(self):
+        # Very short strings shouldn't substring-match randomly
+        result = _find_in_lookup("to", self.site_texts, self.norm_index)
+        assert result is None

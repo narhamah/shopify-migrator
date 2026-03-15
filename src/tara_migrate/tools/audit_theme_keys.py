@@ -25,6 +25,7 @@ import re
 import sys
 import time
 from collections import Counter, defaultdict
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -1795,6 +1796,377 @@ def _walk_settings(settings, fname, path, text_keys, results):
         })
 
 
+def build_lookup_table(base_url="https://sa.taraformula.com",
+                       max_pages=200, headed=False,
+                       output="data/site_lookup.json"):
+    """Crawl the English site and build a lookup table of all visible text.
+
+    Visits every discoverable page on the English locale, extracts all visible
+    text (including placeholders, aria-labels, button values), and saves a
+    deduplicated lookup table mapping each text string to the pages where it
+    appears.
+
+    This is the ground-truth source for verifying which theme translation keys
+    are actually visible to customers.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("ERROR: playwright not installed.")
+        print("  pip install playwright && playwright install chromium")
+        return
+
+    # Import crawl helpers from sibling module
+    from tara_migrate.tools.crawl_and_translate import (
+        EXTRACT_ALL_TEXT_JS, EXPAND_INTERACTIVE_JS, EXTRACT_LINKS_JS,
+    )
+
+    print(f"\n{'=' * 70}")
+    print(f"BUILD SITE LOOKUP TABLE")
+    print(f"{'=' * 70}")
+    print(f"  Base URL:   {base_url}")
+    print(f"  Max pages:  {max_pages}")
+
+    # Crawl the ENGLISH site (no locale prefix) to see all English text
+    domain = urlparse(base_url).netloc
+    visited = set()
+    seed_urls = [
+        base_url,
+        base_url + "/collections",
+        base_url + "/collections/all",
+        base_url + "/pages/about",
+        base_url + "/blogs/journal",
+        base_url + "/search",
+        base_url + "/cart",
+        base_url + "/account/login",
+    ]
+    to_visit = list(seed_urls)
+
+    # Also crawl Arabic to find remaining English
+    ar_base = base_url + "/ar"
+    to_visit.extend([
+        ar_base,
+        ar_base + "/collections",
+        ar_base + "/collections/all",
+    ])
+
+    lookup = {}          # text → list of page paths
+    image_urls = {}      # page_path → list of image src
+    page_count = 0
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=not headed)
+        context = browser.new_context(
+            viewport={"width": 1440, "height": 900},
+            locale="en-US",
+        )
+        page = context.new_page()
+
+        while to_visit and page_count < max_pages:
+            url = to_visit.pop(0)
+            if url in visited:
+                continue
+
+            parsed = urlparse(url)
+            if parsed.netloc != domain:
+                continue
+
+            visited.add(url)
+            page_count += 1
+            path = parsed.path or "/"
+
+            print(f"\n  [{page_count:3d}] {path}")
+
+            try:
+                resp = page.goto(url, wait_until="networkidle", timeout=30000)
+                if not resp or resp.status >= 400:
+                    status = resp.status if resp else "no response"
+                    print(f"    HTTP {status} — skipping")
+                    continue
+                time.sleep(1)
+
+                # Expand interactive elements
+                page.evaluate(EXPAND_INTERACTIVE_JS)
+                time.sleep(0.5)
+
+                # Scroll to trigger lazy loading
+                page.evaluate("""() => {
+                    const step = window.innerHeight;
+                    const maxY = document.body.scrollHeight;
+                    let y = 0;
+                    function scrollStep() {
+                        y += step;
+                        if (y > maxY) return;
+                        window.scrollTo(0, y);
+                        setTimeout(scrollStep, 200);
+                    }
+                    scrollStep();
+                }""")
+                page_height = page.evaluate("document.body.scrollHeight")
+                scroll_time = min(max(1.0, page_height / 3000), 5.0)
+                time.sleep(scroll_time)
+                page.evaluate("window.scrollTo(0, 0)")
+                time.sleep(0.3)
+
+                # Re-expand after scrolling
+                page.evaluate(EXPAND_INTERACTIVE_JS)
+                time.sleep(0.3)
+
+            except Exception as e:
+                print(f"    ERROR navigating: {e}")
+                continue
+
+            # Extract all visible text
+            texts = page.evaluate(EXTRACT_ALL_TEXT_JS)
+            new_texts = 0
+            for t in texts:
+                raw = t["text"].strip()
+                if not raw or len(raw) < 2:
+                    continue
+                if raw not in lookup:
+                    lookup[raw] = []
+                    new_texts += 1
+                if path not in lookup[raw]:
+                    lookup[raw].append(path)
+
+            # Extract image URLs (for PDP images with text)
+            img_srcs = page.evaluate("""() => {
+                return [...document.querySelectorAll('img[src]')].map(img => ({
+                    src: img.src,
+                    alt: img.alt || '',
+                    width: img.naturalWidth,
+                    height: img.naturalHeight,
+                })).filter(i => i.width > 100 && i.height > 100);
+            }""")
+            if img_srcs:
+                image_urls[path] = [i["src"] for i in img_srcs[:20]]
+
+            print(f"    {len(texts)} text nodes, {new_texts} new unique strings")
+
+            # Discover links
+            links = page.evaluate(EXTRACT_LINKS_JS, [domain, ""])
+            for link in links:
+                clean = link.split('#')[0].split('?')[0]
+                if clean not in visited:
+                    to_visit.append(clean)
+
+        browser.close()
+
+    # Save lookup table
+    os.makedirs(os.path.dirname(output) or "data", exist_ok=True)
+    result = {
+        "crawl_date": time.strftime("%Y-%m-%d %H:%M"),
+        "base_url": base_url,
+        "pages_crawled": page_count,
+        "unique_texts": len(lookup),
+        "texts": lookup,
+        "images": image_urls,
+        "visited_urls": sorted(visited),
+    }
+
+    with open(output, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+    print(f"\n  Saved lookup table: {output}")
+    print(f"  Pages crawled:  {page_count}")
+    print(f"  Unique texts:   {len(lookup)}")
+    print(f"  Pages w/images: {len(image_urls)}")
+
+
+def verify_keys_against_lookup(fields, lookup_file="data/site_lookup.json",
+                                output="data/verified_keys.json"):
+    """Cross-reference every API translation key against the site lookup table.
+
+    For each key, checks if its English value (or a substring/superset) appears
+    in the crawled site text. Produces a definitive classification:
+
+    - visible: English value was found on the site → MUST translate
+    - not_visible: English value was NOT found → likely safe to skip
+    - non_text: Value is a URL, color, number, image ref → not translatable
+    - empty: No English value
+
+    The output JSON can be reviewed key by key to make final decisions.
+    """
+    # Load lookup table
+    with open(lookup_file, "r", encoding="utf-8") as f:
+        lookup_data = json.load(f)
+
+    site_texts = lookup_data.get("texts", {})
+    print(f"\n{'=' * 70}")
+    print(f"VERIFY KEYS AGAINST SITE LOOKUP")
+    print(f"{'=' * 70}")
+    print(f"  Lookup: {lookup_file}")
+    print(f"  Site texts:  {len(site_texts)}")
+    print(f"  API fields:  {len(fields)}")
+
+    # Build normalized index for fuzzy matching
+    norm_index = {}  # normalized_text → original_text
+    for text in site_texts:
+        norm = _normalize_for_lookup(text)
+        if norm and len(norm) >= 2:
+            norm_index[norm] = text
+
+    # Classify each field
+    results = []
+    stats = Counter()
+
+    for f in fields:
+        key = f["key"]
+        english = (f.get("english") or "").strip()
+        arabic = f.get("arabic") or ""
+        has_trans = f.get("has_translation", False)
+
+        if not english:
+            verdict = "empty"
+            match_info = None
+        elif _is_non_text(english):
+            verdict = "non_text"
+            match_info = None
+        else:
+            match_info = _find_in_lookup(english, site_texts, norm_index)
+            verdict = "visible" if match_info else "not_visible"
+
+        stats[verdict] += 1
+        results.append({
+            "key": key,
+            "english": english,
+            "arabic": arabic,
+            "has_translation": has_trans,
+            "verdict": verdict,
+            "found_on_pages": match_info.get("pages", []) if match_info else [],
+            "match_type": match_info.get("type", "") if match_info else "",
+            "category": f.get("category", ""),
+        })
+
+    # Print summary
+    print(f"\n  RESULTS:")
+    for verdict in ["visible", "not_visible", "non_text", "empty"]:
+        count = stats.get(verdict, 0)
+        pct = 100 * count / len(fields) if fields else 0
+        label = {
+            "visible": "VISIBLE on site (MUST translate)",
+            "not_visible": "NOT found on site (likely skip)",
+            "non_text": "Non-text (URL/color/number/image)",
+            "empty": "Empty value",
+        }[verdict]
+        print(f"    {verdict:>12}: {count:>5} ({pct:5.1f}%)  {label}")
+
+    # Show visible keys by prefix
+    visible = [r for r in results if r["verdict"] == "visible"]
+    if visible:
+        by_prefix = Counter()
+        for r in visible:
+            prefix = r["key"].split(".")[0]
+            by_prefix[prefix] += 1
+        print(f"\n  VISIBLE keys by namespace:")
+        for prefix, count in by_prefix.most_common():
+            print(f"    {prefix}: {count}")
+
+    # Show not_visible that HAVE translations (candidates for removal)
+    removable = [r for r in results
+                 if r["verdict"] in ("not_visible", "non_text", "empty")
+                 and r["has_translation"]]
+    if removable:
+        print(f"\n  Keys with translations that are NOT visible: {len(removable)}")
+        print(f"  (These could be removed to free API slots)")
+
+    # Save full results
+    os.makedirs(os.path.dirname(output) or "data", exist_ok=True)
+    with open(output, "w", encoding="utf-8") as f:
+        json.dump({
+            "verification_date": time.strftime("%Y-%m-%d %H:%M"),
+            "lookup_file": lookup_file,
+            "total_fields": len(fields),
+            "summary": dict(stats),
+            "fields": results,
+        }, f, indent=2, ensure_ascii=False)
+    print(f"\n  Full report: {output}")
+    print(f"  Review this file to confirm verdicts before taking action.")
+
+
+def _normalize_for_lookup(text):
+    """Normalize text for lookup matching."""
+    if not text:
+        return ""
+    t = re.sub(r'<[^>]+>', ' ', text)
+    t = re.sub(r'\{\{[^}]*\}\}', '', t)
+    t = re.sub(r'\{%[^%]*%\}', '', t)
+    t = re.sub(r'%\{[^}]*\}', '', t)  # Ruby-style %{count}
+    t = re.sub(r'\s+', ' ', t).strip().lower()
+    return t
+
+
+def _is_non_text(value):
+    """Check if a value is clearly non-translatable (URL, color, number, etc.)."""
+    v = value.strip()
+    # Image/file references
+    if v.startswith("shopify://") or v.startswith("gid://"):
+        return True
+    # URLs
+    if re.match(r'^https?://', v):
+        return True
+    if re.match(r'^/(?:collections|products|pages|blogs|cart)/', v):
+        return True
+    # Colors
+    if re.match(r'^#[0-9a-fA-F]{3,8}$', v):
+        return True
+    if re.match(r'^rgba?\(', v):
+        return True
+    # Pure numbers
+    if re.match(r'^[\d.,]+$', v):
+        return True
+    # CSS dimensions
+    if re.match(r'^\d+\s*(px|em|rem|vh|vw|%|fr)$', v, re.I):
+        return True
+    # Booleans
+    if v.lower() in ("true", "false"):
+        return True
+    # JSON blobs
+    if (v.startswith("{") and v.endswith("}")) or (v.startswith("[") and v.endswith("]")):
+        return True
+    # Image file extensions
+    if re.match(r'.*\.(png|jpg|jpeg|svg|webp|gif|mp4)$', v, re.I):
+        return True
+    return False
+
+
+def _find_in_lookup(english, site_texts, norm_index):
+    """Check if an English theme key value appears in the site lookup table.
+
+    Uses 3 strategies:
+    1. Exact match
+    2. Normalized match (strip HTML/Liquid/placeholders, lowercase)
+    3. Substring match (key value contained in site text, or vice versa)
+
+    Returns match info dict or None.
+    """
+    # Strategy 1: Exact match
+    if english in site_texts:
+        return {"type": "exact", "pages": site_texts[english][:5]}
+
+    # Strategy 2: Normalized match
+    norm_en = _normalize_for_lookup(english)
+    if not norm_en or len(norm_en) < 2:
+        return None
+
+    if norm_en in norm_index:
+        original = norm_index[norm_en]
+        return {"type": "normalized", "pages": site_texts.get(original, [])[:5]}
+
+    # Strategy 3: Substring match (only for meaningful-length strings)
+    if len(norm_en) >= 4:
+        for site_norm, site_original in norm_index.items():
+            if len(site_norm) < 4:
+                continue
+            if norm_en in site_norm or site_norm in norm_en:
+                return {
+                    "type": "substring",
+                    "pages": site_texts.get(site_original, [])[:5],
+                    "matched_text": site_original[:80],
+                }
+
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Audit theme translation keys")
     parser.add_argument("--remove-junk", action="store_true",
@@ -1830,7 +2202,29 @@ def main():
                         help="Extract translatable text from template JSON settings")
     parser.add_argument("--force", action="store_true",
                         help="With --populate-locale/--populate-schema: overwrite ALL existing")
+    parser.add_argument("--build-lookup", action="store_true",
+                        help="Crawl the site with Playwright and build a text lookup table")
+    parser.add_argument("--verify-keys", action="store_true",
+                        help="Cross-reference API keys against site lookup table")
+    parser.add_argument("--base-url", default="https://sa.taraformula.com",
+                        help="Store URL for --build-lookup (default: sa.taraformula.com)")
+    parser.add_argument("--max-pages", type=int, default=200,
+                        help="Max pages to crawl (default: 200)")
+    parser.add_argument("--headed", action="store_true",
+                        help="Show browser window during crawl")
+    parser.add_argument("--lookup-file", default="data/site_lookup.json",
+                        help="Path to site lookup table JSON")
     args = parser.parse_args()
+
+    # --build-lookup doesn't need Shopify credentials
+    if args.build_lookup:
+        build_lookup_table(
+            base_url=args.base_url,
+            max_pages=args.max_pages,
+            headed=args.headed,
+            output=args.lookup_file,
+        )
+        return
 
     load_dotenv()
     client = ShopifyClient(
@@ -1926,6 +2320,15 @@ def main():
     fields = fetch_theme_keys(client)
     if not fields:
         print("No theme fields found.")
+        return
+
+    # Verify keys against site lookup table
+    if args.verify_keys:
+        if not os.path.exists(args.lookup_file):
+            print(f"ERROR: Lookup file not found: {args.lookup_file}")
+            print(f"  Run --build-lookup first to crawl the site.")
+            return
+        verify_keys_against_lookup(fields, lookup_file=args.lookup_file)
         return
 
     # Classify
