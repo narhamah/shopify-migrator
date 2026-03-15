@@ -26,7 +26,8 @@ src/tara_migrate/          ← Production library (all logic lives here)
                              audit_theme_keys (theme translation key management),
                              enable_ingredient_pages, patch_spanish, remap_redirects,
                              get_flow_ids, get_token, generate_data_dictionary, image_lang_detect,
-                             test_checkout (Playwright checkout testing)
+                             test_checkout (Playwright checkout testing),
+                             purge_arabic, validate_addresses
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -317,6 +318,9 @@ python patch_spanish.py                                    # Detect and fix rema
 python remap_redirects.py                                  # Remap URL redirects from source to dest handles
 python migrate_metaobjects.py                              # Standalone metaobject migration
 python import_collections.py                               # Standalone collection import
+python purge_arabic.py [--dry-run] [--skip-theme] [--type PRODUCT]  # Remove all Arabic translations
+python validate_addresses.py --fetch-cities                # Fetch canonical Saudi city names
+python validate_addresses.py --validate FILE.csv [--fix]   # Validate/fix addresses in CSV
 ```
 
 ## Manual Steps (Cannot Be Automated)
