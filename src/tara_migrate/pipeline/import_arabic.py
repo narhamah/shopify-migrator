@@ -189,6 +189,10 @@ def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=No
         handle_remap: optional dict mapping Arabic handles → English handles
     """
     handle_remap = handle_remap or {}
+    # Build reverse remap too (English→English is identity, but Arabic→English is needed)
+    reverse_remap = {v: v for v in handle_remap.values()}  # English handles map to themselves
+    reverse_remap.update(handle_remap)  # Arabic handles map to English
+
     lookup = {}
     # 1. From progress file: group by handle
     prefix = f"{type_prefix}."
@@ -199,7 +203,9 @@ def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=No
         parts = rest.split(".", 1)
         if len(parts) == 2:
             handle, field = parts
-            lookup.setdefault(handle, {})[field] = value
+            # Apply handle remap so Arabic handles map to English
+            en_handle = reverse_remap.get(handle, handle)
+            lookup.setdefault(en_handle, {})[field] = value
 
     # 2. From full JSON: add body_html and other large fields not in progress file
     if ar_items and field_builder:
