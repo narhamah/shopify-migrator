@@ -93,7 +93,7 @@ def adaptive_batch(fields, max_tokens=6000, chunk_threshold=6000):
     current_tokens = 0
 
     for field in fields:
-        field_tokens = _estimate_tokens(field["value"])
+        field_tokens = _count_tokens(field["value"])
 
         # Only chunk when a single field exceeds chunk_threshold
         if field_tokens > chunk_threshold:
@@ -114,6 +114,8 @@ def adaptive_batch(fields, max_tokens=6000, chunk_threshold=6000):
             current_tokens = 0
         current_batch.append(field)
         current_tokens += field_tokens
+        # Also account for TOON delimiter overhead (~5 tokens per field)
+        current_tokens += 5
 
     if current_batch:
         batches.append(current_batch)
@@ -803,8 +805,8 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
 
     # Accurate token count for the TOON payload using tiktoken
     input_toon_tokens = _count_tokens(toon_input)
-    # Give the model ample room: est 1.5x input, minimum 50K
-    est_output_tokens = max(50_000, int(input_toon_tokens * 1.5) + 500)
+    # Always send 50K max_output — matches our batch sizing
+    est_output_tokens = 50_000
     print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields "
           f"(~{input_toon_tokens:,} input tokens, "
           f"max_output={est_output_tokens:,})...")
@@ -1946,13 +1948,17 @@ def translate_csv(
     # 5. Batch fields
     # ------------------------------------------------------------------
     if batch_size <= 0:
-        # Unlimited: all fields in one batch, let the model use all tokens it needs
-        batches = [fields]
-        actual_tokens = _count_tokens(
+        # Auto-size batches so estimated OUTPUT is ~50K tokens per batch.
+        # Arabic output is ~2x the tokens of English/Spanish input
+        # (Arabic chars consume more tokens than Latin chars).
+        TARGET_OUTPUT = 50_000
+        target_input = int(TARGET_OUTPUT / 2.0)
+        batches = adaptive_batch(fields, max_tokens=target_input)
+        total_input = _count_tokens(
             " ".join(f["value"] for f in fields)) if fields else 0
-        est_output = max(50_000, int(actual_tokens * 1.5) + 500)
-        print(f"\nUnlimited mode: ~{actual_tokens:,} value tokens, "
-              f"max_output_tokens={est_output:,}")
+        print(f"\nAuto-batch: ~{total_input:,} total input tokens, "
+              f"target {TARGET_OUTPUT:,} output tokens/batch "
+              f"-> {len(batches)} batches")
     else:
         batches = adaptive_batch(fields, max_tokens=batch_size)
     total_value_tokens = _count_tokens(
