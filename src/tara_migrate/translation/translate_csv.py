@@ -805,21 +805,31 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
 
     # Accurate token count for the TOON payload using tiktoken
     input_toon_tokens = _count_tokens(toon_input)
-    # Estimate output: Arabic ≈ 2x input tokens. Don't cap — just inform the API.
+    # For reasoning models, max_output_tokens includes reasoning tokens.
+    # With xhigh reasoning, the model may use 5-10x the output in reasoning.
+    # Don't set max_output_tokens for reasoning models — let the API use its
+    # default max to avoid truncating the actual TOON output.
+    use_reasoning = reasoning_effort and reasoning_effort != "none"
     est_output_tokens = int(input_toon_tokens * 2.0) + 1000
     print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields "
-          f"(~{input_toon_tokens:,} input tokens, "
-          f"max_output={est_output_tokens:,})...")
+          f"(~{input_toon_tokens:,} input tokens"
+          f"{'' if use_reasoning else f', max_output={est_output_tokens:,}'}"
+          f")...")
 
     for attempt in range(4):
         try:
-            response = client.responses.create(
-                model=model,
-                instructions=developer_prompt,
-                input=user_message,
-                reasoning={"effort": reasoning_effort},
-                max_output_tokens=est_output_tokens,
-            )
+            kwargs = {
+                "model": model,
+                "instructions": developer_prompt,
+                "input": user_message,
+            }
+            if use_reasoning:
+                kwargs["reasoning"] = {"effort": reasoning_effort}
+                # Don't cap output — reasoning tokens eat into max_output_tokens
+            else:
+                kwargs["max_output_tokens"] = est_output_tokens
+
+            response = client.responses.create(**kwargs)
 
             # Check for refusal before parsing
             refusal_found = False
@@ -856,6 +866,24 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
                             result += content.text
 
             result = result.strip()
+
+            # Log token breakdown for debugging
+            usage = response.usage
+            reasoning_tokens = getattr(
+                getattr(usage, "output_tokens_details", None),
+                "reasoning_tokens", 0) or 0
+            if reasoning_tokens:
+                print(f"    Tokens: {usage.output_tokens:,} output "
+                      f"({reasoning_tokens:,} reasoning + "
+                      f"{usage.output_tokens - reasoning_tokens:,} text)")
+            if not result:
+                print(f"    WARNING: Empty response text "
+                      f"(output_tokens={usage.output_tokens}, "
+                      f"reasoning={reasoning_tokens})")
+                if attempt < 3:
+                    time.sleep(2)
+                    continue
+                return {}, 0
 
             # Detect text-based refusal
             if result and DELIM not in result and (
