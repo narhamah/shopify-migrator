@@ -71,24 +71,26 @@ def phase_translate_english(dry_run=False, **kw):
 # Phase 2: Fix SAR Prices
 # =========================================================================
 
-@phase(2, "Fix SAR Prices",
-       "Fetch correct SAR prices from Magento and update local data + Shopify",
+@phase(2, "Fix Magento Prices",
+       "Fetch correct prices from Magento and update local data + Shopify",
        langs=("en", "all"))
 def phase_fix_prices(dry_run=False, **kw):
     print("\n" + "=" * 60)
-    print("PHASE 2: Fix SAR Prices")
+    print("PHASE 2: Fix Magento Prices")
     print("=" * 60)
 
     try:
         from tara_migrate.core import AR_DIR, EN_DIR, save_json
-        from tara_migrate.fixers.fix_prices import fetch_sar_prices, update_product_files, update_shopify_products
+        from tara_migrate.fixers.fix_prices import fetch_magento_prices, update_product_files, update_shopify_products
 
-        prices = fetch_sar_prices("https://taraformula.com", "sa-en")
+        site_url = config.get_magento_site_url()
+        store_code = config.get_magento_store_code()
+        prices = fetch_magento_prices(site_url, store_code)
         if not prices:
             print("  WARNING: No prices fetched from Magento")
             return
 
-        save_json(prices, "data/sar_prices.json")
+        save_json(prices, "data/magento_prices.json")
         print(f"  Fetched SAR prices for {len(prices)} SKUs")
 
         dirs = [EN_DIR]

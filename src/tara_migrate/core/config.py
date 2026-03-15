@@ -44,6 +44,22 @@ def get_dest_access_token():
     return _env(DEST_ACCESS_TOKEN_ENV, _LEGACY_DEST[1])
 
 
+# Magento settings (for price/product/image imports)
+MAGENTO_SITE_URL_ENV = "MAGENTO_SITE_URL"
+MAGENTO_STORE_CODE_ENV = "MAGENTO_STORE_CODE"
+
+DEFAULT_MAGENTO_SITE_URL = "https://taraformula.com"
+DEFAULT_MAGENTO_STORE_CODE = "us-en"
+
+
+def get_magento_site_url():
+    return _env(MAGENTO_SITE_URL_ENV, default=DEFAULT_MAGENTO_SITE_URL)
+
+
+def get_magento_store_code():
+    return _env(MAGENTO_STORE_CODE_ENV, default=DEFAULT_MAGENTO_STORE_CODE)
+
+
 SOURCE_DIR = "data/source_export"
 EN_DIR = "data/english"
 AR_DIR = "data/arabic"

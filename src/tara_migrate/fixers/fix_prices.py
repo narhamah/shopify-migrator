@@ -28,8 +28,8 @@ from tara_migrate.core import MAGENTO_HEADERS as HEADERS
 from tara_migrate.core import config
 
 
-def fetch_sar_prices(site_url, store_code, delay=REQUEST_DELAY):
-    """Fetch all product prices from the Saudi Magento store view."""
+def fetch_magento_prices(site_url, store_code, delay=REQUEST_DELAY):
+    """Fetch all product prices from a Magento store view."""
     graphql_url = f"{site_url}/graphql"
     all_prices = {}  # sku → {final_price, regular_price, currency}
     current_page = 1
@@ -116,6 +116,10 @@ def fetch_sar_prices(site_url, store_code, delay=REQUEST_DELAY):
 
     print(f"  Fetched prices for {len(all_prices)} SKUs")
     return all_prices
+
+
+# Backwards compat alias
+fetch_sar_prices = fetch_magento_prices
 
 
 def update_product_files(prices, directories):
@@ -264,27 +268,30 @@ def update_shopify_by_handle(manual_prices):
 
 def main():
     load_dotenv()
-    parser = argparse.ArgumentParser(description="Fetch SAR prices and update products")
-    parser.add_argument("--site", default="https://taraformula.com",
-                        help="Magento site URL (default: https://taraformula.com)")
-    parser.add_argument("--store", default="sa-en",
-                        help="Store code for SAR prices (default: sa-en)")
+    parser = argparse.ArgumentParser(description="Fetch Magento prices and update products")
+    parser.add_argument("--site", default=None,
+                        help="Magento site URL (default: MAGENTO_SITE_URL env or https://taraformula.com)")
+    parser.add_argument("--store", default=None,
+                        help="Magento store code (default: MAGENTO_STORE_CODE env or us-en)")
     parser.add_argument("--update-shopify", action="store_true",
                         help="Also update already-imported Shopify products")
     parser.add_argument("--delay", type=float, default=REQUEST_DELAY,
                         help=f"Delay between requests (default: {REQUEST_DELAY})")
     args = parser.parse_args()
 
-    # 1. Fetch SAR prices from Magento
-    prices = fetch_sar_prices(args.site, args.store, args.delay)
+    site = args.site or config.get_magento_site_url()
+    store = args.store or config.get_magento_store_code()
+
+    # 1. Fetch prices from Magento
+    prices = fetch_magento_prices(site, store, args.delay)
 
     if not prices:
         print("No prices fetched. Check site URL and store code.")
         return
 
     # Save prices for reference
-    save_json(prices, "data/sar_prices.json")
-    print("\nSaved prices to data/sar_prices.json")
+    save_json(prices, "data/magento_prices.json")
+    print("\nSaved prices to data/magento_prices.json")
 
     # Show sample
     print("\nSample prices:")

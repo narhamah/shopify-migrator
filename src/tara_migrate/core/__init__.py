@@ -7,6 +7,8 @@ from tara_migrate.core.config import (  # noqa: F401
     SPAIN_DIR,
     get_dest_access_token,
     get_dest_shop_url,
+    get_magento_site_url,
+    get_magento_store_code,
     get_source_access_token,
     get_source_shop_url,
 )

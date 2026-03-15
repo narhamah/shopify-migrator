@@ -393,19 +393,25 @@ def compare_images(session, site_url, en_store, ar_store):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Replace Spanish images with Magento EN/AR images")
+    parser = argparse.ArgumentParser(description="Replace source images with Magento EN/AR images")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without modifying Shopify")
     parser.add_argument("--local-only", action="store_true", help="Only update local data files")
     parser.add_argument("--discover", action="store_true", help="List available Magento store views and compare images")
-    parser.add_argument("--en-site", default="https://taraformula.com",
-                        help="English Magento site URL (default: https://taraformula.com)")
-    parser.add_argument("--ar-site", default="https://taraformula.ae",
-                        help="Arabic Magento site URL (default: https://taraformula.ae)")
-    parser.add_argument("--en-store", default="sa-en",
-                        help="English store code (default: sa-en)")
+    parser.add_argument("--en-site", default=None,
+                        help="English Magento site URL (default: MAGENTO_SITE_URL env)")
+    parser.add_argument("--ar-site", default=None,
+                        help="Arabic Magento site URL (default: MAGENTO_AR_SITE_URL env or taraformula.ae)")
+    parser.add_argument("--en-store", default=None,
+                        help="English store code (default: MAGENTO_STORE_CODE env)")
     parser.add_argument("--ar-store", default="sa-ar",
                         help="Arabic store code (default: sa-ar)")
     args = parser.parse_args()
+
+    # Resolve Magento settings from config
+    if not args.en_site:
+        args.en_site = config.get_magento_site_url()
+    if not args.en_store:
+        args.en_store = config.get_magento_store_code()
 
     load_dotenv()
     session = http_requests.Session()

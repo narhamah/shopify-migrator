@@ -67,6 +67,10 @@ SOURCE_ACCESS_TOKEN=shpat_xxx
 DEST_SHOP_URL=xxx.myshopify.com
 DEST_ACCESS_TOKEN=shpat_xxx
 
+# Magento (optional — for importing prices, product names, images)
+MAGENTO_SITE_URL=https://taraformula.com
+MAGENTO_STORE_CODE=us-en
+
 OPENAI_API_KEY=sk-xxx
 ANTHROPIC_API_KEY=sk-ant-xxx
 ```
