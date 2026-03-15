@@ -1992,8 +1992,12 @@ def translate_csv(
         print("ERROR: OPENAI_API_KEY not set. Add it to .env or environment.")
         sys.exit(1)
 
+    import httpx
     from openai import OpenAI
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(
+        api_key=api_key,
+        timeout=httpx.Timeout(timeout=600.0, connect=30.0),
+    )
 
     # ------------------------------------------------------------------
     # 8. Load developer prompt / system prompt
