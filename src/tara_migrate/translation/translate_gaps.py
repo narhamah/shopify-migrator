@@ -387,37 +387,26 @@ def _estimate_tokens(text):
     return max(1, len(text) // 3)
 
 
-def adaptive_batch(fields, max_tokens=12000):
-    """Split fields into batches sized by estimated token count, not fixed count.
+def adaptive_batch(fields, max_tokens=12000, max_fields=250):
+    """Split fields into batches by estimated token count and field count.
 
-    Budgets both input and output tokens. Short values are cheap on input
-    but each field still needs one full output line (ID + § + translated value),
-    so we estimate output cost per field and keep batches within the model's
-    output token limit (~16k for gpt-5-nano).
+    max_tokens prevents oversized batches from long HTML/JSON bodies.
+    max_fields prevents exceeding the model's output token limit — even
+    short fields require a full output line each (ID + § + translated text).
     """
-    OUTPUT_LIMIT = 14000  # conservative vs 16k model limit
-    # Per-field output overhead: numeric ID + § + newline ≈ 4 tokens
-    OUTPUT_OVERHEAD_PER_FIELD = 4
-
     batches = []
     current_batch = []
-    current_input = 0
-    current_output = 0
+    current_tokens = 0
 
     for field in fields:
-        input_tokens = _estimate_tokens(field["value"])
-        # Output ≈ translated value (~1.5x for Arabic) + overhead
-        output_tokens = int(input_tokens * 1.5) + OUTPUT_OVERHEAD_PER_FIELD
-
-        if current_batch and (current_input + input_tokens > max_tokens
-                              or current_output + output_tokens > OUTPUT_LIMIT):
+        field_tokens = _estimate_tokens(field["value"])
+        if current_batch and (current_tokens + field_tokens > max_tokens
+                              or len(current_batch) >= max_fields):
             batches.append(current_batch)
             current_batch = []
-            current_input = 0
-            current_output = 0
+            current_tokens = 0
         current_batch.append(field)
-        current_input += input_tokens
-        current_output += output_tokens
+        current_tokens += field_tokens
 
     if current_batch:
         batches.append(current_batch)
