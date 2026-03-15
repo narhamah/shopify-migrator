@@ -27,6 +27,12 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import load_json, sanitize_rich_text_json, save_json
 from tara_migrate.core.config import AR_DIR, EN_DIR, ID_MAP_FILE, get_dest_access_token, get_dest_shop_url
+from tara_migrate.core.graphql_queries import (
+    FETCH_PRODUCTS_QUERY,
+    fetch_translatable_resources,
+    paginate_query,
+    upload_translations,
+)
 
 ARABIC_LOCALE = "ar"
 
@@ -676,6 +682,161 @@ def _translate_gaps_batch(openai_client, model, gaps):
 
 
 # =====================================================================
+# Product metafield translations (separate METAFIELD resource type)
+# =====================================================================
+
+def _process_product_metafields(client, lookup, progress, progress_file,
+                                 openai_client=None, model="gpt-5-mini",
+                                 ai_fallback=False):
+    """Translate product metafields via the Shopify Translations API.
+
+    Product metafields are a separate translatable resource type (METAFIELD) —
+    they are NOT included in the PRODUCT translatableContent. This function:
+      1. Fetches all products and their metafields via GraphQL
+      2. Matches each metafield against local Arabic data (by product handle)
+      3. Uses AI fallback for gaps
+      4. Registers translations against metafield GIDs
+    """
+    print(f"\n{'='*60}")
+    print("Processing PRODUCT METAFIELD translations...")
+    print(f"{'='*60}")
+
+    # Fetch all products with metafields
+    print("  Fetching all products with metafields...")
+    products = []
+    for node in paginate_query(client, FETCH_PRODUCTS_QUERY, "products"):
+        metafields = {}
+        for mf_edge in node.get("metafields", {}).get("edges", []):
+            mf = mf_edge["node"]
+            ns_key = f"{mf['namespace']}.{mf['key']}"
+            metafields[ns_key] = {
+                "id": mf["id"], "value": mf["value"], "type": mf["type"],
+            }
+        products.append({
+            "id": node["id"], "title": node["title"],
+            "handle": node.get("handle", ""),
+            "metafields": metafields,
+        })
+    print(f"  Found {len(products)} products")
+
+    # Collect metafield GIDs that have translatable values
+    metafield_gids = []
+    metafield_info = {}  # gid → {product_handle, key, english, mf_type}
+    for prod in products:
+        handle = prod.get("handle", "") or ""
+        # Try to extract handle from title if not in GraphQL response
+        if not handle:
+            # The FETCH_PRODUCTS_QUERY might not include handle; check lookup
+            continue
+        for ns_key, mf in prod["metafields"].items():
+            if not mf["value"] or not mf["value"].strip():
+                continue
+            # Skip reference fields
+            if "reference" in mf["type"]:
+                continue
+            progress_key = f"metafield_{mf['id']}"
+            if progress_key in progress:
+                continue
+            metafield_gids.append(mf["id"])
+            metafield_info[mf["id"]] = {
+                "product_handle": handle,
+                "product_title": prod["title"],
+                "key": ns_key,
+                "english": mf["value"],
+                "mf_type": mf["type"],
+            }
+
+    print(f"  Metafields to process: {len(metafield_gids)}")
+    if not metafield_gids:
+        print("  Nothing to do")
+        return
+
+    # Fetch digests for all metafield GIDs
+    print("  Fetching translatable content for metafields...")
+    digest_map = fetch_translatable_resources(client, metafield_gids, ARABIC_LOCALE)
+    print(f"  Got digests for {len(digest_map)} metafields")
+
+    # Match against local Arabic data and build translations
+    local_count = 0
+    gaps = []
+    for mf_gid, info in metafield_info.items():
+        if mf_gid not in digest_map:
+            continue
+        dm = digest_map[mf_gid]
+        english = dm["content"].get("value", {}).get("value", "")
+        digest = dm["content"].get("value", {}).get("digest", "")
+        if not english or not digest:
+            continue
+
+        # Check if already translated
+        existing_ar = dm["translations"].get("value", {}).get("value", "")
+
+        # Look up local Arabic data
+        handle = info["product_handle"]
+        ar_fields = lookup.get(handle, {})
+        ar_value = ar_fields.get(info["key"], "")
+
+        if ar_value:
+            # Have local Arabic data — register immediately
+            if "rich_text" in info["mf_type"]:
+                ar_value = sanitize_rich_text_json(ar_value)
+            try:
+                u, e = upload_translations(client, mf_gid, [{
+                    "locale": ARABIC_LOCALE,
+                    "key": "value",
+                    "value": ar_value,
+                    "translatableContentDigest": digest,
+                }])
+                if u:
+                    local_count += u
+                progress[f"metafield_{mf_gid}"] = True
+                save_json(progress, progress_file)
+            except Exception as exc:
+                print(f"    Error registering {info['key']} for {handle}: {exc}")
+        elif ai_fallback and openai_client and not existing_ar:
+            # No local data, no existing translation — add to AI gaps
+            gaps.append({
+                "id": f"{mf_gid}|value",
+                "value": english,
+                "_digest": digest,
+                "_mf_gid": mf_gid,
+                "_info": info,
+            })
+
+    print(f"  Registered {local_count} local metafield translations")
+
+    # AI fallback for gaps
+    if gaps and ai_fallback and openai_client:
+        print(f"  AI fallback: {len(gaps)} metafield gaps to translate...")
+        gap_inputs = [{"id": g["id"], "value": g["value"]} for g in gaps]
+        ai_translations = _translate_gaps_batch(openai_client, model, gap_inputs)
+
+        ai_registered = 0
+        ai_errors = 0
+        for gap in gaps:
+            translated = ai_translations.get(gap["id"])
+            if not translated:
+                continue
+            try:
+                u, e = upload_translations(client, gap["_mf_gid"], [{
+                    "locale": ARABIC_LOCALE,
+                    "key": "value",
+                    "value": translated,
+                    "translatableContentDigest": gap["_digest"],
+                }])
+                ai_registered += u
+                ai_errors += e
+                progress[f"metafield_{gap['_mf_gid']}"] = True
+                save_json(progress, progress_file)
+            except Exception as exc:
+                ai_errors += 1
+                print(f"    AI error: {exc}")
+        print(f"  AI fallback: registered {ai_registered} ({ai_errors} errors)")
+    elif gaps:
+        print(f"  {len(gaps)} metafield gaps need translation but AI fallback not enabled")
+
+
+# =====================================================================
 # Image language audit & replacement (OCR-driven)
 # =====================================================================
 
@@ -923,6 +1084,15 @@ def main():
             ai_fallback=args.ai_fallback and not args.no_ai_fallback,
         )
 
+    # Product metafield translations (separate METAFIELD resource type)
+    if not args.dry_run and client:
+        if not args.resource_type or args.resource_type == "PRODUCT":
+            _process_product_metafields(
+                client, lookups.get("prod", {}), progress, progress_file,
+                openai_client=openai_client, model=args.model,
+                ai_fallback=args.ai_fallback and not args.no_ai_fallback,
+            )
+
     # Image replacement (separate pass)
     if args.replace_images:
         if args.dry_run:
@@ -937,14 +1107,16 @@ def main():
     articles_done = sum(1 for k in progress if k.startswith("article_"))
     blogs_done = sum(1 for k in progress if k.startswith("blog_"))
     metaobjects_done = sum(1 for k in progress if k.startswith("metaobject_"))
+    metafields_done = sum(1 for k in progress if k.startswith("metafield_"))
 
     print("\n--- Arabic Import Summary ---")
-    print(f"  Products:    {products_done}")
-    print(f"  Collections: {collections_done}")
-    print(f"  Pages:       {pages_done}")
-    print(f"  Articles:    {articles_done}")
-    print(f"  Blogs:       {blogs_done}")
-    print(f"  Metaobjects: {metaobjects_done}")
+    print(f"  Products:      {products_done}")
+    print(f"  Collections:   {collections_done}")
+    print(f"  Pages:         {pages_done}")
+    print(f"  Articles:      {articles_done}")
+    print(f"  Blogs:         {blogs_done}")
+    print(f"  Metaobjects:   {metaobjects_done}")
+    print(f"  Metafields:    {metafields_done}")
     if args.dry_run:
         print("  (dry run — nothing was registered)")
 

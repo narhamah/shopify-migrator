@@ -337,6 +337,11 @@ def _make_store_resource(gid, translatable_content):
     return {"resourceId": gid, "translatableContent": translatable_content}
 
 
+def _mock_graphql_empty_products(query, variables=None):
+    """Return empty products response for FETCH_PRODUCTS_QUERY in _process_product_metafields."""
+    return {"products": {"edges": [], "pageInfo": {"hasNextPage": False}}}
+
+
 class TestMainProducts:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
@@ -369,6 +374,7 @@ class TestMainProducts:
         mc._request.return_value = MagicMock(
             json=lambda: {"product": {"id": 9001, "images": []}}
         )
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -394,6 +400,7 @@ class TestMainProducts:
                 {"key": "title", "value": "Test", "digest": "abc", "locale": "en"},
             ]),
         ]
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -420,6 +427,7 @@ class TestMainProducts:
                 {"key": "handle", "value": "unknown-product", "digest": "hnd", "locale": "en"},
             ]),
         ]
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -451,6 +459,7 @@ class TestMainProducts:
             ]),
         ]
         mc.register_translations.side_effect = Exception("API error")
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -473,6 +482,7 @@ class TestMainProducts:
         mc = MagicMock()
         MockClient.return_value = mc
         mc.get_translatable_resources.return_value = []
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -515,6 +525,7 @@ class TestMainCollections:
             ]),
         ]
         mc.register_translations.return_value = []
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -554,6 +565,7 @@ class TestMainPages:
             ]),
         ]
         mc.register_translations.return_value = []
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -597,6 +609,7 @@ class TestMainArticles:
             ]),
         ]
         mc.register_translations.return_value = []
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -652,6 +665,7 @@ class TestMainMetaobjects:
             ]),
         ]
         mc.register_translations.return_value = []
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"
@@ -679,6 +693,7 @@ class TestMainMetaobjects:
                 {"key": "handle", "value": "shine", "digest": "hnd", "locale": "en"},
             ]),
         ]
+        mc._graphql.side_effect = _mock_graphql_empty_products
 
         os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
         os.environ["DEST_ACCESS_TOKEN"] = "tok"

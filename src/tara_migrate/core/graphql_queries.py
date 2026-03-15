@@ -78,6 +78,7 @@ query($first: Int!, $after: String) {
       node {
         id
         title
+        handle
         metafields(first: 30) {
           edges {
             node {
