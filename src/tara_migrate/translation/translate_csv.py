@@ -48,10 +48,23 @@ from tara_migrate.translation.engine import load_developer_prompt
 from tara_migrate.translation.toon import DELIM, from_toon, to_toon
 from tara_migrate.core import config
 
+try:
+    import tiktoken
+    _TIKTOKEN_ENC = tiktoken.get_encoding("o200k_base")
+except ImportError:
+    _TIKTOKEN_ENC = None
+
 
 # =====================================================================
 # Token estimation & adaptive batching
 # =====================================================================
+
+def _count_tokens(text):
+    """Accurate token count using tiktoken (o200k_base), fallback to estimate."""
+    if _TIKTOKEN_ENC is not None:
+        return len(_TIKTOKEN_ENC.encode(text))
+    return max(1, len(text) // 3)
+
 
 def _estimate_tokens(text):
     """Rough token estimate: ~3 chars per token for mixed EN/AR content."""
@@ -788,9 +801,14 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
         f"<TOON>\n{toon_input}\n</TOON>"
     )
 
-    est_tokens = sum(_estimate_tokens(f["value"]) for f in fields)
+    # Accurate token count for the TOON payload using tiktoken
+    input_toon_tokens = _count_tokens(toon_input)
+    # Output ≈ same structure but Arabic text is ~1.3x tokens of EN/ES input
+    # Add 20% buffer for TOON delimiters and overhead
+    est_output_tokens = int(input_toon_tokens * 1.5) + 500
     print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields "
-          f"(~{est_tokens:,} value tokens)...")
+          f"(~{input_toon_tokens:,} input tokens, "
+          f"max_output={est_output_tokens:,})...")
 
     for attempt in range(4):
         try:
@@ -799,6 +817,7 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
                 instructions=developer_prompt,
                 input=user_message,
                 reasoning={"effort": reasoning_effort},
+                max_output_tokens=est_output_tokens,
             )
 
             # Check for refusal before parsing
@@ -1711,7 +1730,7 @@ def translate_csv(
     output_dir=None,
     output_path=None,
     model="gpt-5-nano",
-    batch_size=120,
+    batch_size=0,
     dry_run=False,
     scrape=True,
     upload=True,
@@ -1927,8 +1946,28 @@ def translate_csv(
     # ------------------------------------------------------------------
     # 5. Batch fields
     # ------------------------------------------------------------------
-    batches = adaptive_batch(fields, max_tokens=batch_size)
-    total_value_tokens = sum(_estimate_tokens(f["value"]) for f in fields)
+    if batch_size <= 0:
+        # Unlimited mode: use tiktoken to count actual tokens, auto-split
+        # only if output would exceed model max (128K for GPT-5.4)
+        MAX_OUTPUT_TOKENS = 128_000
+        toon_preview = to_toon([{"id": str(i), "value": f["value"]}
+                                for i, f in enumerate(fields)])
+        actual_tokens = _count_tokens(toon_preview)
+        est_output = int(actual_tokens * 1.5) + 500
+        if est_output <= MAX_OUTPUT_TOKENS:
+            batches = [fields]
+            print(f"\nUnlimited mode: {actual_tokens:,} input tokens, "
+                  f"est output {est_output:,} (fits in 128K)")
+        else:
+            # Auto-split to fit within 128K output per batch
+            safe_input = int(MAX_OUTPUT_TOKENS / 1.5) - 500
+            batches = adaptive_batch(fields, max_tokens=safe_input)
+            print(f"\nUnlimited mode: {actual_tokens:,} input tokens too large "
+                  f"for single batch, auto-split into {len(batches)} batches")
+    else:
+        batches = adaptive_batch(fields, max_tokens=batch_size)
+    total_value_tokens = _count_tokens(
+        " ".join(f["value"] for f in fields)) if fields else 0
 
     print(f"\n{len(fields)} fields -> {len(batches)} batches "
           f"(~{total_value_tokens:,} value tokens)")
@@ -2146,8 +2185,8 @@ def main():
                         help="Explicit output CSV path (overrides --output-dir)")
     parser.add_argument("--model", default="gpt-5",
                         help="OpenAI model (default: gpt-5-nano)")
-    parser.add_argument("--batch-size", type=int, default=120,
-                        help="Max tokens per batch (default: 120)")
+    parser.add_argument("--batch-size", type=int, default=0,
+                        help="Max tokens per batch (0 = unlimited, all fields in one batch)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
     parser.add_argument("--no-scrape", action="store_true",
