@@ -34,6 +34,12 @@ from tara_migrate.core.graphql_queries import TRANSLATABLE_RESOURCES_QUERY
 
 LOCALE = "ar"
 
+
+def _parse_json_with_comments(text):
+    """Parse JSON text that may contain block comments (/* ... */)."""
+    stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    return json.loads(stripped.strip(), strict=False)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # GraphQL mutation to remove translations
 # ─────────────────────────────────────────────────────────────────────────────
@@ -664,12 +670,12 @@ def clean_locale_file(client, dry_run=False):
         return
 
     raw = asset.get("value", "{}")
-    locale_data = json.loads(raw)
+    locale_data = _parse_json_with_comments(raw)
 
     # Also fetch en.default.json for comparison
     try:
         en_asset = client.get_asset(theme_id, "locales/en.default.json")
-        en_data = json.loads(en_asset.get("value", "{}"))
+        en_data = _parse_json_with_comments(en_asset.get("value", "{}"))
     except Exception:
         en_data = {}
 
@@ -1020,7 +1026,7 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
     # Fetch en.default.json
     try:
         en_asset = client.get_asset(theme_id, "locales/en.default.json")
-        en_data = json.loads(en_asset.get("value", "{}"))
+        en_data = _parse_json_with_comments(en_asset.get("value", "{}"))
     except Exception as e:
         print(f"  ERROR fetching en.default.json: {e}")
         return
@@ -1028,7 +1034,7 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
     # Fetch ar.json (may not exist yet)
     try:
         ar_asset = client.get_asset(theme_id, "locales/ar.json")
-        ar_data = json.loads(ar_asset.get("value", "{}"))
+        ar_data = _parse_json_with_comments(ar_asset.get("value", "{}"))
     except Exception:
         print("  ar.json not found — creating from scratch")
         ar_data = {}
@@ -1203,6 +1209,536 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
           f"({100 * len(final_flat) / len(en_flat):.1f}%)")
 
 
+def populate_schema(client, model="gpt-5-nano", reasoning="minimal",
+                    dry_run=False, force=False):
+    """Translate en.default.schema.json → ar.schema.json and upload to theme.
+
+    Schema locale files hold section names, setting labels, info text, options,
+    and other editor-facing strings. These are separate from the main ar.json
+    file and have no API key limit (file-based, like ar.json).
+
+    Without ar.schema.json, the theme editor shows English labels even when the
+    store locale is Arabic, and some schema-sourced strings may leak to the
+    storefront (e.g. section names in accessibility attributes).
+    """
+    from tara_migrate.translation.engine import TranslationEngine
+
+    theme_id = client.get_main_theme_id()
+    if not theme_id:
+        print("ERROR: No active theme found.")
+        return
+
+    print(f"\n{'=' * 70}")
+    print(f"POPULATE SCHEMA FILE (ar.schema.json)"
+          + (" (DRY RUN)" if dry_run else ""))
+    print(f"{'=' * 70}")
+
+    # Fetch en.default.schema.json
+    try:
+        en_asset = client.get_asset(theme_id, "locales/en.default.schema.json")
+        en_data = _parse_json_with_comments(en_asset.get("value", "{}"))
+    except Exception as e:
+        print(f"  ERROR fetching en.default.schema.json: {e}")
+        return
+
+    # Fetch existing ar.schema.json (may not exist)
+    ar_data = {}
+    try:
+        ar_asset = client.get_asset(theme_id, "locales/ar.schema.json")
+        ar_data = _parse_json_with_comments(ar_asset.get("value", "{}"))
+    except Exception:
+        print("  ar.schema.json not found — creating from scratch")
+
+    # Flatten both to dotted key paths
+    def flatten(d, prefix=""):
+        items = {}
+        for k, v in d.items():
+            full = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                items.update(flatten(v, full))
+            else:
+                items[full] = v
+        return items
+
+    en_flat = flatten(en_data)
+    ar_flat = flatten(ar_data)
+
+    print(f"  English schema keys: {len(en_flat)}")
+    print(f"  Arabic schema keys:  {len(ar_flat)}")
+
+    # Find keys to translate
+    missing = {}
+    already_translated = 0
+    for key, en_val in en_flat.items():
+        if not en_val or not str(en_val).strip():
+            continue
+        ar_val = ar_flat.get(key)
+        if ar_val and str(ar_val).strip() and not force:
+            already_translated += 1
+            continue
+        missing[key] = str(en_val)
+
+    if force:
+        print(f"  FORCE MODE: Re-translating ALL schema keys")
+    print(f"  Already translated:  {already_translated}")
+    print(f"  To translate:        {len(missing)}")
+
+    if not missing:
+        print("\n  All schema locale keys are translated!")
+        return
+
+    # Filter out non-translatable values (pure numbers, CSS, booleans, etc.)
+    to_translate = {}
+    skipped = Counter()
+    for key, val in missing.items():
+        cat, reason = classify_key(key, val)
+        if cat == "junk":
+            skipped[reason] += 1
+            continue
+        # Skip pure Liquid/HTML with no text
+        text_only = re.sub(r"<[^>]+>", "", val).strip()
+        text_only = re.sub(r"\{\{[^}]*\}\}", "", text_only).strip()
+        text_only = re.sub(r"\{%[^%]*%\}", "", text_only).strip()
+        if not text_only or not re.search(r"[a-zA-Z]{2,}", text_only):
+            skipped["no translatable text"] += 1
+            continue
+        to_translate[key] = val
+
+    print(f"  Translatable:        {len(to_translate)}")
+    print(f"  Skipped (junk):      {sum(skipped.values())}")
+    if skipped:
+        for reason, count in skipped.most_common(10):
+            print(f"    {count:>4}  {reason}")
+
+    # Show namespace breakdown
+    by_prefix = Counter()
+    for key in to_translate:
+        parts = key.split(".")
+        prefix = parts[0] if parts else "unknown"
+        by_prefix[prefix] += 1
+    print(f"\n  Keys by namespace:")
+    for prefix, count in by_prefix.most_common():
+        print(f"    {prefix}: {count}")
+
+    if dry_run:
+        print(f"\n  Sample keys to translate:")
+        for i, (key, val) in enumerate(to_translate.items()):
+            if i >= 25:
+                print(f"    ... and {len(to_translate) - 25} more")
+                break
+            print(f"    {key}")
+            print(f"      EN: {val[:80]}")
+        return
+
+    # Translate with AI
+    print(f"\n  Translating {len(to_translate)} schema keys with {model} "
+          f"(reasoning={reasoning})...")
+
+    prompt = (
+        "You are translating Shopify theme schema labels from English to Arabic "
+        "for a luxury scalp-care brand called TARA.\n"
+        "These are theme editor UI labels — section names, setting labels, "
+        "option names, info text, and category labels.\n"
+        "Rules:\n"
+        "- Use Modern Standard Arabic suitable for a Gulf audience (Saudi Arabia)\n"
+        "- Keep the TARA brand name unchanged\n"
+        "- Keep product names (Kansa Wand, Gua Sha, Scalp Massager) unchanged\n"
+        "- Keep Liquid template tags ({{ }}, {% %}) unchanged\n"
+        "- Keep HTML tags unchanged — only translate the text content\n"
+        "- For short UI labels (1-3 words), provide a natural Arabic equivalent\n"
+        "- Arabic text should read right-to-left naturally\n"
+        "- These are admin/editor labels — be clear and precise\n"
+    )
+
+    engine = TranslationEngine(
+        prompt,
+        model=model,
+        reasoning_effort=reasoning,
+        batch_size=60,
+    )
+
+    fields = [{"id": key, "value": val} for key, val in to_translate.items()]
+    t_map = engine.translate_fields(fields)
+
+    print(f"  Got {len(t_map)} / {len(to_translate)} translations")
+
+    if not t_map:
+        print("  ERROR: No translations returned")
+        return
+
+    # Merge into ar_data
+    def set_nested(d, dotted_key, value):
+        parts = dotted_key.split(".")
+        current = d
+        for part in parts[:-1]:
+            if part not in current or not isinstance(current[part], dict):
+                current[part] = {}
+            current = current[part]
+        current[parts[-1]] = value
+
+    merged = json.loads(json.dumps(ar_data))  # deep copy
+    new_count = 0
+    for key, arabic in t_map.items():
+        if arabic and arabic.strip():
+            set_nested(merged, key, arabic.strip())
+            new_count += 1
+
+    # Also copy over non-translatable values (numbers, booleans) from EN
+    # so the schema file is structurally complete
+    for key, val in en_flat.items():
+        if key not in flatten(merged):
+            cat, _ = classify_key(key, val)
+            if cat == "junk":
+                # Carry over as-is (numbers, CSS values, etc.)
+                set_nested(merged, key, val)
+
+    print(f"  New translations: {new_count}")
+
+    # Upload
+    merged_json = json.dumps(merged, indent=2, ensure_ascii=False)
+    try:
+        client.put_asset(theme_id, "locales/ar.schema.json", merged_json)
+        print(f"\n  Uploaded ar.schema.json to theme {theme_id}")
+    except Exception as e:
+        print(f"\n  ERROR uploading ar.schema.json: {e}")
+        backup_path = os.path.join("data", "ar_schema.json")
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(merged_json)
+        print(f"  Saved to {backup_path} (upload manually)")
+
+    # Summary
+    final_flat = flatten(merged)
+    print(f"\n  RESULTS:")
+    print(f"    English schema keys:  {len(en_flat)}")
+    print(f"    Arabic keys before:   {len(ar_flat)}")
+    print(f"    Arabic keys after:    {len(final_flat)}")
+    print(f"    Coverage:             {len(final_flat)}/{len(en_flat)} "
+          f"({100 * len(final_flat) / max(len(en_flat), 1):.1f}%)")
+
+
+def extract_hardcoded_strings(theme_path, dry_run=False):
+    """Scan Liquid files for hardcoded English text not using the | t filter.
+
+    Finds:
+    - Text content between HTML tags: >English text<
+    - placeholder="English text" attributes
+    - aria-label="English text" attributes
+    - alt="English text" attributes
+    - Hardcoded text in schema preset JSON blocks
+
+    Returns list of {file, line, type, english, context} dicts.
+    """
+    import glob as glob_mod
+
+    # Patterns to detect hardcoded translatable English text
+    # Match text between > and < that contains English words
+    _TAG_TEXT = re.compile(
+        r">([^<{]*?[A-Za-z]{3,}[^<{]*?)<",
+    )
+    # Match attribute values with English text
+    _ATTR_TEXT = re.compile(
+        r'(?:placeholder|aria-label|alt|title)\s*=\s*"([^"]*[A-Za-z]{3,}[^"]*)"',
+    )
+
+    # Patterns to SKIP (already using Liquid translation)
+    _LIQUID_T = re.compile(r"\{\{.*?\|\s*t\s*[\s|}]")
+    _LIQUID_VAR = re.compile(r"\{\{[^}]+\}\}")
+    _LIQUID_TAG = re.compile(r"\{%[^%]+%\}")
+
+    # Skip patterns for values that aren't translatable
+    _SKIP_VALUES = re.compile(
+        r"^(?:"
+        r"https?://|/|#|mailto:|tel:|javascript:"  # URLs
+        r"|[0-9.,]+(?:px|em|rem|%|vh|vw)?"  # Numbers/CSS
+        r"|(?:true|false)"  # Booleans
+        r"|[A-Za-z0-9_-]+\.(?:liquid|json|js|css|png|jpg|svg)"  # File refs
+        r"|</?(?:svg|path|circle|rect|line|polyline|polygon|use)\b"  # SVG
+        r")$",
+        re.IGNORECASE,
+    )
+
+    # Words that are OK in English (brand names, technical terms)
+    _ALLOWED_ENGLISH = re.compile(
+        r"^(?:TARA|Shopify|Liquid|JSON|HTML|CSS|SVG|USD|SAR|"
+        r"Kansa|Wand|Gua|Sha|"
+        r"Facebook|Instagram|Twitter|TikTok|Pinterest|YouTube|"
+        r"WhatsApp|Snapchat|Tumblr|"
+        r"AHA|BHA|pH|SPF|UV|DNA|RNA|NMF|"
+        r"[A-E]\d*)$",
+        re.IGNORECASE,
+    )
+
+    results = []
+    liquid_dirs = ["sections", "snippets", "blocks", "layout"]
+
+    for d in liquid_dirs:
+        dir_path = os.path.join(theme_path, d)
+        if not os.path.isdir(dir_path):
+            continue
+        for fpath in sorted(glob_mod.glob(os.path.join(dir_path, "*.liquid"))):
+            fname = os.path.relpath(fpath, theme_path)
+            with open(fpath, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            in_schema = False
+            in_preset = False
+            schema_json = ""
+
+            for line_num, line in enumerate(lines, 1):
+                stripped = line.strip()
+
+                # Track schema/preset blocks for JSON extraction
+                if stripped == "{% schema %}":
+                    in_schema = True
+                    schema_json = ""
+                    continue
+                if stripped == "{% endschema %}":
+                    if in_schema and schema_json:
+                        _extract_schema_preset_strings(
+                            schema_json, fname, results
+                        )
+                    in_schema = False
+                    continue
+                if in_schema:
+                    schema_json += line
+                    continue
+
+                # Skip Liquid comment blocks, raw blocks
+                if "{%- comment -%}" in stripped or "{% comment %}" in stripped:
+                    continue
+
+                # Check for hardcoded text in attributes
+                for match in _ATTR_TEXT.finditer(line):
+                    val = match.group(1).strip()
+                    if not val or _SKIP_VALUES.match(val):
+                        continue
+                    # Check if entire value is a Liquid expression
+                    if _LIQUID_VAR.fullmatch(val.strip()):
+                        continue
+                    # Check if it uses | t filter
+                    if _LIQUID_T.search(val):
+                        continue
+                    # Check allowed English words
+                    words = val.split()
+                    if all(_ALLOWED_ENGLISH.match(w) for w in words):
+                        continue
+                    results.append({
+                        "file": fname,
+                        "line": line_num,
+                        "type": "attribute",
+                        "english": val,
+                        "context": stripped[:120],
+                    })
+
+                # Check for hardcoded text between HTML tags
+                # Remove Liquid blocks first so we don't match inside them
+                clean_line = _LIQUID_VAR.sub("", line)
+                clean_line = _LIQUID_TAG.sub("", clean_line)
+
+                for match in _TAG_TEXT.finditer(clean_line):
+                    val = match.group(1).strip()
+                    if not val or len(val) < 3:
+                        continue
+                    if _SKIP_VALUES.match(val):
+                        continue
+                    # Skip if it's just punctuation/symbols
+                    if not re.search(r"[A-Za-z]{3,}", val):
+                        continue
+                    # Skip CSS class-like values, Liquid remnants
+                    if re.match(r"^[a-z_-]+$", val):
+                        continue
+                    # Skip HTML entities (&rarr;, &amp;, etc.)
+                    if re.match(r"^&[a-z]+;$", val):
+                        continue
+                    # Skip Liquid code fragments (contains | append:, etc.)
+                    if "| append:" in val or "| prepend:" in val:
+                        continue
+                    # Skip code-like fragments with operators
+                    if re.search(r"\b(?:and|or)\s+\w+\s*[<>=]", val):
+                        continue
+                    # Skip JS string concatenation fragments
+                    if val.startswith("'") or val.endswith("'"):
+                        continue
+                    words = val.split()
+                    if all(_ALLOWED_ENGLISH.match(w) for w in words):
+                        continue
+                    results.append({
+                        "file": fname,
+                        "line": line_num,
+                        "type": "tag_text",
+                        "english": val,
+                        "context": stripped[:120],
+                    })
+
+    return results
+
+
+def _extract_schema_preset_strings(schema_json, fname, results):
+    """Extract hardcoded English strings from schema preset JSON blocks.
+
+    Schema presets can contain HTML with hardcoded English text that bypasses
+    normal translation mechanisms.
+    """
+    try:
+        schema = json.loads(schema_json, strict=False)
+    except (json.JSONDecodeError, ValueError):
+        return
+
+    presets = schema.get("presets", [])
+    if not presets:
+        return
+
+    def walk_presets(obj, path=""):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                walk_presets(v, f"{path}.{k}" if path else k)
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                walk_presets(item, f"{path}[{i}]")
+        elif isinstance(obj, str):
+            # Check if string contains English text (possibly in HTML)
+            text = re.sub(r"<[^>]+>", " ", obj).strip()
+            if text and re.search(r"[A-Za-z]{3,}", text):
+                # Skip URLs, file refs, Liquid
+                if re.match(r"^(?:https?://|/|shopify://|gid://)", text):
+                    return
+                if "{{" in text or "{%" in text:
+                    return
+                # Skip schema locale references (t:names.*, t:html_defaults.*)
+                if re.match(r"^t:", obj.strip()):
+                    return
+                # Skip CSS variables, technical identifiers
+                if re.match(r"^var\(--", obj.strip()):
+                    return
+                # Skip technical IDs (image_1, heading_2, text_bc98Wh, etc.)
+                if re.match(r"^[a-z_]+(?:[_-][\da-zA-Z]+)*$", obj.strip()):
+                    return
+                # Skip color scheme refs (scheme-1, scheme-5)
+                if re.match(r"^scheme-\d+$", obj.strip()):
+                    return
+                # Skip hex colors
+                if re.match(r"^#[0-9a-fA-F]{3,8}$", obj.strip()):
+                    return
+                # Skip CSS dimensions
+                if re.match(r"^[\d.]+\s*(?:px|em|rem|vh|vw|%|fr)$",
+                             obj.strip(), re.I):
+                    return
+                # Skip short alphanumeric IDs (60cqw, etc.)
+                if re.match(r"^[a-zA-Z0-9]{3,8}$", obj.strip()) and \
+                        not re.search(r"[A-Z][a-z]{2,}", obj.strip()):
+                    return
+                # Skip "to top", "to bottom" (CSS gradient directions)
+                if obj.strip() in ("to top", "to bottom", "to left",
+                                    "to right"):
+                    return
+                # Skip if it's just CSS/technical
+                if re.match(r"^[a-z_-]+$", text):
+                    return
+                results.append({
+                    "file": fname,
+                    "line": 0,  # Can't determine exact line in JSON
+                    "type": "schema_preset",
+                    "english": text[:200],
+                    "context": f"schema.{path}",
+                })
+
+    for preset in presets:
+        walk_presets(preset.get("blocks", []), "presets.blocks")
+        walk_presets(preset.get("settings", {}), "presets.settings")
+
+
+def extract_template_json_strings(theme_path):
+    """Extract hardcoded English text from template JSON settings.
+
+    Template JSON files (templates/*.json) contain section settings with
+    merchant-entered content. Text in "text", "label", "heading", "title"
+    fields needs Layer 2 translation via the Translations API.
+
+    Returns list of {file, key, english, type} dicts.
+    """
+    import glob as glob_mod
+
+    # Setting keys that typically contain translatable text
+    _TEXT_SETTING_KEYS = {
+        "text", "label", "heading", "title", "subheading", "description",
+        "button_label", "button_text", "caption", "alt", "image_alt",
+        "quote", "author", "content",
+    }
+
+    results = []
+    templates_dir = os.path.join(theme_path, "templates")
+    if not os.path.isdir(templates_dir):
+        return results
+
+    for fpath in sorted(glob_mod.glob(os.path.join(templates_dir, "*.json"))):
+        fname = os.path.relpath(fpath, theme_path)
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = _parse_json_with_comments(f.read())
+        except (json.JSONDecodeError, ValueError):
+            continue
+
+        # Walk sections → blocks → settings
+        sections = data.get("sections", {})
+        for section_name, section in sections.items():
+            if not isinstance(section, dict):
+                continue
+            _walk_settings(section.get("settings", {}),
+                           fname, f"sections.{section_name}.settings",
+                           _TEXT_SETTING_KEYS, results)
+
+            # Walk blocks
+            blocks = section.get("blocks", {})
+            if isinstance(blocks, dict):
+                for block_id, block in blocks.items():
+                    if not isinstance(block, dict):
+                        continue
+                    _walk_settings(
+                        block.get("settings", {}),
+                        fname,
+                        f"sections.{section_name}.blocks.{block_id}.settings",
+                        _TEXT_SETTING_KEYS, results,
+                    )
+            # Some templates use block_order + blocks as a list
+            block_order = section.get("block_order", [])
+            if isinstance(block_order, list) and isinstance(blocks, dict):
+                for block_id in block_order:
+                    block = blocks.get(block_id, {})
+                    if isinstance(block, dict):
+                        _walk_settings(
+                            block.get("settings", {}),
+                            fname,
+                            f"sections.{section_name}.blocks.{block_id}.settings",
+                            _TEXT_SETTING_KEYS, results,
+                        )
+
+    return results
+
+
+def _walk_settings(settings, fname, path, text_keys, results):
+    """Walk a settings dict and extract translatable text fields."""
+    if not isinstance(settings, dict):
+        return
+    for key, val in settings.items():
+        if not isinstance(val, str) or not val.strip():
+            continue
+        # Check if the key suggests translatable text
+        if key not in text_keys:
+            continue
+        # Skip URLs, file refs, Liquid-only, etc.
+        text = re.sub(r"<[^>]+>", " ", val).strip()
+        text = re.sub(r"\{\{[^}]*\}\}", "", text).strip()
+        text = re.sub(r"\{%[^%]*%\}", "", text).strip()
+        if not text or not re.search(r"[A-Za-z]{2,}", text):
+            continue
+        results.append({
+            "file": fname,
+            "key": f"{path}.{key}",
+            "english": val,
+            "type": "template_setting",
+        })
+
+
 def main():
     parser = argparse.ArgumentParser(description="Audit theme translation keys")
     parser.add_argument("--remove-junk", action="store_true",
@@ -1230,8 +1766,14 @@ def main():
                         help="Fetch ar.json from theme, remove junk entries, re-upload")
     parser.add_argument("--populate-locale", action="store_true",
                         help="Translate ALL missing theme keys into ar.json (bypasses API limit)")
+    parser.add_argument("--populate-schema", action="store_true",
+                        help="Translate en.default.schema.json → ar.schema.json (editor labels)")
+    parser.add_argument("--extract-hardcoded", metavar="THEME_PATH",
+                        help="Scan Liquid files for hardcoded English not using | t filter")
+    parser.add_argument("--extract-templates", metavar="THEME_PATH",
+                        help="Extract translatable text from template JSON settings")
     parser.add_argument("--force", action="store_true",
-                        help="With --populate-locale: overwrite ALL existing Arabic translations")
+                        help="With --populate-locale/--populate-schema: overwrite ALL existing")
     args = parser.parse_args()
 
     load_dotenv()
@@ -1249,6 +1791,79 @@ def main():
     if args.populate_locale:
         populate_locale(client, model=args.model, reasoning=args.reasoning,
                         dry_run=args.dry_run, force=args.force)
+        return
+
+    # Populate ar.schema.json (editor labels, section names)
+    if args.populate_schema:
+        populate_schema(client, model=args.model, reasoning=args.reasoning,
+                        dry_run=args.dry_run, force=args.force)
+        return
+
+    # Extract hardcoded English strings from Liquid files
+    if args.extract_hardcoded:
+        theme_path = os.path.abspath(args.extract_hardcoded)
+        if not os.path.isdir(theme_path):
+            print(f"ERROR: {theme_path} is not a directory")
+            return
+        results = extract_hardcoded_strings(theme_path)
+        if not results:
+            print("\nNo hardcoded English strings found!")
+            return
+
+        print(f"\n{'=' * 70}")
+        print(f"HARDCODED ENGLISH STRINGS ({len(results)} found)")
+        print(f"{'=' * 70}")
+
+        by_file = defaultdict(list)
+        for r in results:
+            by_file[r["file"]].append(r)
+
+        for fname, items in sorted(by_file.items()):
+            print(f"\n  {fname} ({len(items)} strings)")
+            for item in items:
+                line_str = f"L{item['line']}" if item["line"] else "schema"
+                print(f"    [{line_str}] ({item['type']}) {item['english'][:80]}")
+
+        # Save to JSON for further processing
+        dump_path = os.path.join("data", "hardcoded_strings.json")
+        os.makedirs("data", exist_ok=True)
+        with open(dump_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        print(f"\n  Saved to {dump_path}")
+        return
+
+    # Extract translatable text from template JSON files
+    if args.extract_templates:
+        theme_path = os.path.abspath(args.extract_templates)
+        if not os.path.isdir(theme_path):
+            print(f"ERROR: {theme_path} is not a directory")
+            return
+        results = extract_template_json_strings(theme_path)
+        if not results:
+            print("\nNo translatable template settings found!")
+            return
+
+        print(f"\n{'=' * 70}")
+        print(f"TEMPLATE JSON TRANSLATABLE TEXT ({len(results)} fields)")
+        print(f"{'=' * 70}")
+
+        by_file = defaultdict(list)
+        for r in results:
+            by_file[r["file"]].append(r)
+
+        for fname, items in sorted(by_file.items()):
+            print(f"\n  {fname} ({len(items)} fields)")
+            for item in items:
+                text = re.sub(r"<[^>]+>", "", item["english"]).strip()[:60]
+                print(f"    {item['key']}")
+                print(f"      {text!r}")
+
+        # Save to JSON
+        dump_path = os.path.join("data", "template_strings.json")
+        os.makedirs("data", exist_ok=True)
+        with open(dump_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        print(f"\n  Saved to {dump_path}")
         return
 
     # Fetch all theme keys

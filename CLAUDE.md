@@ -285,6 +285,11 @@ python audit_theme_keys.py --populate-locale               # Translate ALL missi
 python audit_theme_keys.py --populate-locale --model gpt-5.4 --reasoning xhigh  # Highest quality
 python audit_theme_keys.py --populate-locale --force       # Overwrite ALL existing Arabic (retranslate everything)
 python audit_theme_keys.py --populate-locale --force --model gpt-5.4 --reasoning xhigh  # Nuclear: retranslate all
+python audit_theme_keys.py --populate-schema                  # Translate en.default.schema.json → ar.schema.json
+python audit_theme_keys.py --populate-schema --dry-run        # Preview schema translation
+python audit_theme_keys.py --populate-schema --model gpt-5.4 --reasoning xhigh  # Highest quality
+python audit_theme_keys.py --extract-hardcoded /path/to/theme # Find hardcoded English in Liquid files
+python audit_theme_keys.py --extract-templates /path/to/theme # Extract translatable text from template JSON
 
 # Crawl-based theme translation (only translate what's visible on the site)
 python crawl_and_translate.py                              # Full pipeline: crawl → match → translate
