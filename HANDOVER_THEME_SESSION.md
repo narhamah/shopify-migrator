@@ -143,6 +143,15 @@ python review_arabic.py --audit --save-report data/arabic_audit.json
 
 # What does a visitor actually see in English?
 python crawl_and_translate.py --crawl-only
+
+# Find hardcoded English strings in Liquid files (not using | t filter)
+python audit_theme_keys.py --extract-hardcoded /path/to/theme
+
+# Extract translatable text from template JSON settings
+python audit_theme_keys.py --extract-templates /path/to/theme
+
+# Generate ar.schema.json (editor labels, section names)
+python audit_theme_keys.py --populate-schema --dry-run
 ```
 
 ## Environment
