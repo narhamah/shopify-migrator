@@ -388,6 +388,211 @@ def print_analysis(categories, reason_counts, fields):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Duplicate and section analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def analyze_duplicates(fields):
+    """Analyze duplicate English values across theme keys.
+
+    Groups all fields by their English value and shows how many keys share
+    the same string. This reveals wasted translation slots — e.g. "Botanical"
+    appearing under 13 different section.* keys.
+
+    Returns dict of {english_value: [fields]}.
+    """
+    from collections import defaultdict
+
+    # Only look at section.* keys (merchant content, not system strings)
+    section_fields = [f for f in fields if f["key"].startswith("section.")]
+
+    # Group by normalized English value
+    by_value = defaultdict(list)
+    for f in section_fields:
+        val = (f.get("english") or "").strip()
+        if not val:
+            continue
+        by_value[val].append(f)
+
+    # Sort by duplicate count (highest first)
+    duplicates = {v: flds for v, flds in by_value.items() if len(flds) > 1}
+    sorted_dupes = sorted(duplicates.items(), key=lambda x: -len(x[1]))
+
+    # Stats
+    total_section = len(section_fields)
+    unique_values = len(by_value)
+    total_duped_keys = sum(len(flds) for _, flds in sorted_dupes)
+    wasted_keys = sum(len(flds) - 1 for _, flds in sorted_dupes)
+
+    print(f"\n{'=' * 70}")
+    print(f"DUPLICATE ANALYSIS (section.* keys only)")
+    print(f"{'=' * 70}")
+    print(f"  Total section keys:         {total_section}")
+    print(f"  Unique English values:      {unique_values}")
+    print(f"  Values appearing 2+ times:  {len(sorted_dupes)}")
+    print(f"  Keys consumed by duplicates:{total_duped_keys}")
+    print(f"  Wasted slots (excess):      {wasted_keys}")
+    print(f"  If deduplicated, section keys would drop from "
+          f"{total_section} → {total_section - wasted_keys}")
+
+    if sorted_dupes:
+        print(f"\n{'─' * 70}")
+        print(f"TOP DUPLICATED STRINGS")
+        print(f"{'─' * 70}")
+        for val, flds in sorted_dupes[:25]:
+            val_preview = val[:55] if len(val) <= 55 else val[:52] + "..."
+            has_ar = sum(1 for f in flds if f["has_translation"])
+            print(f"  {len(flds):>3}x  {val_preview!r}")
+            if has_ar:
+                print(f"        ({has_ar} with Arabic translation)")
+            # Show which templates they come from
+            templates = set()
+            for f in flds:
+                # Extract template name from key like
+                # section.sections/page.json.xxx... or section.template--xxx...
+                parts = f["key"].split(".")
+                if len(parts) >= 2:
+                    templates.add(parts[1][:40])
+            if templates:
+                print(f"        templates: {', '.join(sorted(templates)[:5])}")
+        if len(sorted_dupes) > 25:
+            print(f"\n  ... and {len(sorted_dupes) - 25} more duplicated values")
+
+    return sorted_dupes
+
+
+def analyze_sections(fields):
+    """Break down section.* keys by template/section to find the biggest key hogs.
+
+    Helps identify which templates should have their content moved to
+    metaobjects/pages to reduce the theme's translatable field count.
+    """
+    section_fields = [f for f in fields if f["key"].startswith("section.")]
+    if not section_fields:
+        return
+
+    # Group by template (second segment of the key)
+    by_template = defaultdict(list)
+    for f in section_fields:
+        parts = f["key"].split(".")
+        template = parts[1] if len(parts) >= 2 else "unknown"
+        by_template[template].append(f)
+
+    sorted_templates = sorted(by_template.items(), key=lambda x: -len(x[1]))
+
+    print(f"\n{'=' * 70}")
+    print(f"SECTION KEYS BY TEMPLATE")
+    print(f"{'=' * 70}")
+    print(f"  Total section.* keys: {len(section_fields)}")
+    print(f"  Across {len(by_template)} templates")
+    print(f"\n  {'TEMPLATE':<50} {'KEYS':>5}  {'W/AR':>5}  {'JUNK':>5}")
+    print(f"  {'─' * 50} {'─' * 5}  {'─' * 5}  {'─' * 5}")
+
+    for template, flds in sorted_templates[:30]:
+        with_ar = sum(1 for f in flds if f["has_translation"])
+        junk = sum(1 for f in flds
+                   if classify_key(f["key"], f["english"])[0] == "junk")
+        name = template[:50]
+        print(f"  {name:<50} {len(flds):>5}  {with_ar:>5}  {junk:>5}")
+
+    if len(sorted_templates) > 30:
+        remaining = sum(len(flds) for _, flds in sorted_templates[30:])
+        print(f"  ... {len(sorted_templates) - 30} more templates "
+              f"({remaining} keys)")
+
+    # Identify templates with the most "useful" (translatable text) keys
+    print(f"\n{'─' * 70}")
+    print(f"TEMPLATES WITH MOST TRANSLATABLE TEXT (candidates to move to metaobjects)")
+    print(f"{'─' * 70}")
+    template_useful = []
+    for template, flds in sorted_templates:
+        useful = [f for f in flds
+                  if classify_key(f["key"], f["english"])[0] == "useful"]
+        if useful:
+            template_useful.append((template, useful))
+
+    template_useful.sort(key=lambda x: -len(x[1]))
+    for template, useful in template_useful[:15]:
+        name = template[:50]
+        print(f"\n  {name} — {len(useful)} translatable keys")
+        # Show sample values
+        seen = set()
+        for f in useful[:5]:
+            val = (f["english"] or "")[:55]
+            if val not in seen:
+                print(f"    EN: {val!r}")
+                seen.add(val)
+        if len(useful) > 5:
+            print(f"    ... and {len(useful) - 5} more")
+
+
+def dedup_translations(client, fields, dry_run=False, locale=LOCALE):
+    """Remove duplicate Arabic translations, keeping only one per unique value.
+
+    When the same English string has Arabic translations registered under
+    multiple section.* keys, this removes translations from all but one key.
+    Shopify will fall back to the primary language for unregistered keys,
+    but since these are duplicates of text that appears identically in multiple
+    templates, the remaining registered translation still covers the value.
+
+    Note: This frees registered translation slots but does NOT reduce the total
+    field count. To reduce total fields, move content out of theme sections.
+
+    Returns (removed, errors).
+    """
+    section_fields = [f for f in fields
+                      if f["key"].startswith("section.")
+                      and f["has_translation"]
+                      and (f.get("english") or "").strip()]
+
+    # Group by English value
+    by_value = defaultdict(list)
+    for f in section_fields:
+        val = f["english"].strip()
+        by_value[val].append(f)
+
+    # For each group with 2+ translated copies, keep one, mark rest for removal
+    to_remove = []
+    for val, flds in by_value.items():
+        translated = [f for f in flds if f["has_translation"]]
+        if len(translated) > 1:
+            # Keep the first one, remove the rest
+            for f in translated[1:]:
+                to_remove.append(f)
+
+    if not to_remove:
+        print("\nNo duplicate translations to remove.")
+        return 0, 0
+
+    print(f"\n{'=' * 70}")
+    print(f"DEDUP TRANSLATIONS" + (" (DRY RUN)" if dry_run else ""))
+    print(f"{'=' * 70}")
+    print(f"  Duplicate Arabic translations: {len(to_remove)}")
+    print(f"  (keeping 1 per unique English string, removing extras)")
+
+    if dry_run:
+        # Show top examples
+        examples = defaultdict(int)
+        for f in to_remove:
+            val = (f["english"] or "")[:50]
+            examples[val] += 1
+        print(f"\n  Sample strings being deduplicated:")
+        for val, count in sorted(examples.items(), key=lambda x: -x[1])[:15]:
+            print(f"    {count + 1:>3}x → keep 1, remove {count}: {val!r}")
+        print(f"\n  (Dry run — no changes made)")
+        return 0, 0
+
+    removed, errors = remove_translations(client, to_remove, dry_run=False,
+                                          locale=locale)
+    print(f"\n  Removed:  {removed}")
+    if errors:
+        print(f"  Errors:   {errors}")
+    print(f"  Freed {removed} translation slots")
+
+    return removed, errors
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Tiered removal priority
 # ─────────────────────────────────────────────────────────────────────────────
 # Shopify limits registered translations to ~3,400 per locale per theme.
@@ -600,6 +805,14 @@ def main():
                         help="Dump all keys to JSON for manual review")
     parser.add_argument("--target", type=int, default=3400,
                         help="Target max registered translations (default: 3400)")
+    parser.add_argument("--analyze-duplicates", action="store_true",
+                        help="Show duplicate English values across section keys")
+    parser.add_argument("--analyze-sections", action="store_true",
+                        help="Show key count per template/section (find key hogs)")
+    parser.add_argument("--dedup-translations", action="store_true",
+                        help="Remove duplicate Arabic translations (keep 1 per string)")
+    parser.add_argument("--full-analysis", action="store_true",
+                        help="Run all analyses: audit + duplicates + sections")
     args = parser.parse_args()
 
     load_dotenv()
@@ -620,11 +833,35 @@ def main():
     # Print analysis
     print_analysis(categories, reason_counts, fields)
 
+    # Run duplicate analysis
+    if args.analyze_duplicates or args.full_analysis:
+        analyze_duplicates(fields)
+
+    # Run section analysis
+    if args.analyze_sections or args.full_analysis:
+        analyze_sections(fields)
+
     # Dump to JSON if requested
     if args.dump:
+        # Enrich with duplicate info before dumping
+        by_value = defaultdict(int)
+        for f in fields:
+            if f["key"].startswith("section."):
+                val = (f.get("english") or "").strip()
+                if val:
+                    by_value[val] += 1
+        for f in fields:
+            val = (f.get("english") or "").strip()
+            f["duplicate_count"] = by_value.get(val, 0)
+
         with open(args.dump, "w") as f:
             json.dump(fields, f, indent=2, ensure_ascii=False)
         print(f"\nDumped {len(fields)} keys to {args.dump}")
+
+    # Dedup translations
+    if args.dedup_translations:
+        dedup_translations(client, fields, dry_run=args.dry_run)
+        return
 
     # Translate missing Arabic theme keys
     if args.translate:
@@ -633,7 +870,7 @@ def main():
         return
 
     # Remove translations in tiers until under the limit
-    if args.remove_junk or args.dry_run:
+    if args.remove_junk:
         registered = sum(1 for f in fields if f["has_translation"])
         target = args.target
         need_to_remove = registered - target

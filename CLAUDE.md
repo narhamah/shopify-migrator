@@ -209,6 +209,11 @@ python audit_theme_keys.py --dump data/theme_keys.json  # Dump all keys to JSON
 python audit_theme_keys.py --translate               # Translate missing Arabic theme keys
 python audit_theme_keys.py --translate --dry-run     # Preview what would be translated
 python audit_theme_keys.py --translate --model gpt-5-mini  # Use a different model
+python audit_theme_keys.py --full-analysis           # Audit + duplicates + sections
+python audit_theme_keys.py --analyze-duplicates      # Show duplicated strings across section keys
+python audit_theme_keys.py --analyze-sections        # Show key count per template (find key hogs)
+python audit_theme_keys.py --dedup-translations      # Remove duplicate Arabic translations (keep 1 per string)
+python audit_theme_keys.py --dedup-translations --dry-run  # Preview dedup plan
 
 # Crawl-based theme translation (only translate what's visible on the site)
 python crawl_and_translate.py                              # Full pipeline: crawl → match → translate
