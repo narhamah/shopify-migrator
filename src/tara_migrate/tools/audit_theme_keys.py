@@ -272,7 +272,7 @@ def fetch_theme_keys(client, locale=LOCALE):
 
 def analyze_keys(fields):
     """Categorize every field and return analysis."""
-    categories = {"useful": [], "system": [], "junk": [], "review": []}
+    categories = defaultdict(list)
     reason_counts = Counter()
 
     for f in fields:
@@ -346,21 +346,30 @@ def print_analysis(categories, reason_counts, fields):
     print(f"\n{'─' * 70}")
     print(f"CLASSIFICATION")
     print(f"{'─' * 70}")
-    for cat in ["useful", "system", "junk", "review"]:
-        items = categories[cat]
+    for cat in ["useful", "shopify_platform", "theme_locale", "junk", "review"]:
+        items = categories.get(cat, [])
+        if not items:
+            continue
         with_t = sum(1 for f in items if f["has_translation"])
-        print(f"  {cat.upper():>8}: {len(items):>5} fields "
-              f"({with_t} with existing Arabic translations)")
+        need_t = len(items) - with_t
+        print(f"  {cat:>20}: {len(items):>5} fields "
+              f"({with_t} translated, {need_t} missing)")
 
-    removable = len(categories["system"]) + len(categories["junk"])
-    remaining = len(categories["useful"]) + len(categories["review"])
-    print(f"\n  Removable (system + junk): {removable}")
-    print(f"  Remaining after cleanup:  {remaining}")
-    if remaining <= 3400:
-        print(f"  --> UNDER the 3,400 limit! Removal should unblock translations.")
+    # Keys that need API translation slots
+    need_api = (len(categories.get("useful", []))
+                + len(categories.get("shopify_platform", []))
+                + len(categories.get("review", [])))
+    removable = (len(categories.get("theme_locale", []))
+                 + len(categories.get("junk", [])))
+    print(f"\n  Need API slots:             {need_api} "
+          f"(useful + shopify_platform)")
+    print(f"  Removable (locale + junk):  {removable}")
+    print(f"  Shopify limit:              ~3,400")
+    if need_api <= 3400:
+        print(f"  --> UNDER the limit!")
     else:
-        over = remaining - 3400
-        print(f"  --> Still {over} over the limit.")
+        over = need_api - 3400
+        print(f"  --> {over} OVER the limit. Run --remove-junk first.")
 
     print(f"\n{'─' * 70}")
     print(f"BREAKDOWN BY REASON")
@@ -368,22 +377,33 @@ def print_analysis(categories, reason_counts, fields):
     for reason, count in reason_counts.most_common():
         print(f"  {count:>5}  {reason}")
 
-    # Show system keys breakdown
-    system = categories["system"]
-    if system:
-        sys_with_t = sum(1 for f in system if f["has_translation"])
-        # Group by key prefix (first 2 dotted segments)
+    # Show shopify_platform keys breakdown
+    platform = categories.get("shopify_platform", [])
+    if platform:
+        plat_with_t = sum(1 for f in platform if f["has_translation"])
         by_prefix = defaultdict(int)
-        for f in system:
+        for f in platform:
             parts = f["key"].split(".")
             prefix = ".".join(parts[:2]) if len(parts) >= 2 else parts[0]
             by_prefix[prefix] += 1
         print(f"\n{'─' * 70}")
-        print(f"SYSTEM KEYS ({len(system)} total, {sys_with_t} with translations)")
-        print(f"  These are auto-translated by Shopify — safe to remove.")
+        print(f"SHOPIFY PLATFORM KEYS ({len(platform)} total, "
+              f"{plat_with_t} translated, {len(platform) - plat_with_t} missing)")
+        print(f"  These need --translate (checkout, accounts, etc.)")
         print(f"{'─' * 70}")
         for prefix, count in sorted(by_prefix.items(), key=lambda x: -x[1]):
             print(f"  {count:>5}  {prefix}.*")
+
+    # Show theme_locale keys breakdown
+    locale_keys = categories.get("theme_locale", [])
+    if locale_keys:
+        loc_with_t = sum(1 for f in locale_keys if f["has_translation"])
+        print(f"\n{'─' * 70}")
+        print(f"THEME LOCALE KEYS ({len(locale_keys)} total, "
+              f"{loc_with_t} with API translations)")
+        print(f"  Covered by ar.json (--populate-locale). "
+              f"API translations are redundant.")
+        print(f"{'─' * 70}")
 
     # Show junk keys that HAVE translations (removal candidates)
     junk_with_trans = [f for f in categories["junk"] if f["has_translation"]]
