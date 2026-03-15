@@ -1996,7 +1996,7 @@ def translate_csv(
     from openai import OpenAI
     client = OpenAI(
         api_key=api_key,
-        timeout=httpx.Timeout(timeout=600.0, connect=30.0),
+        timeout=httpx.Timeout(timeout=10800.0, connect=30.0),
     )
 
     # ------------------------------------------------------------------
