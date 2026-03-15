@@ -2,11 +2,13 @@
 """Purge all Arabic translations from the Saudi store.
 
 This script removes all Arabic translations via Shopify's translationsRemove
-GraphQL mutation. After purging, re-run the existing translation pipeline:
+GraphQL mutation. After purging, re-import using import_arabic.py which reads
+English from the Saudi store, matches against Magento-scraped Arabic data,
+and AI-translates any gaps.
 
-    python purge_arabic.py --skip-theme                    # Purge Arabic translations
-    python translate_gaps.py --lang ar                     # Retranslate (Magento scrape + AI for gaps)
-    python import_arabic.py                                # Upload to Shopify
+    python purge_arabic.py --skip-theme                    # 1. Purge Arabic translations
+    rm data/arabic_import_progress.json                    # 2. Clear progress so it re-processes
+    python import_arabic.py --ai-fallback                  # 3. Re-import (scrape + AI for gaps)
 
 Usage:
     python purge_arabic.py                                 # Purge all Arabic translations
@@ -216,8 +218,8 @@ def main():
     print(f"\n{'=' * 60}")
     print("NEXT STEPS")
     print("=" * 60)
-    print("  1. python translate_gaps.py --lang ar    # Retranslate (Magento scrape + AI gaps)")
-    print("  2. python import_arabic.py               # Upload to Shopify")
+    print("  1. rm data/arabic_import_progress.json       # Clear progress tracker")
+    print("  2. python import_arabic.py --ai-fallback     # Re-import (scrape + AI gaps)")
 
 
 if __name__ == "__main__":
