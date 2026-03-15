@@ -24,13 +24,13 @@ from tara_migrate.core import config, load_json, sanitize_rich_text_json, save_j
 from tara_migrate.core.utils import ascii_slugify as _ascii_slugify
 
 
-def prepare_product_for_import(product, sar_prices=None):
+def prepare_product_for_import(product, magento_prices=None):
     """Strip source-specific fields and prepare product for creation.
 
     Args:
         product: product dict from the translated JSON
-        sar_prices: dict of SKU → {final_price, regular_price, currency}
-                    loaded from data/sar_prices.json (fetched by fix_prices.py)
+        magento_prices: dict of SKU → {final_price, regular_price, currency}
+                    loaded from data/magento_prices.json (fetched by fix_prices.py)
     """
     status = product.get("status", "draft")
     p = {
@@ -57,11 +57,11 @@ def prepare_product_for_import(product, sar_prices=None):
         p["variants"] = []
         for v in product["variants"]:
             sku = v.get("sku", "")
-            # Use SAR price from Saudi Magento store if available
+            # Use Magento price if available
             price = v.get("price", "0")
             compare_at_price = v.get("compare_at_price")
-            if sar_prices and sku and sku in sar_prices:
-                sp = sar_prices[sku]
+            if magento_prices and sku and sku in magento_prices:
+                sp = magento_prices[sku]
                 if sp.get("final_price") is not None:
                     price = str(sp["final_price"])
                 if sp.get("regular_price") and sp.get("final_price") and sp["regular_price"] != sp["final_price"]:
@@ -145,24 +145,26 @@ def main():
         access_token = config.get_dest_access_token()
         client = ShopifyClient(shop_url, access_token)
 
-    # Fetch SAR prices from Saudi Magento store
-    sar_prices_file = "data/sar_prices.json"
-    sar_prices = {}
+    # Fetch prices from Magento store
+    magento_prices_file = "data/magento_prices.json"
+    magento_prices = {}
     try:
-        from tara_migrate.fixers.fix_prices import fetch_sar_prices
-        sar_prices = fetch_sar_prices("https://taraformula.com", "sa-en")
-        if sar_prices:
-            save_json(sar_prices, sar_prices_file)
-            print(f"Fetched SAR prices for {len(sar_prices)} SKUs")
+        from tara_migrate.fixers.fix_prices import fetch_magento_prices
+        site_url = config.get_magento_site_url()
+        store_code = config.get_magento_store_code()
+        magento_prices = fetch_magento_prices(site_url, store_code)
+        if magento_prices:
+            save_json(magento_prices, magento_prices_file)
+            print(f"Fetched Magento prices for {len(magento_prices)} SKUs ({store_code})")
         else:
-            print("WARNING: Could not fetch SAR prices — products will use source data prices")
+            print("WARNING: Could not fetch Magento prices — products will use source data prices")
     except Exception as e:
         # Fall back to cached prices
-        if os.path.exists(sar_prices_file):
-            sar_prices = load_json(sar_prices_file)
-            print(f"Using cached SAR prices for {len(sar_prices)} SKUs ({e})")
+        if os.path.exists(magento_prices_file):
+            magento_prices = load_json(magento_prices_file)
+            print(f"Using cached Magento prices for {len(magento_prices)} SKUs ({e})")
         else:
-            print(f"WARNING: Could not fetch SAR prices ({e}) — products will use source data prices")
+            print(f"WARNING: Could not fetch Magento prices ({e}) — products will use source data prices")
 
     # =============================================
     # Phase 0: Examine destination store
@@ -398,7 +400,7 @@ def main():
             save_json(id_map, id_map_file)
             continue
 
-        product_data = prepare_product_for_import(product, sar_prices)
+        product_data = prepare_product_for_import(product, magento_prices)
         try:
             created = client.create_product(product_data)
             dest_id = created.get("id")

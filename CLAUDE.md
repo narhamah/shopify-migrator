@@ -12,7 +12,8 @@ src/tara_migrate/          ← Production library (all logic lives here)
   core/                    ← Shared utilities: config, utils, rich_text, language, logging, shopify_fields,
                              csv_utils (CSV row classification), graphql_queries (shared GQL templates)
   pipeline/                ← Main migration phases: export, import_english, import_arabic, build_site,
-                             post_migration, migrate_all_images
+                             post_migration, migrate_all_images, import_collections, import_customers,
+                             migrate_metaobjects
   translation/             ← AI translation: translator, engine, translate_gaps, field_extractors, toon,
                              translate_csv (CSV-based translation), validate_csv (CSV validation/cleaning),
                              verify_fix (unified audit→fix→verify pipeline)
@@ -21,7 +22,12 @@ src/tara_migrate/          ← Production library (all logic lives here)
                              fix_redirects, fix_translations (GraphQL translation fixer)
   tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images,
                              review_content (English content review), review_arabic (Arabic translation review),
-                             crawl_and_translate (Playwright crawl → match → translate visible theme strings)
+                             crawl_and_translate (Playwright crawl → match → translate visible theme strings),
+                             audit_theme_keys (theme translation key management),
+                             enable_ingredient_pages, patch_spanish, remap_redirects,
+                             get_flow_ids, get_token, generate_data_dictionary, image_lang_detect,
+                             test_checkout (Playwright checkout testing),
+                             purge_arabic, validate_addresses
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -67,6 +73,10 @@ SOURCE_ACCESS_TOKEN=shpat_xxx
 DEST_SHOP_URL=xxx.myshopify.com
 DEST_ACCESS_TOKEN=shpat_xxx
 
+# Magento (optional — for importing prices, product names, images)
+MAGENTO_SITE_URL=https://taraformula.com
+MAGENTO_STORE_CODE=us-en
+
 OPENAI_API_KEY=sk-xxx
 ANTHROPIC_API_KEY=sk-ant-xxx
 ```
@@ -94,8 +104,36 @@ data/
 - **Rich text safety**: translates at text-node level inside JSON, sanitizes corrupted output
 - **CRITICAL — rich_text_field metafields**: NEVER pass rich_text JSON through a plain-text or HTML translator. Always use `extract_text_nodes()` + `rebuild()` from `core.rich_text` to translate individual text nodes while preserving the JSON structure. Shopify rejects raw HTML uploads to rich_text_field metafields.
 - **Progress tracking**: `_translation_progress_{lang}.json` — safe to interrupt and resume
-- **Models**: Uses OpenAI (gpt-5-nano default with minimal reasoning)
-- **IMPORTANT — GPT-5 family API constraints**: Do NOT pass `max_tokens` (use `max_completion_tokens` if needed) and do NOT pass `temperature` (only default value 1 is supported). These apply to gpt-5-nano, gpt-5-mini, gpt-4o-mini, and all GPT-5 variants.
+- **Models**: Uses OpenAI (gpt-5-nano default with minimal reasoning; pass `--model gpt-5.4 --reasoning xhigh` for highest quality)
+- **IMPORTANT — GPT-5 family API constraints**: `temperature`, `top_p`, `logprobs` are only supported with reasoning effort `none`. For other reasoning levels use `reasoning.effort` and `text.verbosity`. These constraints apply to gpt-5.4, gpt-5.2, gpt-5-mini, gpt-5-nano, and all GPT-5 variants.
+
+### Three Layers of Arabic Translation
+
+Shopify Arabic translations live in THREE separate places. All three must be complete for zero visible English on the Arabic site:
+
+| Layer | Where It Lives | Tool | Limit |
+|-------|---------------|------|-------|
+| **1. Theme locale file** (`ar.json`) | Theme asset `locales/ar.json` | `audit_theme_keys.py --populate-locale` | **None** — file-based, bypasses API |
+| **2. Section/merchant content** (`section.*` keys) | Shopify Translations API (`ONLINE_STORE_THEME`) | `audit_theme_keys.py --translate` | **~3,400 keys total** per locale |
+| **3. Resource content** (products, collections, metaobjects, pages, articles) | Shopify Translations API (per resource) | `review_arabic.py` / `verify_fix_translations.py` | **No practical limit** |
+
+**Layer 1** covers: UI strings ("Sign Up", "You may also like", "FAQs", accessibility labels, filter text, cart text)
+**Layer 2** covers: Theme customizer content ("Sulfate Free", "Cruelty Free", "Dermatologically Tested", badge text, section headings set in theme editor)
+**Layer 3** covers: Product descriptions, metafield content, collection names, page body HTML, article content
+
+**CRITICAL — 3,400 key limit**: Shopify enforces ~3,400 translation keys per locale via the Translations API. Theme editor `section.*` keys count toward this. The `--populate-locale` approach bypasses this by writing directly to the theme's `ar.json` file instead. Always run `--remove-junk` first to reclaim slots, then `--populate-locale` for bulk, then `--translate` for remaining section content.
+
+**Complete Arabic workflow** (run in order):
+```bash
+# Step 1: Theme UI strings via ar.json (no limit)
+python audit_theme_keys.py --populate-locale --model gpt-5.4 --reasoning xhigh
+
+# Step 2: Theme customizer/section content via API
+python audit_theme_keys.py --translate --model gpt-5.4 --reasoning xhigh
+
+# Step 3: Products, collections, metaobjects, pages, articles
+python review_arabic.py --force --model gpt-5.4 --reasoning xhigh
+```
 
 ### Key Translation Constants (in `src/tara_migrate/translation/translator.py`)
 
@@ -128,7 +166,7 @@ python -m pytest -x                         # Stop on first failure
 - **Framework**: pytest (`pytest.ini` sets `pythonpath = src`)
 - **Fixtures** in `tests/conftest.py`: `make_product()`, `make_collection()`, `make_article()`, `make_metaobject()`, `make_id_map()`, `tmp_data_dir()`
 - **All tests use mocks** — no live API calls
-- **Test files**: test_shopify_client (44KB), test_translator (20KB), test_import_english (15KB), test_import_arabic (28KB), test_post_migration (19KB), test_setup_store, test_export_spain, test_optimize_images, test_verify_fix
+- **Test files**: test_shopify_client, test_translator, test_import_english, test_import_arabic, test_post_migration, test_setup_store, test_export_spain, test_optimize_images, test_verify_fix, test_review_arabic, test_review_content, test_patch_spanish, test_shopify_fields
 
 ## Dependencies
 
@@ -149,6 +187,12 @@ python translate_gaps.py --lang ar
 python import_arabic.py [--dry-run]
 python migrate_all_images.py
 python post_migration.py
+
+# Customer import (from Magento CSV export)
+python import_customers.py --input Export_Customers.csv --country "Saudi Arabia" --dry-run
+python import_customers.py --input Export_Customers.csv --country "Saudi Arabia"
+python import_customers.py --input Export_Customers.csv --country "United States,Canada"
+python import_customers.py --input Export_Customers.csv --save-json data/customers.json  # export only
 
 # Fixers
 python fix_prices.py [--update-shopify]
@@ -173,11 +217,15 @@ python review_arabic.py --dry-run                      # Show planned changes
 python review_arabic.py                                # Full pipeline: audit + fix + verify
 python review_arabic.py --type PRODUCT                 # Only audit products
 python review_arabic.py --type PRODUCT,METAFIELD       # Multiple types
+python review_arabic.py --type PRODUCT,COLLECTION,METAFIELD,METAOBJECT,PAGE,ARTICLE  # All types
 python review_arabic.py --skip-semantic                # Skip Haiku correspondence check (faster)
 python review_arabic.py --model gpt-5-mini             # Override translation model
+python review_arabic.py --reasoning xhigh              # Highest quality translation
 python review_arabic.py --audit-model MODEL            # Override Haiku audit model
 python review_arabic.py --no-verify                    # Skip post-fix re-audit
 python review_arabic.py --save-report FILE.json        # Save audit report
+python review_arabic.py --force                        # Re-translate ALL fields (including OK ones)
+python review_arabic.py --force --model gpt-5.4 --reasoning xhigh  # Nuclear option: retranslate everything
 
 # Audit
 python compare_stores.py
@@ -204,6 +252,15 @@ python audit_translations.py --mode upload --csv FILE.csv [--dry-run]
 python audit_site.py --base-url https://sa.taraformula.com --locale-prefix /ar
 python audit_site.py --url https://sa.taraformula.com/ar/products/some-product
 
+# Test checkout (Playwright — requires test mode enabled)
+python test_checkout.py                                    # One test order (Visa)
+python test_checkout.py --headed                           # Visible browser
+python test_checkout.py --card visa --card mastercard      # Multiple cards
+python test_checkout.py --card all                         # Test all card types
+python test_checkout.py --test-decline                     # Test declined card
+python test_checkout.py --bogus                            # Use Bogus Gateway cards
+python test_checkout.py --screenshot-dir data/checkout     # Save screenshots
+
 # Translation fixers
 python fix_translations.py --audit audit_fix.json --locale ar
 
@@ -212,9 +269,10 @@ python audit_theme_keys.py                           # Audit only — show break
 python audit_theme_keys.py --remove-junk             # Remove unnecessary translations
 python audit_theme_keys.py --dry-run                 # Preview what would be removed
 python audit_theme_keys.py --dump data/theme_keys.json  # Dump all keys to JSON
-python audit_theme_keys.py --translate               # Translate missing Arabic theme keys
+python audit_theme_keys.py --translate               # Translate missing Arabic theme keys via Translations API
 python audit_theme_keys.py --translate --dry-run     # Preview what would be translated
 python audit_theme_keys.py --translate --model gpt-5-mini  # Use a different model
+python audit_theme_keys.py --translate --model gpt-5.4 --reasoning xhigh  # Highest quality
 python audit_theme_keys.py --full-analysis           # Audit + duplicates + sections
 python audit_theme_keys.py --analyze-duplicates      # Show duplicated strings across section keys
 python audit_theme_keys.py --analyze-sections        # Show key count per template (find key hogs)
@@ -222,6 +280,11 @@ python audit_theme_keys.py --dedup-translations      # Remove duplicate Arabic t
 python audit_theme_keys.py --dedup-translations --dry-run  # Preview dedup plan
 python audit_theme_keys.py --clean-locale --dry-run        # Preview ar.json locale file cleanup
 python audit_theme_keys.py --clean-locale                  # Remove junk from theme ar.json file
+python audit_theme_keys.py --populate-locale --dry-run     # Preview: translate ALL missing theme keys into ar.json
+python audit_theme_keys.py --populate-locale               # Translate ALL missing → ar.json (bypasses API limit!)
+python audit_theme_keys.py --populate-locale --model gpt-5.4 --reasoning xhigh  # Highest quality
+python audit_theme_keys.py --populate-locale --force       # Overwrite ALL existing Arabic (retranslate everything)
+python audit_theme_keys.py --populate-locale --force --model gpt-5.4 --reasoning xhigh  # Nuclear: retranslate all
 
 # Crawl-based theme translation (only translate what's visible on the site)
 python crawl_and_translate.py                              # Full pipeline: crawl → match → translate
@@ -241,6 +304,23 @@ python verify_fix_translations.py --type PRODUCT            # single resource ty
 python verify_fix_translations.py --fix-only MISSING,IDENTICAL  # fix specific problems
 python verify_fix_translations.py --no-verify               # skip re-audit after fix
 python verify_fix_translations.py --clean-csv FILE.csv      # strip junk rows from CSV before Shopify import
+
+# Theme key deep analysis (companion to audit_theme_keys.py)
+python analyze_theme_keys.py data/theme_keys_full.json     # Analyze from dump file
+python analyze_theme_keys.py --fetch                       # Analyze live from Shopify
+
+# Utility tools
+python enable_ingredient_pages.py [--dry-run]              # Enable renderable on ingredient metaobjects
+python generate_data_dictionary.py                         # Generate field-level data dictionary from export
+python get_flow_ids.py                                     # List Shopify Flow IDs for migration
+python get_token.py                                        # Helper to retrieve access token
+python patch_spanish.py                                    # Detect and fix remaining Spanish text in dest store
+python remap_redirects.py                                  # Remap URL redirects from source to dest handles
+python migrate_metaobjects.py                              # Standalone metaobject migration
+python import_collections.py                               # Standalone collection import
+python purge_arabic.py [--dry-run] [--skip-theme] [--type PRODUCT]  # Remove all Arabic translations
+python validate_addresses.py --fetch-cities                # Fetch canonical Saudi city names
+python validate_addresses.py --validate FILE.csv [--fix]   # Validate/fix addresses in CSV
 ```
 
 ## Manual Steps (Cannot Be Automated)

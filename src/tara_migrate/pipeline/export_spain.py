@@ -3,14 +3,147 @@
 
 Exports products (with metafields), collections, pages, blogs, articles
 (with metafields), and metaobjects (definitions + entries).
+Also builds a consolidated relations map (relations.json) capturing all
+cross-references between resources.
 """
 
+import json
 import os
+import re
 
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, save_json
+
+
+REFERENCE_TYPES = {
+    "metaobject_reference",
+    "list.metaobject_reference",
+    "product_reference",
+    "list.product_reference",
+    "collection_reference",
+    "list.collection_reference",
+    "page_reference",
+    "list.page_reference",
+    "article_reference",
+    "list.article_reference",
+}
+
+GID_PATTERN = re.compile(r"gid://shopify/(\w+)/(\d+)")
+
+
+def _parse_gid(gid_str):
+    """Extract (type, id) from a Shopify GID string."""
+    m = GID_PATTERN.match(str(gid_str))
+    return (m.group(1), m.group(2)) if m else None
+
+
+def _extract_gids(value):
+    """Extract GID strings from a metafield/metaobject field value."""
+    if not value:
+        return []
+    value = str(value).strip()
+    if value.startswith("["):
+        try:
+            return [g for g in json.loads(value) if isinstance(g, str) and g.startswith("gid://")]
+        except (json.JSONDecodeError, TypeError):
+            return []
+    if value.startswith("gid://"):
+        return [value]
+    return []
+
+
+def build_relations(products, articles, all_metaobjects, collects):
+    """Build a consolidated map of all cross-references between resources.
+
+    Returns a list of relation dicts:
+      {from_type, from_id, from_handle, field, to_type, to_id}
+    """
+    relations = []
+
+    # Product → metaobject/product/collection refs (via metafields)
+    for product in products:
+        pid = product.get("id")
+        handle = product.get("handle", "")
+        for mf in product.get("metafields", []):
+            mf_type = mf.get("type", "")
+            if mf_type not in REFERENCE_TYPES:
+                continue
+            field_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+            for gid in _extract_gids(mf.get("value")):
+                parsed = _parse_gid(gid)
+                if parsed:
+                    relations.append({
+                        "from_type": "Product",
+                        "from_id": pid,
+                        "from_handle": handle,
+                        "field": field_key,
+                        "to_type": parsed[0],
+                        "to_id": gid,
+                    })
+
+    # Article → metaobject/product/article refs (via metafields)
+    for article in articles:
+        aid = article.get("id")
+        handle = article.get("handle", "")
+        for mf in article.get("metafields", []):
+            mf_type = mf.get("type", "")
+            if mf_type not in REFERENCE_TYPES:
+                continue
+            field_key = f"{mf.get('namespace', '')}.{mf.get('key', '')}"
+            for gid in _extract_gids(mf.get("value")):
+                parsed = _parse_gid(gid)
+                if parsed:
+                    relations.append({
+                        "from_type": "Article",
+                        "from_id": aid,
+                        "from_handle": handle,
+                        "field": field_key,
+                        "to_type": parsed[0],
+                        "to_id": gid,
+                    })
+
+    # Metaobject → metaobject/product/collection refs (via fields)
+    for mo_type, type_data in all_metaobjects.items():
+        defn = type_data.get("definition", {})
+        # Build field type lookup from definition
+        field_types = {}
+        for fd in defn.get("fieldDefinitions", []):
+            field_types[fd["key"]] = fd.get("type", {}).get("name", "")
+
+        for obj in type_data.get("objects", []):
+            obj_id = obj.get("id", "")
+            obj_handle = obj.get("handle", "")
+            for field in obj.get("fields", []):
+                fkey = field.get("key", "")
+                ftype = field.get("type", field_types.get(fkey, ""))
+                if ftype not in REFERENCE_TYPES:
+                    continue
+                for gid in _extract_gids(field.get("value")):
+                    parsed = _parse_gid(gid)
+                    if parsed:
+                        relations.append({
+                            "from_type": f"Metaobject:{mo_type}",
+                            "from_id": obj_id,
+                            "from_handle": obj_handle,
+                            "field": fkey,
+                            "to_type": parsed[0],
+                            "to_id": gid,
+                        })
+
+    # Collection membership (product ↔ collection)
+    for collect in collects:
+        relations.append({
+            "from_type": "Product",
+            "from_id": collect["product_id"],
+            "from_handle": "",
+            "field": "_collection_membership",
+            "to_type": "Collection",
+            "to_id": collect["collection_id"],
+        })
+
+    return relations
 
 
 def ensure_dir(path):
@@ -156,6 +289,21 @@ def main():
         page["metafields"] = metafields
     save_json(pages, os.path.join(output_dir, "pages.json"))
 
+    # Build consolidated relations map
+    print("Building relations map...")
+    relations = build_relations(products, all_articles, all_metaobjects, all_collects)
+    save_json(relations, os.path.join(output_dir, "relations.json"))
+
+    # Summarize relations by type
+    rel_summary = {}
+    for r in relations:
+        key = f"{r['from_type']} → {r['to_type']} ({r['field']})"
+        rel_summary[key] = rel_summary.get(key, 0) + 1
+    if rel_summary:
+        print(f"  {len(relations)} relations found:")
+        for key, count in sorted(rel_summary.items(), key=lambda x: -x[1]):
+            print(f"    {key}: {count}")
+
     # Summary
     print("\n--- Export Summary ---")
     print(f"  Products:       {len(products)}")
@@ -166,6 +314,7 @@ def main():
     print(f"  Metaobj types:  {len(definitions)}")
     print(f"  Metaobjects:    {total_count}")
     print(f"  Collects:       {len(all_collects)}")
+    print(f"  Relations:      {len(relations)}")
     print(f"  Redirects:      {len(redirects)}")
     print(f"  Price rules:    {len(price_rules)}")
     print(f"  Policies:       {len(policies)}")

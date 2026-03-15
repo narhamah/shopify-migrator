@@ -202,10 +202,14 @@ def main():
     parser = argparse.ArgumentParser(description="Create navigation menus in Shopify")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be created")
     parser.add_argument("--config", type=str, help="JSON config file for menu structure")
-    parser.add_argument("--site", default="https://taraformula.com", help="Magento site URL")
-    parser.add_argument("--store", default="sa-en", help="Store code (default: sa-en)")
+    parser.add_argument("--site", default=None, help="Magento site URL (default: MAGENTO_SITE_URL env)")
+    parser.add_argument("--store", default=None, help="Magento store code (default: MAGENTO_STORE_CODE env)")
     parser.add_argument("--show", action="store_true", help="Show existing menus in Shopify")
     args = parser.parse_args()
+    if not args.site:
+        args.site = config.get_magento_site_url()
+    if not args.store:
+        args.store = config.get_magento_store_code()
 
     shop_url = config.get_dest_shop_url()
     access_token = config.get_dest_access_token()

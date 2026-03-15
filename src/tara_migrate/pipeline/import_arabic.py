@@ -27,16 +27,23 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import load_json, sanitize_rich_text_json, save_json
 from tara_migrate.core.config import AR_DIR, EN_DIR, ID_MAP_FILE, get_dest_access_token, get_dest_shop_url
+from tara_migrate.core.graphql_queries import (
+    FETCH_PRODUCTS_QUERY,
+    fetch_translatable_resources,
+    paginate_query,
+    upload_translations,
+)
 
 ARABIC_LOCALE = "ar"
 
 # Resource type → (GID prefix, progress prefix, type_prefix in progress file)
+# Note: Shopify TranslatableResourceType uses PAGE/BLOG/ARTICLE (not ONLINE_STORE_*)
 RESOURCE_TYPE_CONFIG = {
     "PRODUCT": ("gid://shopify/Product/", "product", "prod"),
     "COLLECTION": ("gid://shopify/Collection/", "collection", "coll"),
-    "ONLINE_STORE_PAGE": ("gid://shopify/Page/", "page", "page"),
-    "ONLINE_STORE_ARTICLE": ("gid://shopify/Article/", "article", "art"),
-    "ONLINE_STORE_BLOG": ("gid://shopify/Blog/", "blog", "blog"),
+    "PAGE": ("gid://shopify/Page/", "page", "page"),
+    "ARTICLE": ("gid://shopify/Article/", "article", "art"),
+    "BLOG": ("gid://shopify/Blog/", "blog", "blog"),
     "METAOBJECT": ("gid://shopify/Metaobject/", "metaobject", "mo"),
 }
 
@@ -146,7 +153,32 @@ FIELD_BUILDERS = {
 # Local lookup builder
 # =====================================================================
 
-def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=None):
+def _build_handle_remap(ar_items, en_items):
+    """Build Arabic-handle → English-handle mapping via shared source ID.
+
+    The Arabic JSON has Arabic handles (e.g. سيروم-مقوي-لفروة-الرأس) while the
+    store uses English handles (e.g. strengthening-scalp-serum). Both share the
+    same source ID, so we can cross-reference them.
+    """
+    if not ar_items or not en_items:
+        return {}
+    en_by_id = {}
+    for item in en_items:
+        item_id = str(item.get("id", ""))
+        if item_id:
+            en_by_id[item_id] = item.get("handle", "")
+    remap = {}
+    for item in ar_items:
+        ar_handle = item.get("handle", "")
+        item_id = str(item.get("id", ""))
+        en_handle = en_by_id.get(item_id)
+        if ar_handle and en_handle and ar_handle != en_handle:
+            remap[ar_handle] = en_handle
+    return remap
+
+
+def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=None,
+                       handle_remap=None):
     """Build {english_handle: {field_key: arabic_value}} from progress + full JSON.
 
     Args:
@@ -154,7 +186,13 @@ def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=No
         type_prefix: "prod", "coll", "page", "art", "blog", "mo"
         ar_items: optional list of full Arabic JSON objects (for body_html fallback)
         field_builder: function to extract fields from full JSON objects
+        handle_remap: optional dict mapping Arabic handles → English handles
     """
+    handle_remap = handle_remap or {}
+    # Build reverse remap too (English→English is identity, but Arabic→English is needed)
+    reverse_remap = {v: v for v in handle_remap.values()}  # English handles map to themselves
+    reverse_remap.update(handle_remap)  # Arabic handles map to English
+
     lookup = {}
     # 1. From progress file: group by handle
     prefix = f"{type_prefix}."
@@ -165,21 +203,25 @@ def build_local_lookup(progress_ar, type_prefix, ar_items=None, field_builder=No
         parts = rest.split(".", 1)
         if len(parts) == 2:
             handle, field = parts
-            lookup.setdefault(handle, {})[field] = value
+            # Apply handle remap so Arabic handles map to English
+            en_handle = reverse_remap.get(handle, handle)
+            lookup.setdefault(en_handle, {})[field] = value
 
     # 2. From full JSON: add body_html and other large fields not in progress file
     if ar_items and field_builder:
         for item in ar_items:
-            handle = item.get("handle", "")
-            if not handle:
+            ar_handle = item.get("handle", "")
+            if not ar_handle:
                 continue
+            # Remap Arabic handle to English handle for store matching
+            en_handle = handle_remap.get(ar_handle, ar_handle)
             extra = field_builder(item)
-            if handle in lookup:
+            if en_handle in lookup:
                 for k, v in extra.items():
-                    if k not in lookup[handle]:  # progress file takes priority
-                        lookup[handle][k] = v
+                    if k not in lookup[en_handle]:  # progress file takes priority
+                        lookup[en_handle][k] = v
             else:
-                lookup[handle] = extra
+                lookup[en_handle] = extra
     return lookup
 
 
@@ -279,6 +321,48 @@ def _should_translate_field(key, en_value):
     return True
 
 
+def _is_untranslated(ar_value, en_value):
+    """Detect if a local 'Arabic' value is actually untranslated English.
+
+    Returns True if the Arabic value appears identical to the English original,
+    meaning it was never actually translated and should be sent to AI.
+    Handles both plain text and rich text JSON (compares text content only).
+    """
+    if not ar_value or not en_value:
+        return False
+    a = ar_value.strip()
+    e = en_value.strip()
+
+    # Exact match — definitely untranslated
+    if a == e:
+        return True
+
+    # Case-insensitive match (catches minor case differences)
+    if a.lower() == e.lower():
+        return True
+
+    # For rich text JSON: compare just the text content
+    if a.startswith("{") and e.startswith("{"):
+        import json as _json
+        try:
+            def _extract_text(node):
+                texts = []
+                if isinstance(node, dict):
+                    if node.get("type") == "text":
+                        texts.append(node.get("value", ""))
+                    for child in node.get("children", []):
+                        texts.extend(_extract_text(child))
+                return texts
+            ar_texts = " ".join(_extract_text(_json.loads(a)))
+            en_texts = " ".join(_extract_text(_json.loads(e)))
+            if ar_texts and ar_texts == en_texts:
+                return True
+        except (ValueError, KeyError):
+            pass
+
+    return False
+
+
 def process_resource_type(
     client, resource_type, lookup, progress, progress_file,
     openai_client=None, model="gpt-5-mini", dry_run=False, ai_fallback=False,
@@ -368,13 +452,23 @@ def process_resource_type(
                 continue
 
             if key in ar_fields and ar_fields[key]:
-                # Have local Arabic data
-                local_translations.append({
-                    "key": key,
-                    "value": ar_fields[key],
-                    "locale": ARABIC_LOCALE,
-                    "translatableContentDigest": item["digest"],
-                })
+                ar_val = ar_fields[key]
+                if _is_untranslated(ar_val, en_value):
+                    # Local data is identical to English — needs real translation
+                    if ai_fallback and openai_client:
+                        gaps.append({
+                            "id": f"{gid}|{key}",
+                            "value": en_value,
+                            "_digest": item["digest"],
+                        })
+                else:
+                    # Genuinely translated local data
+                    local_translations.append({
+                        "key": key,
+                        "value": ar_val,
+                        "locale": ARABIC_LOCALE,
+                        "translatableContentDigest": item["digest"],
+                    })
             elif ai_fallback and openai_client:
                 # No local data — add to AI gaps
                 gaps.append({
@@ -384,6 +478,7 @@ def process_resource_type(
                 })
 
         # Register local translations immediately
+        identical_count = 0
         try:
             if local_translations:
                 client.register_translations(gid, ARABIC_LOCALE, local_translations)
@@ -422,6 +517,9 @@ def process_resource_type(
         for gap_id, translated_value in ai_translations.items():
             gid, key = gap_id.split("|", 1)
             digest = digest_by_gap_id.get(gap_id, "")
+            # Sanitize AI output for rich text / JSON values
+            if isinstance(translated_value, str) and translated_value.strip().startswith(("{", "[")):
+                translated_value = sanitize_rich_text_json(translated_value)
             by_gid.setdefault(gid, []).append({
                 "key": key,
                 "value": translated_value,
@@ -498,12 +596,21 @@ def _process_metaobjects(client, lookup, progress, progress_file,
                 continue
 
             if key in ar_fields and ar_fields[key]:
-                local_translations.append({
-                    "key": key,
-                    "value": ar_fields[key],
-                    "locale": ARABIC_LOCALE,
-                    "translatableContentDigest": item["digest"],
-                })
+                ar_val = ar_fields[key]
+                if _is_untranslated(ar_val, en_value):
+                    if ai_fallback and openai_client:
+                        gaps.append({
+                            "id": f"{gid}|{key}",
+                            "value": en_value,
+                            "_digest": item["digest"],
+                        })
+                else:
+                    local_translations.append({
+                        "key": key,
+                        "value": ar_val,
+                        "locale": ARABIC_LOCALE,
+                        "translatableContentDigest": item["digest"],
+                    })
             elif ai_fallback and openai_client:
                 gaps.append({
                     "id": f"{gid}|{key}",
@@ -535,6 +642,9 @@ def _process_metaobjects(client, lookup, progress, progress_file,
         for gap_id, translated_value in ai_translations.items():
             gid, key = gap_id.split("|", 1)
             digest = digest_by_gap_id.get(gap_id, "")
+            # Sanitize AI output for rich text / JSON values
+            if isinstance(translated_value, str) and translated_value.strip().startswith(("{", "[")):
+                translated_value = sanitize_rich_text_json(translated_value)
             by_gid.setdefault(gid, []).append({
                 "key": key,
                 "value": translated_value,
@@ -643,6 +753,172 @@ def _translate_gaps_batch(openai_client, model, gaps):
         all_translations.update(t_map)
 
     return all_translations
+
+
+# =====================================================================
+# Product metafield translations (separate METAFIELD resource type)
+# =====================================================================
+
+def _process_product_metafields(client, lookup, progress, progress_file,
+                                 openai_client=None, model="gpt-5-mini",
+                                 ai_fallback=False):
+    """Translate product metafields via the Shopify Translations API.
+
+    Product metafields are a separate translatable resource type (METAFIELD) —
+    they are NOT included in the PRODUCT translatableContent. This function:
+      1. Fetches all products and their metafields via GraphQL
+      2. Matches each metafield against local Arabic data (by product handle)
+      3. Uses AI fallback for gaps
+      4. Registers translations against metafield GIDs
+    """
+    print(f"\n{'='*60}")
+    print("Processing PRODUCT METAFIELD translations...")
+    print(f"{'='*60}")
+
+    # Fetch all products with metafields
+    print("  Fetching all products with metafields...")
+    products = []
+    for node in paginate_query(client, FETCH_PRODUCTS_QUERY, "products"):
+        metafields = {}
+        for mf_edge in node.get("metafields", {}).get("edges", []):
+            mf = mf_edge["node"]
+            ns_key = f"{mf['namespace']}.{mf['key']}"
+            metafields[ns_key] = {
+                "id": mf["id"], "value": mf["value"], "type": mf["type"],
+            }
+        products.append({
+            "id": node["id"], "title": node["title"],
+            "handle": node.get("handle", ""),
+            "metafields": metafields,
+        })
+    print(f"  Found {len(products)} products")
+
+    # Collect metafield GIDs that have translatable values
+    metafield_gids = []
+    metafield_info = {}  # gid → {product_handle, key, english, mf_type}
+    for prod in products:
+        handle = prod.get("handle", "") or ""
+        # Try to extract handle from title if not in GraphQL response
+        if not handle:
+            # The FETCH_PRODUCTS_QUERY might not include handle; check lookup
+            continue
+        for ns_key, mf in prod["metafields"].items():
+            if not mf["value"] or not mf["value"].strip():
+                continue
+            # Skip reference fields
+            if "reference" in mf["type"]:
+                continue
+            progress_key = f"metafield_{mf['id']}"
+            if progress_key in progress:
+                continue
+            metafield_gids.append(mf["id"])
+            metafield_info[mf["id"]] = {
+                "product_handle": handle,
+                "product_title": prod["title"],
+                "key": ns_key,
+                "english": mf["value"],
+                "mf_type": mf["type"],
+            }
+
+    print(f"  Metafields to process: {len(metafield_gids)}")
+    if not metafield_gids:
+        print("  Nothing to do")
+        return
+
+    # Fetch digests for all metafield GIDs
+    print("  Fetching translatable content for metafields...")
+    digest_map = fetch_translatable_resources(client, metafield_gids, ARABIC_LOCALE)
+    print(f"  Got digests for {len(digest_map)} metafields")
+
+    # Match against local Arabic data and build translations
+    local_count = 0
+    gaps = []
+    for mf_gid, info in metafield_info.items():
+        if mf_gid not in digest_map:
+            continue
+        dm = digest_map[mf_gid]
+        english = dm["content"].get("value", {}).get("value", "")
+        digest = dm["content"].get("value", {}).get("digest", "")
+        if not english or not digest:
+            continue
+
+        # Check if already translated
+        existing_ar = dm["translations"].get("value", {}).get("value", "")
+
+        # Look up local Arabic data
+        handle = info["product_handle"]
+        ar_fields = lookup.get(handle, {})
+        ar_value = ar_fields.get(info["key"], "")
+
+        if ar_value:
+            if _is_untranslated(ar_value, english):
+                # Local data is identical to English — needs real translation
+                if ai_fallback and openai_client and not existing_ar:
+                    gaps.append({
+                        "id": f"{mf_gid}|value",
+                        "value": english,
+                        "_digest": digest,
+                        "_mf_gid": mf_gid,
+                        "_info": info,
+                    })
+                continue
+            # Genuinely translated local data — register
+            if "rich_text" in info["mf_type"]:
+                ar_value = sanitize_rich_text_json(ar_value)
+            try:
+                u, e = upload_translations(client, mf_gid, [{
+                    "locale": ARABIC_LOCALE,
+                    "key": "value",
+                    "value": ar_value,
+                    "translatableContentDigest": digest,
+                }])
+                if u:
+                    local_count += u
+                progress[f"metafield_{mf_gid}"] = True
+                save_json(progress, progress_file)
+            except Exception as exc:
+                print(f"    Error registering {info['key']} for {handle}: {exc}")
+        elif ai_fallback and openai_client and not existing_ar:
+            # No local data, no existing translation — add to AI gaps
+            gaps.append({
+                "id": f"{mf_gid}|value",
+                "value": english,
+                "_digest": digest,
+                "_mf_gid": mf_gid,
+                "_info": info,
+            })
+
+    print(f"  Registered {local_count} local metafield translations")
+
+    # AI fallback for gaps
+    if gaps and ai_fallback and openai_client:
+        print(f"  AI fallback: {len(gaps)} metafield gaps to translate...")
+        gap_inputs = [{"id": g["id"], "value": g["value"]} for g in gaps]
+        ai_translations = _translate_gaps_batch(openai_client, model, gap_inputs)
+
+        ai_registered = 0
+        ai_errors = 0
+        for gap in gaps:
+            translated = ai_translations.get(gap["id"])
+            if not translated:
+                continue
+            try:
+                u, e = upload_translations(client, gap["_mf_gid"], [{
+                    "locale": ARABIC_LOCALE,
+                    "key": "value",
+                    "value": translated,
+                    "translatableContentDigest": gap["_digest"],
+                }])
+                ai_registered += u
+                ai_errors += e
+                progress[f"metafield_{gap['_mf_gid']}"] = True
+                save_json(progress, progress_file)
+            except Exception as exc:
+                ai_errors += 1
+                print(f"    AI error: {exc}")
+        print(f"  AI fallback: registered {ai_registered} ({ai_errors} errors)")
+    elif gaps:
+        print(f"  {len(gaps)} metafield gaps need translation but AI fallback not enabled")
 
 
 # =====================================================================
@@ -809,18 +1085,24 @@ def main():
                         help="Use AI (TOON batch) to translate missing fields")
     parser.add_argument("--no-ai-fallback", action="store_true",
                         help="Disable AI fallback (default behavior)")
-    parser.add_argument("--model", default="gpt-5-mini",
-                        help="OpenAI model for AI translation (default: gpt-5-mini)")
+    parser.add_argument("--model", default="gpt-5-nano",
+                        help="OpenAI model for AI translation (default: gpt-5-nano)")
     parser.add_argument("--resource-type", type=str, default=None,
                         choices=list(RESOURCE_TYPE_CONFIG.keys()),
                         help="Only process a single resource type")
     parser.add_argument("--replace-images", action="store_true",
                         help="OCR-scan and replace wrong-language product images")
+    parser.add_argument("--force", action="store_true",
+                        help="Ignore progress file and re-process all resources")
     args = parser.parse_args()
 
     load_dotenv()
     progress_file = "data/arabic_import_progress.json"
-    progress = load_json(progress_file) if os.path.exists(progress_file) else {}
+    if args.force:
+        progress = {}
+        print("  --force: ignoring progress file, re-processing all resources")
+    else:
+        progress = load_json(progress_file) if os.path.exists(progress_file) else {}
 
     # Load local Arabic translation data
     progress_ar_file = os.path.join(AR_DIR, "_translation_progress_ar.json")
@@ -857,17 +1139,26 @@ def main():
         ar_items = load_json(ar_path) if os.path.exists(ar_path) else []
         if isinstance(ar_items, dict):
             ar_items = []
+        # Build handle remap: Arabic handles → English handles (via shared source ID)
+        en_path = os.path.join(EN_DIR, filename)
+        en_items = load_json(en_path) if os.path.exists(en_path) else []
+        if isinstance(en_items, dict):
+            en_items = []
+        handle_remap = _build_handle_remap(ar_items, en_items)
+        if handle_remap:
+            print(f"  {type_prefix}: remapped {len(handle_remap)} Arabic→English handles")
         lookups[type_prefix] = build_local_lookup(
-            progress_ar, type_prefix, ar_items, builder
+            progress_ar, type_prefix, ar_items, builder,
+            handle_remap=handle_remap,
         )
 
     # Process each resource type
     resource_types = [
         ("PRODUCT", lookups.get("prod", {})),
         ("COLLECTION", lookups.get("coll", {})),
-        ("ONLINE_STORE_PAGE", lookups.get("page", {})),
-        ("ONLINE_STORE_ARTICLE", lookups.get("art", {})),
-        ("ONLINE_STORE_BLOG", lookups.get("blog", {})),
+        ("PAGE", lookups.get("page", {})),
+        ("ARTICLE", lookups.get("art", {})),
+        ("BLOG", lookups.get("blog", {})),
         ("METAOBJECT", metaobject_lookup),
     ]
 
@@ -884,6 +1175,15 @@ def main():
             ai_fallback=args.ai_fallback and not args.no_ai_fallback,
         )
 
+    # Product metafield translations (separate METAFIELD resource type)
+    if not args.dry_run and client:
+        if not args.resource_type or args.resource_type == "PRODUCT":
+            _process_product_metafields(
+                client, lookups.get("prod", {}), progress, progress_file,
+                openai_client=openai_client, model=args.model,
+                ai_fallback=args.ai_fallback and not args.no_ai_fallback,
+            )
+
     # Image replacement (separate pass)
     if args.replace_images:
         if args.dry_run:
@@ -898,14 +1198,16 @@ def main():
     articles_done = sum(1 for k in progress if k.startswith("article_"))
     blogs_done = sum(1 for k in progress if k.startswith("blog_"))
     metaobjects_done = sum(1 for k in progress if k.startswith("metaobject_"))
+    metafields_done = sum(1 for k in progress if k.startswith("metafield_"))
 
     print("\n--- Arabic Import Summary ---")
-    print(f"  Products:    {products_done}")
-    print(f"  Collections: {collections_done}")
-    print(f"  Pages:       {pages_done}")
-    print(f"  Articles:    {articles_done}")
-    print(f"  Blogs:       {blogs_done}")
-    print(f"  Metaobjects: {metaobjects_done}")
+    print(f"  Products:      {products_done}")
+    print(f"  Collections:   {collections_done}")
+    print(f"  Pages:         {pages_done}")
+    print(f"  Articles:      {articles_done}")
+    print(f"  Blogs:         {blogs_done}")
+    print(f"  Metaobjects:   {metaobjects_done}")
+    print(f"  Metafields:    {metafields_done}")
     if args.dry_run:
         print("  (dry run — nothing was registered)")
 

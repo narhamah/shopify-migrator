@@ -890,7 +890,7 @@ def main():
     )
     parser.add_argument(
         "--reasoning", default="minimal",
-        choices=["minimal", "low", "medium", "high"],
+        choices=["none", "minimal", "low", "medium", "high", "xhigh"],
         help="Reasoning effort for translation model (default: minimal)",
     )
     parser.add_argument(
@@ -908,6 +908,10 @@ def main():
     parser.add_argument(
         "--save-report", metavar="FILE",
         help="Save audit report to JSON file",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Re-translate ALL fields (including OK ones) with the specified model",
     )
     args = parser.parse_args()
 
@@ -954,11 +958,27 @@ def main():
             json.dump(report, fh, indent=2, ensure_ascii=False)
         print(f"\nReport saved to {args.save_report}")
 
+    # --force: re-translate ALL fields (OK + problems), not just problems
+    if args.force:
+        # Convert ALL classified fields to "problems" for re-translation
+        all_fields = classified  # classified is the full list from run_audit
+        force_problems = []
+        for item in all_fields:
+            english = (item.get("english") or "").strip()
+            if not english:
+                continue
+            # Mark everything as needing re-translation
+            item["status"] = "IDENTICAL"  # forces re-translation path
+            force_problems.append(item)
+        print(f"\n  FORCE MODE: Re-translating ALL {len(force_problems)} fields "
+              f"with {args.model} (reasoning={args.reasoning})")
+        problems = force_problems
+
     if not problems:
         print("\nAll Arabic translations are clean!")
         return
 
-    if args.audit:
+    if args.audit and not args.force:
         print(f"\nAudit complete. {len(problems)} problems found.")
         print("Run without --audit to fix them.")
         return

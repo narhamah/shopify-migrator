@@ -145,7 +145,7 @@ class TranslationEngine:
                     "instructions": self.developer_prompt,
                     "input": user_message,
                 }
-                if self.model.startswith("o") or "nano" in self.model:
+                if self.model.startswith("o") or self.model.startswith("gpt-5"):
                     kwargs["reasoning"] = {"effort": self.reasoning_effort}
 
                 response = self.client.responses.create(**kwargs)

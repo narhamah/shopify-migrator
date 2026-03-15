@@ -26,14 +26,36 @@ class ShopifyClient:
     # --- Low-level helpers ---
 
     def _request_raw(self, method: str, url: str, **kwargs: Any) -> requests.Response:
-        """Send request to any URL with rate-limit retry."""
+        """Send request to any URL with rate-limit and connection error retry."""
+        conn_attempts = 0
         while True:
-            resp = self.session.request(method, url, **kwargs)
+            try:
+                resp = self.session.request(method, url, **kwargs)
+            except (ConnectionError, OSError) as e:
+                conn_attempts += 1
+                if conn_attempts < 4:
+                    wait = 2 ** conn_attempts
+                    logger.warning("  Connection error (attempt %d/4), retrying in %ds: %s",
+                                   conn_attempts, wait, e)
+                    time.sleep(wait)
+                    continue
+                raise
+            conn_attempts = 0  # reset on successful connection
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", 2))
                 logger.warning("  Rate limited. Retrying after %ss...", retry_after)
                 time.sleep(retry_after)
                 continue
+            if resp.status_code == 422:
+                # Include Shopify's validation errors in the exception
+                try:
+                    body = resp.json()
+                    errors = body.get("errors", body)
+                    raise requests.HTTPError(
+                        f"422 Validation Error: {errors}", response=resp
+                    )
+                except (ValueError, KeyError):
+                    pass
             resp.raise_for_status()
             return resp
 
@@ -65,12 +87,22 @@ class ShopifyClient:
         return all_items
 
     def _graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Execute a GraphQL query/mutation with rate-limit handling."""
+        """Execute a GraphQL query/mutation with rate-limit and connection error handling."""
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
-        while True:
-            resp = self.session.post(self.graphql_url, json=payload)
+        max_retries = 4
+        for attempt in range(max_retries):
+            try:
+                resp = self.session.post(self.graphql_url, json=payload)
+            except (ConnectionError, OSError) as e:
+                if attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    logger.warning("  Connection error (attempt %d/%d), retrying in %ds: %s",
+                                   attempt + 1, max_retries, wait, e)
+                    time.sleep(wait)
+                    continue
+                raise
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", 2))
                 logger.warning("  Rate limited (GraphQL). Retrying after %ss...", retry_after)
@@ -909,6 +941,22 @@ class ShopifyClient:
     def delete_redirect(self, redirect_id: int | str) -> None:
         """Delete a URL redirect."""
         self._request("DELETE", f"redirects/{redirect_id}.json")
+
+    # --- REST: Customers ---
+
+    def get_customers(self) -> list[dict[str, Any]]:
+        """Get all customers."""
+        return self._paginate("customers.json", "customers")
+
+    def search_customers(self, query: str) -> list[dict[str, Any]]:
+        """Search customers by query (e.g. email:foo@bar.com)."""
+        data, _ = self._get_json(f"customers/search.json?query={query}")
+        return data.get("customers", [])
+
+    def create_customer(self, customer_data: dict[str, Any]) -> dict[str, Any]:
+        """Create a customer. Set send_email_invite=False to skip invite."""
+        resp = self._request("POST", "customers.json", json={"customer": customer_data})
+        return resp.json().get("customer", {})
 
     # --- REST: Inventory ---
 

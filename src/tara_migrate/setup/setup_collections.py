@@ -176,9 +176,13 @@ def main():
     parser = argparse.ArgumentParser(description="Create collections and link products")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done")
     parser.add_argument("--link-only", action="store_true", help="Skip collection creation, only link products")
-    parser.add_argument("--site", default="https://taraformula.com", help="Magento site URL")
-    parser.add_argument("--store", default="sa-en", help="Store code (default: sa-en)")
+    parser.add_argument("--site", default=None, help="Magento site URL (default: MAGENTO_SITE_URL env)")
+    parser.add_argument("--store", default=None, help="Magento store code (default: MAGENTO_STORE_CODE env)")
     args = parser.parse_args()
+    if not args.site:
+        args.site = config.get_magento_site_url()
+    if not args.store:
+        args.store = config.get_magento_store_code()
 
     shop_url = config.get_dest_shop_url()
     access_token = config.get_dest_access_token()
