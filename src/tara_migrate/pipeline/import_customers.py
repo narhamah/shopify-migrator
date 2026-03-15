@@ -212,6 +212,8 @@ def main():
         "--country",
         help="Filter by country name (comma-separated for multiple, e.g. 'Saudi Arabia,Kuwait')",
     )
+    parser.add_argument("--shop", help="Destination Shopify store URL (overrides DEST_SHOP_URL)")
+    parser.add_argument("--token", help="Destination access token (overrides DEST_ACCESS_TOKEN)")
     parser.add_argument("--dry-run", action="store_true", help="Preview without creating")
     parser.add_argument("--save-json", help="Save filtered customers to JSON file (no Shopify import)")
     parser.add_argument("--delay", type=float, default=0.5, help="Delay between API calls (default: 0.5s)")
@@ -250,16 +252,15 @@ def main():
         return
 
     # Import to Shopify
+    shop_url = args.shop or config.get_dest_shop_url()
+    access_token = args.token or config.get_dest_access_token()
+
     if args.dry_run:
         print("\n=== DRY RUN ===")
     else:
-        shop_url = config.get_dest_shop_url()
-        access_token = config.get_dest_access_token()
         print(f"\nImporting to {shop_url}...")
 
-    client = None if args.dry_run else ShopifyClient(
-        config.get_dest_shop_url(), config.get_dest_access_token()
-    )
+    client = None if args.dry_run else ShopifyClient(shop_url, access_token)
 
     created, skipped, errors = import_customers(
         client, customers, dry_run=args.dry_run, batch_delay=args.delay
