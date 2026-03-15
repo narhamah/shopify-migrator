@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, save_json
+from tara_migrate.tools.validate_addresses import normalize_city
 
 
 def parse_phone(phone_str, country=""):
@@ -188,7 +189,9 @@ def magento_row_to_shopify_customer(row):
     street = (row.get("Street Address") or "").strip()
     # Collapse multiline streets to single line
     street = re.sub(r"\n+", ", ", street)
-    city = _fix_city_case((row.get("City") or "").strip())
+    raw_city = (row.get("City") or "").strip()
+    city, _ = normalize_city(raw_city)
+    city = _fix_city_case(city)
     province = _clean_province((row.get("State/Province") or "").strip(), country_name)
     zipcode = (row.get("ZIP") or "").strip()
     company = (row.get("Company") or "").strip()
