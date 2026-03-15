@@ -315,6 +315,48 @@ def _should_translate_field(key, en_value):
     return True
 
 
+def _is_untranslated(ar_value, en_value):
+    """Detect if a local 'Arabic' value is actually untranslated English.
+
+    Returns True if the Arabic value appears identical to the English original,
+    meaning it was never actually translated and should be sent to AI.
+    Handles both plain text and rich text JSON (compares text content only).
+    """
+    if not ar_value or not en_value:
+        return False
+    a = ar_value.strip()
+    e = en_value.strip()
+
+    # Exact match — definitely untranslated
+    if a == e:
+        return True
+
+    # Case-insensitive match (catches minor case differences)
+    if a.lower() == e.lower():
+        return True
+
+    # For rich text JSON: compare just the text content
+    if a.startswith("{") and e.startswith("{"):
+        import json as _json
+        try:
+            def _extract_text(node):
+                texts = []
+                if isinstance(node, dict):
+                    if node.get("type") == "text":
+                        texts.append(node.get("value", ""))
+                    for child in node.get("children", []):
+                        texts.extend(_extract_text(child))
+                return texts
+            ar_texts = " ".join(_extract_text(_json.loads(a)))
+            en_texts = " ".join(_extract_text(_json.loads(e)))
+            if ar_texts and ar_texts == en_texts:
+                return True
+        except (ValueError, KeyError):
+            pass
+
+    return False
+
+
 def process_resource_type(
     client, resource_type, lookup, progress, progress_file,
     openai_client=None, model="gpt-5-mini", dry_run=False, ai_fallback=False,
@@ -404,13 +446,23 @@ def process_resource_type(
                 continue
 
             if key in ar_fields and ar_fields[key]:
-                # Have local Arabic data
-                local_translations.append({
-                    "key": key,
-                    "value": ar_fields[key],
-                    "locale": ARABIC_LOCALE,
-                    "translatableContentDigest": item["digest"],
-                })
+                ar_val = ar_fields[key]
+                if _is_untranslated(ar_val, en_value):
+                    # Local data is identical to English — needs real translation
+                    if ai_fallback and openai_client:
+                        gaps.append({
+                            "id": f"{gid}|{key}",
+                            "value": en_value,
+                            "_digest": item["digest"],
+                        })
+                else:
+                    # Genuinely translated local data
+                    local_translations.append({
+                        "key": key,
+                        "value": ar_val,
+                        "locale": ARABIC_LOCALE,
+                        "translatableContentDigest": item["digest"],
+                    })
             elif ai_fallback and openai_client:
                 # No local data — add to AI gaps
                 gaps.append({
@@ -420,6 +472,7 @@ def process_resource_type(
                 })
 
         # Register local translations immediately
+        identical_count = 0
         try:
             if local_translations:
                 client.register_translations(gid, ARABIC_LOCALE, local_translations)
@@ -537,12 +590,21 @@ def _process_metaobjects(client, lookup, progress, progress_file,
                 continue
 
             if key in ar_fields and ar_fields[key]:
-                local_translations.append({
-                    "key": key,
-                    "value": ar_fields[key],
-                    "locale": ARABIC_LOCALE,
-                    "translatableContentDigest": item["digest"],
-                })
+                ar_val = ar_fields[key]
+                if _is_untranslated(ar_val, en_value):
+                    if ai_fallback and openai_client:
+                        gaps.append({
+                            "id": f"{gid}|{key}",
+                            "value": en_value,
+                            "_digest": item["digest"],
+                        })
+                else:
+                    local_translations.append({
+                        "key": key,
+                        "value": ar_val,
+                        "locale": ARABIC_LOCALE,
+                        "translatableContentDigest": item["digest"],
+                    })
             elif ai_fallback and openai_client:
                 gaps.append({
                     "id": f"{gid}|{key}",
@@ -783,7 +845,18 @@ def _process_product_metafields(client, lookup, progress, progress_file,
         ar_value = ar_fields.get(info["key"], "")
 
         if ar_value:
-            # Have local Arabic data — register immediately
+            if _is_untranslated(ar_value, english):
+                # Local data is identical to English — needs real translation
+                if ai_fallback and openai_client and not existing_ar:
+                    gaps.append({
+                        "id": f"{mf_gid}|value",
+                        "value": english,
+                        "_digest": digest,
+                        "_mf_gid": mf_gid,
+                        "_info": info,
+                    })
+                continue
+            # Genuinely translated local data — register
             if "rich_text" in info["mf_type"]:
                 ar_value = sanitize_rich_text_json(ar_value)
             try:
@@ -1013,11 +1086,17 @@ def main():
                         help="Only process a single resource type")
     parser.add_argument("--replace-images", action="store_true",
                         help="OCR-scan and replace wrong-language product images")
+    parser.add_argument("--force", action="store_true",
+                        help="Ignore progress file and re-process all resources")
     args = parser.parse_args()
 
     load_dotenv()
     progress_file = "data/arabic_import_progress.json"
-    progress = load_json(progress_file) if os.path.exists(progress_file) else {}
+    if args.force:
+        progress = {}
+        print("  --force: ignoring progress file, re-processing all resources")
+    else:
+        progress = load_json(progress_file) if os.path.exists(progress_file) else {}
 
     # Load local Arabic translation data
     progress_ar_file = os.path.join(AR_DIR, "_translation_progress_ar.json")

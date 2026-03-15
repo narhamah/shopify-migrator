@@ -7,6 +7,7 @@ import pytest
 
 from tara_migrate.pipeline.import_arabic import (
     ARABIC_LOCALE,
+    _is_untranslated,
     build_article_arabic_fields,
     build_collection_arabic_fields,
     build_local_lookup,
@@ -731,6 +732,30 @@ class TestMetaobjectTranslations:
 # ---------------------------------------------------------------------------
 # Image language detection tests
 # ---------------------------------------------------------------------------
+
+class TestIsUntranslated:
+    def test_identical_strings(self):
+        assert _is_untranslated("Date+ Multivitamin", "Date+ Multivitamin") is True
+
+    def test_case_insensitive(self):
+        assert _is_untranslated("detox", "Detox") is True
+
+    def test_arabic_is_translated(self):
+        assert _is_untranslated("التمر والمتعدد الفيتامينات", "Date+ Multivitamin") is False
+
+    def test_empty_values(self):
+        assert _is_untranslated("", "Something") is False
+        assert _is_untranslated("Something", "") is False
+
+    def test_rich_text_identical(self):
+        rt = '{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","value":"Hello"}]}]}'
+        assert _is_untranslated(rt, rt) is True
+
+    def test_rich_text_translated(self):
+        en = '{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","value":"Hello"}]}]}'
+        ar = '{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","value":"مرحبا"}]}]}'
+        assert _is_untranslated(ar, en) is False
+
 
 class TestClassifyImageLanguage:
     def test_import_without_tesseract(self):
