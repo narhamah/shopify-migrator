@@ -65,15 +65,53 @@ def classify_key(key, value):
     val = (value or "").strip()
 
     # ── SYSTEM: Shopify-managed strings (auto-translated by Shopify) ────
-    # Only keys starting with "section." are merchant-entered theme content
-    # (headings, text blocks, buttons in the theme editor). Everything else
-    # is Shopify's built-in locale system — checkout, customer accounts,
-    # pagination, attributes, accessibility, blog strings, etc. — which
-    # Shopify auto-translates when Arabic is enabled as a store locale.
+    # Keys in these namespaces are Shopify platform UI — checkout, customer
+    # accounts, etc. — which Shopify auto-translates when Arabic is enabled.
     # Registering custom translations for these wastes key slots.
-    _MERCHANT_PREFIXES = ("section.", "general.")
-    if not any(key.startswith(p) for p in _MERCHANT_PREFIXES):
-        return "system", "Shopify auto-translated system string"
+    _SHOPIFY_PLATFORM_PREFIXES = (
+        "shopify.",              # Shopify core (checkout, notices, errors, etc.)
+        "customer_accounts.",    # Customer account pages
+    )
+    if any(key.startswith(p) for p in _SHOPIFY_PLATFORM_PREFIXES):
+        return "system", "Shopify platform string (auto-translated)"
+
+    # ── THEME LOCALE: Standard Dawn/theme locale keys ─────────────────
+    # These come from the theme's locale JSON files (e.g. ar.json).
+    # If the theme ships with Arabic translations for these, removing
+    # registered translations is safe (falls back to theme file).
+    # If the theme does NOT have Arabic locale files, these must be kept.
+    _THEME_LOCALE_PREFIXES = (
+        "accessibility.",       # Accessibility labels
+        "actions.",             # Button/action labels
+        "blocks.",             # Block UI strings
+        "blogs.",              # Blog templates
+        "contact.",            # Contact form
+        "content.",            # Content labels (cart, search, etc.)
+        "fields.",             # Form fields
+        "gift_cards.",         # Gift card pages
+        "placeholders.",       # Placeholder text
+        "products.",           # Product template strings
+    )
+    if any(key.startswith(p) for p in _THEME_LOCALE_PREFIXES):
+        return "system", "theme locale string (in ar.json)"
+
+    # ── CUSTOM THEME: Custom section/namespace keys ───────────────────
+    # Keys from custom theme sections (tara.*, sections.*, quiz_results.*)
+    # are NOT auto-translated by Shopify and NOT in standard theme locale
+    # files. These need registered translations to show in Arabic.
+    # Classify based on value content (useful vs junk) below.
+    _CUSTOM_THEME_PREFIXES = (
+        "tara.",               # TARA custom theme namespace
+        "sections.",           # Custom section locale keys (plural!)
+        "quiz_results.",       # Quiz results page
+    )
+    # Note: "section." (singular) = merchant theme-editor content,
+    #       "sections." (plural) = custom section locale keys.
+    # Both are merchant/theme content, not Shopify platform strings.
+
+    # ── MERCHANT CONTENT: section.* (theme editor) + custom theme keys ─
+    # Everything below here is merchant-entered or custom theme content.
+    # Classify based on the VALUE to determine useful vs junk.
 
     # ── JUNK: Empty or whitespace-only ──────────────────────────────────
     if not val:
@@ -613,12 +651,13 @@ def _get_removal_tiers():
          lambda f: f["category"] == "junk"),
         ("Tier 2 — Shopify checkout (built-in Arabic)",
          lambda f: f["category"] == "system" and f["key"].startswith("shopify.checkout.")),
-        ("Tier 3 — Shopify platform strings",
+        ("Tier 3 — Shopify platform strings (shopify.*, customer_accounts.*)",
          lambda f: f["category"] == "system" and (
              f["key"].startswith("shopify.") or
              f["key"].startswith("customer_accounts."))),
-        ("Tier 4 — Theme locale strings",
-         lambda f: f["category"] == "system"),
+        ("Tier 4 — Theme locale strings (accessibility, actions, content, etc.)",
+         lambda f: f["category"] == "system" and f.get("reason", "").startswith(
+             "theme locale")),
     ]
 
 
