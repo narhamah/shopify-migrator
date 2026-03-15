@@ -805,8 +805,8 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
 
     # Accurate token count for the TOON payload using tiktoken
     input_toon_tokens = _count_tokens(toon_input)
-    # Always send 50K max_output — matches our batch sizing
-    est_output_tokens = 50_000
+    # Estimate output: Arabic ≈ 2x input tokens. Don't cap — just inform the API.
+    est_output_tokens = int(input_toon_tokens * 2.0) + 1000
     print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields "
           f"(~{input_toon_tokens:,} input tokens, "
           f"max_output={est_output_tokens:,})...")
