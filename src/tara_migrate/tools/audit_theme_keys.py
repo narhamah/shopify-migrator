@@ -630,36 +630,6 @@ def dedup_translations(client, fields, dry_run=False, locale=LOCALE):
     return removed, errors
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Tiered removal priority
-# ─────────────────────────────────────────────────────────────────────────────
-# Shopify limits registered translations to ~3,400 per locale per theme.
-# Rather than removing ALL system translations (which may have been customized),
-# we remove in tiers — safest first — stopping as soon as we're under the limit.
-#
-# Tier 1: Junk (images, URLs, CSS, etc.) — definitely not translations
-# Tier 2: Shopify checkout strings (shopify.checkout.*) — Shopify's core
-#          platform UI, always has reliable built-in Arabic
-# Tier 3: Shopify platform strings (shopify.*, customer_accounts.*) —
-#          Shopify-managed, built-in translations exist
-# Tier 4: Theme locale strings (accessibility.*, actions.*, content.*,
-#          blocks.*, etc.) — from theme locale files, may have custom work
-
-def _get_removal_tiers():
-    return [
-        ("Tier 1 — Junk (images, URLs, CSS, IDs)",
-         lambda f: f["category"] == "junk"),
-        ("Tier 2 — Shopify checkout (built-in Arabic)",
-         lambda f: f["category"] == "system" and f["key"].startswith("shopify.checkout.")),
-        ("Tier 3 — Shopify platform strings (shopify.*, customer_accounts.*)",
-         lambda f: f["category"] == "system" and (
-             f["key"].startswith("shopify.") or
-             f["key"].startswith("customer_accounts."))),
-        ("Tier 4 — Theme locale strings (accessibility, actions, content, etc.)",
-         lambda f: f["category"] == "system" and f.get("reason", "").startswith(
-             "theme locale")),
-    ]
-
 
 def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
                          locale=LOCALE):
@@ -833,7 +803,7 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
 def main():
     parser = argparse.ArgumentParser(description="Audit theme translation keys")
     parser.add_argument("--remove-junk", action="store_true",
-                        help="Remove junk + minimal system translations to get under limit")
+                        help="Remove ALL junk + system translations (keep only useful)")
     parser.add_argument("--translate", action="store_true",
                         help="Translate missing Arabic theme keys via AI")
     parser.add_argument("--model", default="gpt-5-nano",
@@ -842,8 +812,6 @@ def main():
                         help="Show what would be removed/translated without doing it")
     parser.add_argument("--dump", metavar="FILE",
                         help="Dump all keys to JSON for manual review")
-    parser.add_argument("--target", type=int, default=3400,
-                        help="Target max registered translations (default: 3400)")
     parser.add_argument("--analyze-duplicates", action="store_true",
                         help="Show duplicate English values across section keys")
     parser.add_argument("--analyze-sections", action="store_true",
@@ -908,61 +876,32 @@ def main():
                              dry_run=args.dry_run)
         return
 
-    # Remove translations in tiers until under the limit
+    # Remove all non-useful translations (junk + system)
     if args.remove_junk:
-        registered = sum(1 for f in fields if f["has_translation"])
-        target = args.target
-        need_to_remove = registered - target
+        to_remove = [f for f in fields
+                     if f["has_translation"] and f["category"] != "useful"]
 
-        if need_to_remove <= 0:
-            print(f"\nAlready under the limit ({registered} registered, "
-                  f"target {target}). Nothing to remove.")
+        if not to_remove:
+            print("\nNo junk/system translations to remove.")
             return
 
+        registered = sum(1 for f in fields if f["has_translation"])
+        useful_count = registered - len(to_remove)
+
         print(f"\n{'=' * 70}")
-        print(f"REMOVAL PLAN")
+        print(f"REMOVE JUNK + SYSTEM TRANSLATIONS"
+              + (" (DRY RUN)" if args.dry_run else ""))
         print(f"{'=' * 70}")
-        print(f"  Registered translations: {registered}")
-        print(f"  Target:                  {target}")
-        print(f"  Need to remove:          {need_to_remove}")
+        print(f"  Total registered:    {registered}")
+        print(f"  To remove:           {len(to_remove)}")
+        print(f"  Useful (keeping):    {useful_count}")
 
-        tiers = _get_removal_tiers()
-        to_remove = []
-        already_selected = set()
-
-        for tier_name, tier_filter in tiers:
-            if len(to_remove) >= need_to_remove:
-                break
-
-            tier_candidates = [
-                f for f in fields
-                if f["has_translation"]
-                and tier_filter(f)
-                and id(f) not in already_selected
-            ]
-
-            if not tier_candidates:
-                continue
-
-            # Take only as many as needed from this tier
-            remaining_needed = need_to_remove - len(to_remove)
-            take = tier_candidates[:remaining_needed]
-            to_remove.extend(take)
-            for f in take:
-                already_selected.add(id(f))
-
-            print(f"\n  {tier_name}: {len(take)} translations")
-            if len(take) < len(tier_candidates):
-                print(f"    (only {len(take)} of {len(tier_candidates)} needed)")
-            # Show examples
-            for f in take[:3]:
-                print(f"    {f['key'][:65]}")
-                print(f"      en: {(f['english'] or '')[:50]!r}")
-            if len(take) > 3:
-                print(f"    ... and {len(take) - 3} more")
-
-        print(f"\n  Total to remove: {len(to_remove)}")
-        print(f"  Will remain:     {registered - len(to_remove)}")
+        # Breakdown by category
+        by_cat = defaultdict(int)
+        for f in to_remove:
+            by_cat[f["category"]] += 1
+        for cat, count in sorted(by_cat.items(), key=lambda x: -x[1]):
+            print(f"    {cat}: {count}")
 
         if args.dry_run:
             print(f"\n  (Dry run — no changes made)")
@@ -973,12 +912,8 @@ def main():
         print(f"\n  Removed:   {removed}")
         if errors:
             print(f"  Errors:    {errors}")
-        final = registered - removed
-        print(f"  Remaining: {final}")
-        if final <= target:
-            print(f"  --> Under the {target} limit! Theme translations should work now.")
-        else:
-            print(f"  --> Still {final - target} over the limit.")
+        print(f"  Remaining: {useful_count}")
+        print(f"  --> {3400 - useful_count} free translation slots available")
 
 
 if __name__ == "__main__":
