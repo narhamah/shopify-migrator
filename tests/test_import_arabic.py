@@ -370,13 +370,13 @@ class TestMainProducts:
             json=lambda: {"product": {"id": 9001, "images": []}}
         )
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mc.register_translations.assert_called()
 
@@ -395,13 +395,13 @@ class TestMainProducts:
             ]),
         ]
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mc.register_translations.assert_not_called()
 
@@ -421,13 +421,13 @@ class TestMainProducts:
             ]),
         ]
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         captured = capsys.readouterr()
         assert "no local Arabic data" in captured.out
@@ -452,13 +452,13 @@ class TestMainProducts:
         ]
         mc.register_translations.side_effect = Exception("API error")
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         captured = capsys.readouterr()
         assert "error" in captured.out.lower()
@@ -474,13 +474,13 @@ class TestMainProducts:
         MockClient.return_value = mc
         mc.get_translatable_resources.return_value = []
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         captured = capsys.readouterr()
         assert "Found 0" in captured.out
@@ -516,13 +516,13 @@ class TestMainCollections:
         ]
         mc.register_translations.return_value = []
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mc.register_translations.assert_called()
 
@@ -555,13 +555,13 @@ class TestMainPages:
         ]
         mc.register_translations.return_value = []
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mc.register_translations.assert_called()
 
@@ -598,13 +598,13 @@ class TestMainArticles:
         ]
         mc.register_translations.return_value = []
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mc.register_translations.assert_called()
 
@@ -653,13 +653,13 @@ class TestMainMetaobjects:
         ]
         mc.register_translations.return_value = []
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         mc.register_translations.assert_called()
 
@@ -680,13 +680,13 @@ class TestMainMetaobjects:
             ]),
         ]
 
-        os.environ["SAUDI_SHOP_URL"] = "saudi.myshopify.com"
-        os.environ["SAUDI_ACCESS_TOKEN"] = "tok"
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
         try:
             main()
         finally:
-            del os.environ["SAUDI_SHOP_URL"]
-            del os.environ["SAUDI_ACCESS_TOKEN"]
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
 
         captured = capsys.readouterr()
         assert "Found 1 translatable metaobjects" in captured.out

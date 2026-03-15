@@ -71,8 +71,8 @@ class TestExportMain:
         mock_client.get_discount_codes.return_value = []
         mock_client.get_policies.return_value = []
 
-        os.environ["SPAIN_SHOP_URL"] = "spain.myshopify.com"
-        os.environ["SPAIN_ACCESS_TOKEN"] = "tok"
+        os.environ["SOURCE_SHOP_URL"] = "source-test.myshopify.com"
+        os.environ["SOURCE_ACCESS_TOKEN"] = "tok"
 
         # Patch the output dir to use tmp_path
         with patch("tara_migrate.pipeline.export_spain.os.makedirs"):
@@ -88,8 +88,8 @@ class TestExportMain:
         # Verify articles got _blog_id attached
         mock_client.get_articles.assert_called_once_with(30)
 
-        del os.environ["SPAIN_SHOP_URL"]
-        del os.environ["SPAIN_ACCESS_TOKEN"]
+        del os.environ["SOURCE_SHOP_URL"]
+        del os.environ["SOURCE_ACCESS_TOKEN"]
 
     @patch("tara_migrate.pipeline.export_spain.load_dotenv")
     @patch("tara_migrate.pipeline.export_spain.ShopifyClient")
@@ -108,11 +108,11 @@ class TestExportMain:
         mock_client.get_price_rules.return_value = []
         mock_client.get_policies.return_value = []
 
-        os.environ["SPAIN_SHOP_URL"] = "spain.myshopify.com"
-        os.environ["SPAIN_ACCESS_TOKEN"] = "tok"
+        os.environ["SOURCE_SHOP_URL"] = "source-test.myshopify.com"
+        os.environ["SOURCE_ACCESS_TOKEN"] = "tok"
         main()
-        del os.environ["SPAIN_SHOP_URL"]
-        del os.environ["SPAIN_ACCESS_TOKEN"]
+        del os.environ["SOURCE_SHOP_URL"]
+        del os.environ["SOURCE_ACCESS_TOKEN"]
 
         mock_client.get_metafields.assert_not_called()
         mock_client.get_articles.assert_not_called()

@@ -1289,8 +1289,8 @@ class TestMainCLI:
     @patch("tara_migrate.tools.review_arabic.ShopifyClient")
     @patch("tara_migrate.tools.review_arabic.load_dotenv")
     @patch.dict("os.environ", {
-        "SAUDI_SHOP_URL": "test.myshopify.com",
-        "SAUDI_ACCESS_TOKEN": "shpat_test",
+        "DEST_SHOP_URL": "test.myshopify.com",
+        "DEST_ACCESS_TOKEN": "shpat_test",
     })
     def test_type_filter(self, mock_dotenv, mock_client_cls, mock_anthropic,
                          mock_audit):
@@ -1308,8 +1308,8 @@ class TestMainCLI:
     @patch("tara_migrate.tools.review_arabic.ShopifyClient")
     @patch("tara_migrate.tools.review_arabic.load_dotenv")
     @patch.dict("os.environ", {
-        "SAUDI_SHOP_URL": "test.myshopify.com",
-        "SAUDI_ACCESS_TOKEN": "shpat_test",
+        "DEST_SHOP_URL": "test.myshopify.com",
+        "DEST_ACCESS_TOKEN": "shpat_test",
     })
     def test_multiple_type_filter(self, mock_dotenv, mock_client_cls,
                                    mock_anthropic, mock_audit):
@@ -1331,8 +1331,8 @@ class TestMainCLI:
     @patch("tara_migrate.tools.review_arabic.ShopifyClient")
     @patch("tara_migrate.tools.review_arabic.load_dotenv")
     @patch.dict("os.environ", {
-        "SAUDI_SHOP_URL": "test.myshopify.com",
-        "SAUDI_ACCESS_TOKEN": "shpat_test",
+        "DEST_SHOP_URL": "test.myshopify.com",
+        "DEST_ACCESS_TOKEN": "shpat_test",
     })
     def test_default_resource_types(self, mock_dotenv, mock_client_cls,
                                      mock_anthropic, mock_audit):
@@ -1356,8 +1356,8 @@ class TestMainCLI:
     @patch("tara_migrate.tools.review_arabic.ShopifyClient")
     @patch("tara_migrate.tools.review_arabic.load_dotenv")
     @patch.dict("os.environ", {
-        "SAUDI_SHOP_URL": "test.myshopify.com",
-        "SAUDI_ACCESS_TOKEN": "shpat_test",
+        "DEST_SHOP_URL": "test.myshopify.com",
+        "DEST_ACCESS_TOKEN": "shpat_test",
     })
     def test_skip_semantic_flag(self, mock_dotenv, mock_client_cls,
                                  mock_anthropic, mock_audit):
@@ -1375,8 +1375,8 @@ class TestMainCLI:
     @patch("tara_migrate.tools.review_arabic.ShopifyClient")
     @patch("tara_migrate.tools.review_arabic.load_dotenv")
     @patch.dict("os.environ", {
-        "SAUDI_SHOP_URL": "test.myshopify.com",
-        "SAUDI_ACCESS_TOKEN": "shpat_test",
+        "DEST_SHOP_URL": "test.myshopify.com",
+        "DEST_ACCESS_TOKEN": "shpat_test",
     })
     def test_audit_flag_no_fix(self, mock_dotenv, mock_client_cls,
                                 mock_anthropic, mock_audit):
@@ -1399,8 +1399,8 @@ class TestMainCLI:
     @patch("tara_migrate.tools.review_arabic.ShopifyClient")
     @patch("tara_migrate.tools.review_arabic.load_dotenv")
     @patch.dict("os.environ", {
-        "SAUDI_SHOP_URL": "test.myshopify.com",
-        "SAUDI_ACCESS_TOKEN": "shpat_test",
+        "DEST_SHOP_URL": "test.myshopify.com",
+        "DEST_ACCESS_TOKEN": "shpat_test",
     })
     def test_dry_run_flag(self, mock_dotenv, mock_client_cls, mock_anthropic,
                            mock_load_prompt, mock_engine_cls, mock_audit,
@@ -1429,8 +1429,8 @@ class TestMainCLI:
     @patch("tara_migrate.tools.review_arabic.ShopifyClient")
     @patch("tara_migrate.tools.review_arabic.load_dotenv")
     @patch.dict("os.environ", {
-        "SAUDI_SHOP_URL": "test.myshopify.com",
-        "SAUDI_ACCESS_TOKEN": "shpat_test",
+        "DEST_SHOP_URL": "test.myshopify.com",
+        "DEST_ACCESS_TOKEN": "shpat_test",
     })
     def test_no_verify_flag(self, mock_dotenv, mock_client_cls, mock_anthropic,
                              mock_load_prompt, mock_engine_cls, mock_audit,

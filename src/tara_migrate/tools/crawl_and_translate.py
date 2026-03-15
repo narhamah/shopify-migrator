@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
+from tara_migrate.core import config
 from tara_migrate.core.language import is_arabic_visible_text
 from tara_migrate.tools.audit_theme_keys import (
     fetch_theme_keys,
@@ -777,8 +778,8 @@ def main():
         print(f"  Loaded {len(theme_fields)} theme keys from {keys_file}")
     else:
         client = ShopifyClient(
-            os.environ["SAUDI_SHOP_URL"],
-            os.environ["SAUDI_ACCESS_TOKEN"],
+            config.get_dest_shop_url(),
+            config.get_dest_access_token(),
         )
         theme_fields = fetch_theme_keys(client)
         # Save for reuse
@@ -841,8 +842,8 @@ def main():
         client
     except NameError:
         client = ShopifyClient(
-            os.environ["SAUDI_SHOP_URL"],
-            os.environ["SAUDI_ACCESS_TOKEN"],
+            config.get_dest_shop_url(),
+            config.get_dest_access_token(),
         )
 
     # ── Step 4: Remove unmatched translations (free slots) ────────────────

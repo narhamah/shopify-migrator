@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Fix existing redirect targets on the Saudi store.
+"""Fix existing redirect targets on the destination store.
 
 If redirects were already created with Spanish handles as targets,
-this script fetches all redirects from the Saudi store, remaps their
+this script fetches all redirects from the destination store, remaps their
 targets using the old→new handle mapping, and updates them.
 
 Usage:
@@ -16,19 +16,20 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
+from tara_migrate.core import config
 from tara_migrate.pipeline.post_migration import _build_handle_remap, _remap_redirect_target
 
 
 def main():
     load_dotenv()
-    parser = argparse.ArgumentParser(description="Fix redirect targets on Saudi store")
+    parser = argparse.ArgumentParser(description="Fix redirect targets on destination store")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done")
     args = parser.parse_args()
 
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN must be set in .env")
         return
 
     client = ShopifyClient(shop_url, access_token)
@@ -40,8 +41,8 @@ def main():
         print("No handle changes detected — nothing to fix.")
         return
 
-    # Fetch all existing redirects from Saudi store
-    print("Fetching existing redirects from Saudi store...")
+    # Fetch all existing redirects from destination store
+    print("Fetching existing redirects from destination store...")
     redirects = client.get_redirects()
     print(f"Found {len(redirects)} redirects")
 

@@ -55,6 +55,7 @@ from tara_migrate.core.shopify_fields import TRANSLATABLE_RESOURCE_TYPES
 from tara_migrate.tools.patch_spanish import is_spanish
 from tara_migrate.tools.review_content import has_html_bloat, strip_html_bloat, _ai_is_spanish
 from tara_migrate.translation.engine import TranslationEngine, load_developer_prompt
+from tara_migrate.core import config
 
 LOCALE = "ar"
 
@@ -860,7 +861,7 @@ def run_verify(client, resource_types, haiku_client, haiku_model,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Review & fix Arabic translations on Saudi Shopify store",
+        description="Review & fix Arabic translations on destination Shopify store",
     )
     parser.add_argument(
         "--audit", action="store_true",
@@ -911,10 +912,10 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: Set SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN in .env")
+        print("ERROR: Set DEST_SHOP_URL and DEST_ACCESS_TOKEN in .env")
         sys.exit(1)
 
     client = ShopifyClient(shop_url, access_token)

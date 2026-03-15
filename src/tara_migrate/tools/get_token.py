@@ -70,7 +70,7 @@ def main():
         print(f"ACCESS TOKEN: {token}")
         print(f"{'='*60}")
         print("\nAdd this to your .env file:")
-        print(f"  SAUDI_ACCESS_TOKEN={token}")
+        print(f"  DEST_ACCESS_TOKEN={token}")
     else:
         print(f"\nError {resp.status_code}: {resp.text}")
 

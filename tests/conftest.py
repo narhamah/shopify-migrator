@@ -177,6 +177,6 @@ def make_id_map():
 @pytest.fixture
 def tmp_data_dir(tmp_path):
     """Create a tmp directory structure mimicking data/."""
-    for subdir in ["spain_export", "english", "arabic"]:
+    for subdir in ["source_export", "english", "arabic"]:
         (tmp_path / subdir).mkdir()
     return tmp_path

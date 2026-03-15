@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Step 1: Export all content from the Spain Shopify store.
+"""Step 1: Export all content from the source Shopify store.
 
 Exports products (with metafields), collections, pages, blogs, articles
 (with metafields), and metaobjects (definitions + entries).
@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import save_json
+from tara_migrate.core import config, save_json
 
 
 def ensure_dir(path):
@@ -19,11 +19,11 @@ def ensure_dir(path):
 
 def main():
     load_dotenv()
-    shop_url = os.environ["SPAIN_SHOP_URL"]
-    access_token = os.environ["SPAIN_ACCESS_TOKEN"]
+    shop_url = config.get_source_shop_url()
+    access_token = config.get_source_access_token()
 
     client = ShopifyClient(shop_url, access_token)
-    output_dir = "data/spain_export"
+    output_dir = "data/source_export"
     ensure_dir(output_dir)
 
     # Shop info (optional — may fail if read_shop scope is missing)

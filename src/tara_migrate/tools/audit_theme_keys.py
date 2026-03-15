@@ -29,6 +29,7 @@ from collections import Counter, defaultdict
 from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
+from tara_migrate.core import config
 from tara_migrate.core.graphql_queries import TRANSLATABLE_RESOURCES_QUERY
 
 LOCALE = "ar"
@@ -1012,8 +1013,8 @@ def main():
 
     load_dotenv()
     client = ShopifyClient(
-        os.environ["SAUDI_SHOP_URL"],
-        os.environ["SAUDI_ACCESS_TOKEN"],
+        config.get_dest_shop_url(),
+        config.get_dest_access_token(),
     )
 
     # Clean ar.json locale file

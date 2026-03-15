@@ -597,12 +597,12 @@ def main():
         help="Output path for cleaned CSV (default: <input>_clean.csv)",
     )
     parser.add_argument(
-        "--shop-url-env", default="SAUDI_SHOP_URL",
-        help="Env var for shop URL (default: SAUDI_SHOP_URL)",
+        "--shop-url-env", default="DEST_SHOP_URL",
+        help="Env var for shop URL (default: DEST_SHOP_URL)",
     )
     parser.add_argument(
-        "--token-env", default="SAUDI_ACCESS_TOKEN",
-        help="Env var for access token (default: SAUDI_ACCESS_TOKEN)",
+        "--token-env", default="DEST_ACCESS_TOKEN",
+        help="Env var for access token (default: DEST_ACCESS_TOKEN)",
     )
     args = parser.parse_args()
 

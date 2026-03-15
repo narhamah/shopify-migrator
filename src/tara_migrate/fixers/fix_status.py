@@ -17,7 +17,7 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import load_json, save_json
+from tara_migrate.core import config, load_json, save_json
 
 
 def main():
@@ -27,8 +27,8 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    shop_url = os.environ["SAUDI_SHOP_URL"]
-    access_token = os.environ["SAUDI_ACCESS_TOKEN"]
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     client = ShopifyClient(shop_url, access_token)
 
     print("Fetching all products from Shopify...")

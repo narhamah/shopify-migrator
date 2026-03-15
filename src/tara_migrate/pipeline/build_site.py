@@ -28,6 +28,8 @@ import time
 
 from dotenv import load_dotenv
 
+from tara_migrate.core import config
+
 # Phase registry: number → (name, function, description, langs)
 # langs: which --lang values include this phase ("en", "ar", "all")
 PHASES = {}
@@ -53,10 +55,10 @@ def phase_translate_english(dry_run=False, **kw):
     print("PHASE 1: Translate Spanish → English")
     print("=" * 60)
 
-    from tara_migrate.translation.translate_gaps import EN_DIR, SPAIN_DIR, translate_with_gaps
+    from tara_migrate.translation.translate_gaps import EN_DIR, SOURCE_DIR, translate_with_gaps
 
     translate_with_gaps(
-        source_dir=SPAIN_DIR,
+        source_dir=SOURCE_DIR,
         output_dir=EN_DIR,
         source_lang="Spanish",
         target_lang="English",
@@ -111,7 +113,7 @@ def phase_fix_prices(dry_run=False, **kw):
 # =========================================================================
 
 @phase(3, "Import English Content",
-       "Create all resources (products, collections, pages, metaobjects) in Saudi store",
+       "Create all resources (products, collections, pages, metaobjects) in destination store",
        langs=("en", "all"))
 def phase_import_english(dry_run=False, **kw):
     print("\n" + "=" * 60)
@@ -153,7 +155,7 @@ def phase_translate_arabic(dry_run=False, **kw):
 # =========================================================================
 
 @phase(5, "Import Arabic Translations",
-       "Register Arabic as secondary locale on all Saudi store resources",
+       "Register Arabic as secondary locale on all destination store resources",
        langs=("ar", "all"))
 def phase_import_arabic(dry_run=False, **kw):
     print("\n" + "=" * 60)
@@ -262,7 +264,7 @@ def main():
 Phases (in execution order):
   1  Translate ES → EN    [en]   Scrape-first translation (TOON batched)
   2  Fix SAR Prices       [en]   Fetch Magento prices, update data + Shopify
-  3  Import English       [en]   Create resources in Saudi store
+  3  Import English       [en]   Create resources in destination store
   4  Translate EN → AR    [ar]   Scrape-first translation (TOON batched)
   5  Import Arabic        [ar]   Register translations via Translations API
   6  Migrate All Images   [en]   Product, collection, homepage, metaobject, article
@@ -317,18 +319,18 @@ Examples:
             sys.exit(1)
 
     # Connect to stores
-    saudi_url = os.environ.get("SAUDI_SHOP_URL")
-    saudi_token = os.environ.get("SAUDI_ACCESS_TOKEN")
-    spain_url = os.environ.get("SPAIN_SHOP_URL")
-    spain_token = os.environ.get("SPAIN_ACCESS_TOKEN")
+    dest_url = config.get_dest_shop_url()
+    dest_token = config.get_dest_access_token()
+    source_url = config.get_source_shop_url()
+    source_token = config.get_source_access_token()
 
-    if not all([saudi_url, saudi_token, spain_url, spain_token]):
-        print("ERROR: Set SPAIN_SHOP_URL, SPAIN_ACCESS_TOKEN, SAUDI_SHOP_URL, SAUDI_ACCESS_TOKEN in .env")
+    if not all([dest_url, dest_token, source_url, spain_token]):
+        print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         sys.exit(1)
 
     from tara_migrate.client import ShopifyClient
-    saudi = ShopifyClient(saudi_url, saudi_token)
-    spain = ShopifyClient(spain_url, spain_token)
+    saudi = ShopifyClient(dest_url, dest_token)
+    source = ShopifyClient(source_url, source_token)
 
     print("=" * 60)
     print(f"BUILD SITE: Saudi Shopify Store ({lang.upper()})")

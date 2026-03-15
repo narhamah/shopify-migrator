@@ -287,7 +287,7 @@ def main():
 
     print("\n  Re-running translate_gaps.py to rebuild output files...")
     translate_with_gaps(
-        source_dir="data/spain_export",
+        source_dir="data/source_export",
         output_dir="data/english",
         source_lang="Spanish",
         target_lang="English",

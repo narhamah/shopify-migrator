@@ -20,7 +20,7 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import load_json, sanitize_rich_text_json, save_json
+from tara_migrate.core import config, load_json, sanitize_rich_text_json, save_json
 from tara_migrate.core.utils import ascii_slugify as _ascii_slugify
 
 
@@ -117,7 +117,7 @@ def prepare_product_for_import(product, sar_prices=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Import English content into Saudi Shopify store")
+    parser = argparse.ArgumentParser(description="Import English content into destination Shopify store")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be created without making API calls")
     parser.add_argument("--reset", action="store_true", help="Clear id_map and progress files for a fresh import")
     args = parser.parse_args()
@@ -141,8 +141,8 @@ def main():
         print("=== DRY RUN MODE — no API calls will be made ===\n")
         client = None
     else:
-        shop_url = os.environ["SAUDI_SHOP_URL"]
-        access_token = os.environ["SAUDI_ACCESS_TOKEN"]
+        shop_url = config.get_dest_shop_url()
+        access_token = config.get_dest_access_token()
         client = ShopifyClient(shop_url, access_token)
 
     # Fetch SAR prices from Saudi Magento store
@@ -428,8 +428,8 @@ def main():
     if not args.dry_run:
         try:
             # Load Spain definitions (exported by export_spain.py)
-            spain_defs_file = os.path.join("data", "spain_export", "product_metafield_definitions.json")
-            spain_defs = load_json(spain_defs_file) if os.path.exists(spain_defs_file) else []
+            source_defs_file = os.path.join("data", "spain_export", "product_metafield_definitions.json")
+            source_defs = load_json(source_defs_file) if os.path.exists(source_defs_file) else []
 
             # Fetch destination definitions
             dest_product_defs = client.get_metafield_definitions("PRODUCT")
@@ -438,7 +438,7 @@ def main():
                 dest_mf_def_map[(d["namespace"], d["key"])] = d["id"]
 
             # Map Spain GID → dest GID by matching namespace.key
-            for sd in spain_defs:
+            for sd in source_defs:
                 nk = (sd["namespace"], sd["key"])
                 if nk in dest_mf_def_map:
                     spain_def_gid_to_dest[sd["id"]] = dest_mf_def_map[nk]
@@ -481,7 +481,7 @@ def main():
 
         try:
             if is_smart:
-                # Remap smart collection rule GIDs from Spain → destination
+                # Remap smart collection rule GIDs from source → destination
                 remapped_rules = []
                 skip_collection = False
                 for rule in collection.get("rules", []):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch SAR prices from the Saudi store view and update product data + Shopify.
+"""Fetch SAR prices from the destination store view and update product data + Shopify.
 
 Fetches prices from taraformula.com with store code sa-en (Saudi Arabia),
 updates the local product JSON files, and optionally updates already-imported
@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 from tara_migrate.core import AR_DIR, EN_DIR, REQUEST_DELAY, load_json, save_json
 from tara_migrate.core import MAGENTO_HEADERS as HEADERS
+from tara_migrate.core import config
 
 
 def fetch_sar_prices(site_url, store_code, delay=REQUEST_DELAY):
@@ -155,10 +156,10 @@ def update_shopify_products(prices):
     """Update prices on already-imported Shopify products."""
     from tara_migrate.client import ShopifyClient
 
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN must be set in .env")
         return
 
     client = ShopifyClient(shop_url, access_token)
@@ -234,10 +235,10 @@ def update_shopify_by_handle(manual_prices):
     """Update Shopify product prices by handle for products not in Magento."""
     from tara_migrate.client import ShopifyClient
 
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN must be set in .env")
         return 0
 
     client = ShopifyClient(shop_url, access_token)

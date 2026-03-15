@@ -933,8 +933,8 @@ def main():
     parser.add_argument("--fix-misaligned", action="store_true", help="Skip misaligned translations (upload mode)")
     parser.add_argument("--force", action="store_true", help="Upload even without Arabic (upload mode)")
     parser.add_argument("--batch-size", type=int, default=10, help="Resources per batch (upload mode)")
-    parser.add_argument("--shop-url-env", default="SAUDI_SHOP_URL", help="Env var for shop URL")
-    parser.add_argument("--token-env", default="SAUDI_ACCESS_TOKEN", help="Env var for access token")
+    parser.add_argument("--shop-url-env", default="DEST_SHOP_URL", help="Env var for shop URL")
+    parser.add_argument("--token-env", default="DEST_ACCESS_TOKEN", help="Env var for access token")
     args = parser.parse_args()
 
     load_dotenv()

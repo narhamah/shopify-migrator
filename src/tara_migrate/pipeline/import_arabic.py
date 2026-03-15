@@ -2,7 +2,7 @@
 """Step 5: Import Arabic translations into the Saudi Shopify store.
 
 Uses the Shopify Translations API to register Arabic translations for all
-resources on the Saudi store. Queries the store for translatable resources,
+resources on the destination store. Queries the store for translatable resources,
 matches against local Arabic data, and optionally uses AI (TOON batch)
 to fill gaps.
 
@@ -16,7 +16,7 @@ Usage:
 Prerequisites:
   - data/arabic/_translation_progress_ar.json — flat key-value Arabic translations
   - data/arabic/*.json — full Arabic content (body_html, images, etc.)
-  - The Saudi store must have Arabic (ar) enabled as a locale
+  - The destination store must have Arabic (ar) enabled as a locale
 """
 
 import argparse
@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import load_json, sanitize_rich_text_json, save_json
-from tara_migrate.core.config import AR_DIR, EN_DIR, ID_MAP_FILE
+from tara_migrate.core.config import AR_DIR, EN_DIR, ID_MAP_FILE, get_dest_access_token, get_dest_shop_url
 
 ARABIC_LOCALE = "ar"
 
@@ -652,7 +652,7 @@ def _translate_gaps_batch(openai_client, model, gaps):
 def _run_image_replacement(client, dry_run=False):
     """OCR-scan all product images and replace wrong-language ones.
 
-    Downloads each product image from the Saudi store, runs OCR to detect
+    Downloads each product image from the destination store, runs OCR to detect
     text language, and replaces images with English/Spanish text using
     the Arabic version from taraformula.ae.
     """
@@ -701,7 +701,7 @@ def _run_image_replacement(client, dry_run=False):
         if not ar_images:
             continue
 
-        # Get current images from Saudi store
+        # Get current images from destination store
         try:
             img_resp = client._request("GET", f"products/{dest_id}.json",
                                        params={"fields": "id,images,handle"})
@@ -801,7 +801,7 @@ def _run_image_replacement(client, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Import Arabic translations into Saudi Shopify store"
+        description="Import Arabic translations into destination Shopify store"
     )
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without making API calls")
@@ -830,8 +830,8 @@ def main():
         print("=== DRY RUN MODE — no API calls will be made ===\n")
         client = None
     else:
-        shop_url = os.environ["SAUDI_SHOP_URL"]
-        access_token = os.environ["SAUDI_ACCESS_TOKEN"]
+        shop_url = get_dest_shop_url()
+        access_token = get_dest_access_token()
         client = ShopifyClient(shop_url, access_token)
 
     # Set up AI client if needed

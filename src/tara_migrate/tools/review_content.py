@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Review and fix English content on the Saudi Shopify store.
 
-Connects directly to the Saudi store and audits ALL content for:
+Connects directly to the destination store and audits ALL content for:
   1. Remaining Spanish text → translates to English via OpenAI
   2. HTML bloat → strips all unnecessary HTML (styles, scripts, data-*, junk attrs)
 
@@ -33,6 +33,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
+from tara_migrate.core import config
 from tara_migrate.core.rich_text import extract_text_nodes, rebuild, is_rich_text_json
 from tara_migrate.tools.patch_spanish import is_spanish
 from tara_migrate.translation.translator import (
@@ -1440,7 +1441,7 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Review & fix ALL English content on Saudi Shopify store")
+        description="Review & fix ALL English content on destination Shopify store")
     parser.add_argument("--audit", action="store_true",
                         help="Audit only — report issues without fixing")
     parser.add_argument("--dry-run", action="store_true",
@@ -1467,10 +1468,10 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    shop_url = os.environ.get("SAUDI_SHOP_URL")
-    access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
     if not shop_url or not access_token:
-        print("ERROR: Set SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN in .env")
+        print("ERROR: Set DEST_SHOP_URL and DEST_ACCESS_TOKEN in .env")
         sys.exit(1)
 
     # Set audit model globally so has_spanish_text/has_spanish_content use it

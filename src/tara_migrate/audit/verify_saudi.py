@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Saudi store data completeness and correctness.
+"""Verify destination store data completeness and correctness.
 
 Checks all migrated data via the Shopify API and reports issues.
 
@@ -13,7 +13,7 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import load_json
+from tara_migrate.core import config, load_json
 
 
 def check_products(saudi, id_map):
@@ -23,7 +23,7 @@ def check_products(saudi, id_map):
     print(f"  ID map has {len(product_map)} product mappings")
 
     products = saudi.get_products()
-    print(f"  Saudi store has {len(products)} products")
+    print(f"  destination store has {len(products)} products")
 
     issues = []
     for p in products:
@@ -69,7 +69,7 @@ def check_collections(saudi, id_map):
     print(f"  ID map has {len(collection_map)} collection mappings")
 
     collections = saudi.get_collections()
-    print(f"  Saudi store has {len(collections)} collections")
+    print(f"  destination store has {len(collections)} collections")
 
     issues = []
     for c in collections:
@@ -87,7 +87,7 @@ def check_collections(saudi, id_map):
         if collections:
             print("  All collections OK")
         else:
-            print("  WARNING: No collections found on Saudi store!")
+            print("  WARNING: No collections found on destination store!")
 
     return collections
 
@@ -96,11 +96,11 @@ def check_pages(saudi):
     """Check pages exist."""
     print("\n=== PAGES ===")
     pages = saudi.get_pages()
-    print(f"  Saudi store has {len(pages)} pages")
+    print(f"  destination store has {len(pages)} pages")
     for p in pages:
         print(f"    - {p.get('title', '')} (/{p.get('handle', '')})")
     if not pages:
-        print("  WARNING: No pages found on Saudi store!")
+        print("  WARNING: No pages found on destination store!")
     return pages
 
 
@@ -108,14 +108,14 @@ def check_blogs_articles(saudi):
     """Check blogs and articles."""
     print("\n=== BLOGS & ARTICLES ===")
     blogs = saudi.get_blogs()
-    print(f"  Saudi store has {len(blogs)} blogs")
+    print(f"  destination store has {len(blogs)} blogs")
     total_articles = 0
     for b in blogs:
         articles = saudi.get_articles(b["id"])
         total_articles += len(articles)
         print(f"    - {b.get('title', '')} (/{b.get('handle', '')}): {len(articles)} articles")
     if not blogs:
-        print("  WARNING: No blogs found on Saudi store!")
+        print("  WARNING: No blogs found on destination store!")
     return blogs, total_articles
 
 
@@ -124,7 +124,7 @@ def check_menus(saudi):
     print("\n=== NAVIGATION MENUS ===")
     try:
         menus = saudi.get_menus()
-        print(f"  Saudi store has {len(menus)} menus")
+        print(f"  destination store has {len(menus)} menus")
         for m in menus:
             items = m.get("items", [])
             print(f"    - {m.get('title', '')} ({m.get('handle', '')}): {len(items)} items")
@@ -143,7 +143,7 @@ def check_metaobjects(saudi, id_map):
     print("\n=== METAOBJECTS ===")
 
     defs = saudi.get_metaobject_definitions()
-    print(f"  {len(defs)} definitions on Saudi store")
+    print(f"  {len(defs)} definitions on destination store")
 
     issues = []
     for defn in defs:
@@ -325,14 +325,14 @@ def check_publications(saudi):
 
 def main():
     load_dotenv()
-    saudi_url = os.environ.get("SAUDI_SHOP_URL")
-    saudi_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    dest_url = config.get_dest_shop_url()
+    dest_token = config.get_dest_access_token()
 
-    if not saudi_url or not saudi_token:
-        print("ERROR: Set SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN in .env")
+    if not dest_url or not saudi_token:
+        print("ERROR: Set DEST_SHOP_URL and DEST_ACCESS_TOKEN in .env")
         return
 
-    saudi = ShopifyClient(saudi_url, saudi_token)
+    saudi = ShopifyClient(dest_url, dest_token)
     id_map = load_json("data/id_map.json") if os.path.exists("data/id_map.json") else {}
 
     print("=" * 60)

@@ -595,10 +595,10 @@ def main():
                         help="CSV file for theme re-upload")
     parser.add_argument("--prompt", default=None,
                         help="Path to developer prompt file")
-    parser.add_argument("--shop-url-env", default="SAUDI_SHOP_URL",
-                        help="Env var name for shop URL (default: SAUDI_SHOP_URL)")
-    parser.add_argument("--token-env", default="SAUDI_ACCESS_TOKEN",
-                        help="Env var name for access token (default: SAUDI_ACCESS_TOKEN)")
+    parser.add_argument("--shop-url-env", default="DEST_SHOP_URL",
+                        help="Env var name for shop URL (default: DEST_SHOP_URL)")
+    parser.add_argument("--token-env", default="DEST_ACCESS_TOKEN",
+                        help="Env var name for access token (default: DEST_ACCESS_TOKEN)")
     parser.add_argument("--metaobject-types", nargs="+",
                         default=["ingredient", "benefit", "faq_entry"],
                         help="Metaobject types to fix (default: ingredient benefit faq_entry)")

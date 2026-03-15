@@ -1,8 +1,8 @@
-# CLAUDE.md — TARA Shopify Store Migration
+# CLAUDE.md — Shopify Store Migration Toolkit
 
 ## Project Overview
 
-Python CLI pipeline migrating the **TARA luxury scalp-care** Shopify store from **Spain (Spanish)** to **Saudi Arabia (English primary + Arabic secondary)**. Handles products, collections, pages, blogs, articles, metaobjects, translations, images, menus, redirects, and post-migration config.
+Generic Python CLI pipeline for **Shopify store-to-store migration**. Originally built for TARA luxury scalp-care (Spain → Saudi Arabia), now supports migrating any Shopify store to multiple destinations. Handles products, collections, pages, blogs, articles, metaobjects, translations, images, menus, redirects, and post-migration config. Env vars `SOURCE_SHOP_URL`/`DEST_SHOP_URL` control which stores are source and destination.
 
 ## Architecture
 
@@ -59,19 +59,25 @@ All logic lives in `src/tara_migrate/`. Tests import from there too. No standalo
 ## Environment Variables
 
 ```
-SPAIN_SHOP_URL=xxx.myshopify.com
-SPAIN_ACCESS_TOKEN=shpat_xxx
-SAUDI_SHOP_URL=xxx.myshopify.com
-SAUDI_ACCESS_TOKEN=shpat_xxx
+# Source store (migrating FROM)
+SOURCE_SHOP_URL=xxx.myshopify.com
+SOURCE_ACCESS_TOKEN=shpat_xxx
+
+# Destination store (migrating TO)
+DEST_SHOP_URL=xxx.myshopify.com
+DEST_ACCESS_TOKEN=shpat_xxx
+
 OPENAI_API_KEY=sk-xxx
 ANTHROPIC_API_KEY=sk-ant-xxx
 ```
+
+Legacy env var names (`SPAIN_SHOP_URL`/`SPAIN_ACCESS_TOKEN`, `SAUDI_SHOP_URL`/`SAUDI_ACCESS_TOKEN`) are still supported for backwards compatibility.
 
 ## Data Pipeline
 
 ```
 data/
-  spain_export/    ← Raw export from Spain store (products, collections, metaobjects, etc.)
+  source_export/   ← Raw export from source store (products, collections, metaobjects, etc.)
   english/         ← Translated English content (39 products, 122 benefits, 122 FAQs, 34 ingredients)
   arabic/          ← Translated Arabic content
   id_map.json      ← Source GID → Destination GID mapping (critical for reference remapping)

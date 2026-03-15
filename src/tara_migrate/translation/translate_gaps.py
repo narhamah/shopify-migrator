@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from tara_migrate.core import load_json, save_json
-from tara_migrate.core.config import AR_DIR, EN_DIR, SPAIN_DIR
+from tara_migrate.core.config import AR_DIR, EN_DIR, SOURCE_DIR
 from tara_migrate.core.utils import unicode_slugify as _slugify
 from tara_migrate.translation.field_extractors import (  # noqa: F401
     TEXT_METAFIELD_TYPES,
@@ -585,10 +585,10 @@ def translate_batch(client, model, fields, source_lang, target_lang, batch_num, 
 # load_json, save_json imported from tara_migrate.core
 
 
-def find_gaps(spain_items, scraped_items, key_field="handle"):
+def find_gaps(source_items, scraped_items, key_field="handle"):
     """Find Spain items not present in scraped data."""
     if not scraped_items:
-        return spain_items  # Everything needs translation
+        return source_items  # Everything needs translation
 
     if key_field == "sku":
         scraped_skus = set()
@@ -600,7 +600,7 @@ def find_gaps(spain_items, scraped_items, key_field="handle"):
                     scraped_skus.add(v["sku"])
 
         missing = []
-        for p in spain_items:
+        for p in source_items:
             skus = [v.get("sku", "") for v in p.get("variants", []) if v.get("sku")]
             handle = p.get("handle", "")
             if not any(s in scraped_skus for s in skus) and handle not in scraped_handles:
@@ -608,7 +608,7 @@ def find_gaps(spain_items, scraped_items, key_field="handle"):
         return missing
 
     scraped_keys = {item.get(key_field, "") for item in scraped_items}
-    return [item for item in spain_items if item.get(key_field, "") not in scraped_keys]
+    return [item for item in source_items if item.get(key_field, "") not in scraped_keys]
 
 
 def match_products_by_sku(source_products, scraped_products):
@@ -720,7 +720,7 @@ def translate_with_gaps(
     Products are matched by SKU between source and scraped data.
 
     Args:
-        source_dir: Directory with source data (SPAIN_DIR for ES→EN, EN_DIR for EN→AR)
+        source_dir: Directory with source data (SOURCE_DIR for ES→EN, EN_DIR for EN→AR)
         output_dir: Directory for output (EN_DIR or AR_DIR), also read for scraped data
         source_lang: Source language name ("Spanish" or "English")
         target_lang: Target language name ("English" or "Arabic")
@@ -1084,7 +1084,7 @@ def main():
 
     if args.lang == "en":
         translate_with_gaps(
-            source_dir=SPAIN_DIR, output_dir=EN_DIR,
+            source_dir=SOURCE_DIR, output_dir=EN_DIR,
             source_lang="Spanish", target_lang="English", lang_code="en",
             dry=args.dry, model=args.model, batch_size=args.batch_size, tpm=args.tpm,
         )

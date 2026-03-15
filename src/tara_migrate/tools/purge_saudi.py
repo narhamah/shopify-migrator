@@ -26,6 +26,7 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
+from tara_migrate.core import config
 
 # Data-only resources (default purge — keeps definitions intact for re-import)
 DATA_RESOURCE_TYPES = [
@@ -292,7 +293,7 @@ def purge_local_data(dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Purge migrated content from Saudi store",
+        description="Purge migrated content from destination store",
         epilog="By default, only data is deleted (definitions are kept for re-import).")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted")
     parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
@@ -302,8 +303,8 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    shop_url = os.environ["SAUDI_SHOP_URL"]
-    access_token = os.environ["SAUDI_ACCESS_TOKEN"]
+    shop_url = config.get_dest_shop_url()
+    access_token = config.get_dest_access_token()
 
     if args.only:
         selected = [s.strip() for s in args.only.split(",")]

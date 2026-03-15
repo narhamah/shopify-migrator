@@ -46,6 +46,7 @@ from tara_migrate.core.rich_text import (
 )
 from tara_migrate.translation.engine import load_developer_prompt
 from tara_migrate.translation.toon import DELIM, from_toon, to_toon
+from tara_migrate.core import config
 
 
 # =====================================================================
@@ -2117,10 +2118,10 @@ def translate_csv(
     # 12. Upload to Shopify (optional)
     # ------------------------------------------------------------------
     if upload:
-        shop_url = os.environ.get("SAUDI_SHOP_URL")
-        access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+        shop_url = config.get_dest_shop_url()
+        access_token = config.get_dest_access_token()
         if not shop_url or not access_token:
-            print("\nSAUDI_SHOP_URL / SAUDI_ACCESS_TOKEN not set -- skipping Shopify upload.")
+            print("\nDEST_SHOP_URL / DEST_ACCESS_TOKEN not set -- skipping Shopify upload.")
             print("Import the CSV manually via Shopify Admin > Settings > Languages > Arabic > Import")
         else:
             from tara_migrate.client import ShopifyClient
@@ -2182,10 +2183,10 @@ def main():
         from dotenv import load_dotenv
         load_dotenv()
 
-        shop_url = os.environ.get("SAUDI_SHOP_URL")
-        access_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+        shop_url = config.get_dest_shop_url()
+        access_token = config.get_dest_access_token()
         if not shop_url or not access_token:
-            print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN required for upload.")
+            print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN required for upload.")
             sys.exit(1)
 
         from tara_migrate.client import ShopifyClient

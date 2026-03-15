@@ -27,7 +27,7 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import load_json, save_json
+from tara_migrate.core import config, load_json, save_json
 
 
 def list_types(source):
@@ -358,10 +358,10 @@ def main():
         return
 
     # Source store (Spain)
-    source_url = os.environ.get("SPAIN_SHOP_URL")
-    source_token = os.environ.get("SPAIN_ACCESS_TOKEN")
+    source_url = config.get_source_shop_url()
+    source_token = config.get_source_access_token()
     if not source_url or not source_token:
-        print("ERROR: SPAIN_SHOP_URL and SPAIN_ACCESS_TOKEN must be set in .env")
+        print("ERROR: SOURCE_SHOP_URL and SOURCE_ACCESS_TOKEN must be set in .env")
         return
 
     source = ShopifyClient(source_url, source_token)
@@ -371,10 +371,10 @@ def main():
         return
 
     # Destination store (Saudi)
-    dest_url = os.environ.get("SAUDI_SHOP_URL")
-    dest_token = os.environ.get("SAUDI_ACCESS_TOKEN")
+    dest_url = config.get_dest_shop_url()
+    dest_token = config.get_dest_access_token()
     if not dest_url or not dest_token:
-        print("ERROR: SAUDI_SHOP_URL and SAUDI_ACCESS_TOKEN must be set in .env")
+        print("ERROR: DEST_SHOP_URL and DEST_ACCESS_TOKEN must be set in .env")
         return
 
     dest = ShopifyClient(dest_url, dest_token)

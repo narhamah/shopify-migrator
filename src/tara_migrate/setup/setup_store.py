@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Step 0: Set up the destination store schema.
 
-Examines the Saudi store and creates any missing:
+Examines the destination store and creates any missing:
   - Metaobject definitions (benefit, faq_entry, blog_author, ingredient)
   - Product metafield definitions (19 fields)
   - Article metafield definitions (12 fields)
@@ -16,6 +16,7 @@ import os
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
+from tara_migrate.core import config
 
 # =====================================================================
 # Metaobject definitions — ordered by dependency
@@ -160,8 +161,8 @@ def main():
         print("=== DRY RUN MODE ===\n")
         client = None
     else:
-        shop_url = os.environ["SAUDI_SHOP_URL"]
-        access_token = os.environ["SAUDI_ACCESS_TOKEN"]
+        shop_url = config.get_dest_shop_url()
+        access_token = config.get_dest_access_token()
         client = ShopifyClient(shop_url, access_token)
 
     # ==========================================================
