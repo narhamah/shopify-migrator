@@ -846,9 +846,9 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
         # Skip if already has Arabic translation
         if f["has_translation"] and arabic:
             continue
-        # Skip junk/non-translatable content
+        # Skip junk and system keys (Shopify platform + theme locale strings)
         cat = f.get("category", "")
-        if cat == "junk":
+        if cat in ("junk", "system"):
             continue
         # Skip pure Liquid/HTML with no translatable text
         text_only = re.sub(r"<[^>]+>", "", english).strip()
@@ -1167,6 +1167,30 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
         print("  ERROR: No translations returned")
         return
 
+    # Validate returned keys — TOON can corrupt keys when values contain %{...}
+    valid_key_re = re.compile(r'^[a-zA-Z0-9_.\-]+$')
+    validated = {}
+    corrupted = 0
+    for key, arabic in t_map.items():
+        if not arabic or not arabic.strip():
+            continue
+        # Try to recover corrupted keys (e.g. "many%" → "many")
+        if not valid_key_re.match(key):
+            clean_key = re.sub(r'[^a-zA-Z0-9_.\-]', '', key)
+            if clean_key in to_translate:
+                print(f"  WARN: Fixed corrupted key: {key!r} → {clean_key!r}")
+                key = clean_key
+            else:
+                print(f"  SKIP: Invalid key from AI: {key!r}")
+                corrupted += 1
+                continue
+        # Ensure the key was one we asked to translate
+        if key not in to_translate:
+            continue
+        validated[key] = arabic.strip()
+    if corrupted:
+        print(f"  Skipped {corrupted} corrupted key(s)")
+
     # Merge into ar_data
     def set_nested(d, dotted_key, value):
         """Set a value in a nested dict using a dotted key path."""
@@ -1180,14 +1204,13 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
 
     merged = json.loads(json.dumps(ar_data))  # deep copy
     new_count = 0
-    for key, arabic in t_map.items():
-        if arabic and arabic.strip():
-            set_nested(merged, key, arabic.strip())
-            new_count += 1
+    for key, arabic in validated.items():
+        set_nested(merged, key, arabic)
+        new_count += 1
 
     print(f"  New translations to add: {new_count}")
 
-    # Upload
+    # Upload — preserve comment header if ar.json originally had one
     merged_json = json.dumps(merged, indent=2, ensure_ascii=False)
     try:
         client.put_asset(theme_id, "locales/ar.json", merged_json)
@@ -1376,12 +1399,26 @@ def populate_schema(client, model="gpt-5-nano", reasoning="minimal",
             current = current[part]
         current[parts[-1]] = value
 
+    # Validate returned keys
+    valid_key_re = re.compile(r'^[a-zA-Z0-9_.\-]+$')
+    validated_schema = {}
+    for key, arabic in t_map.items():
+        if not arabic or not arabic.strip():
+            continue
+        if not valid_key_re.match(key):
+            clean_key = re.sub(r'[^a-zA-Z0-9_.\-]', '', key)
+            if clean_key in to_translate:
+                key = clean_key
+            else:
+                continue
+        if key in to_translate:
+            validated_schema[key] = arabic.strip()
+
     merged = json.loads(json.dumps(ar_data))  # deep copy
     new_count = 0
-    for key, arabic in t_map.items():
-        if arabic and arabic.strip():
-            set_nested(merged, key, arabic.strip())
-            new_count += 1
+    for key, arabic in validated_schema.items():
+        set_nested(merged, key, arabic)
+        new_count += 1
 
     # Also copy over non-translatable values (numbers, booleans) from EN
     # so the schema file is structurally complete
