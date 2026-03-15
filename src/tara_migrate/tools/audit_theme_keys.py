@@ -71,22 +71,21 @@ def classify_key(key, value):
     """
     val = (value or "").strip()
 
-    # ── SYSTEM: Shopify-managed strings (auto-translated by Shopify) ────
-    # Keys in these namespaces are Shopify platform UI — checkout, customer
-    # accounts, etc. — which Shopify auto-translates when Arabic is enabled.
-    # Registering custom translations for these wastes key slots.
+    # ── SHOPIFY PLATFORM: checkout, customer accounts, etc. ──────────────
+    # These are Shopify platform UI strings (checkout flow, order status,
+    # customer account pages). Shopify does NOT auto-translate these for
+    # Arabic — they must be translated via the Translations API.
     _SHOPIFY_PLATFORM_PREFIXES = (
         "shopify.",              # Shopify core (checkout, notices, errors, etc.)
         "customer_accounts.",    # Customer account pages
     )
     if any(key.startswith(p) for p in _SHOPIFY_PLATFORM_PREFIXES):
-        return "system", "Shopify platform string (auto-translated)"
+        return "shopify_platform", "Shopify platform string (checkout/accounts)"
 
     # ── THEME LOCALE: Standard Dawn/theme locale keys ─────────────────
     # These come from the theme's locale JSON files (e.g. ar.json).
-    # If the theme ships with Arabic translations for these, removing
-    # registered translations is safe (falls back to theme file).
-    # If the theme does NOT have Arabic locale files, these must be kept.
+    # They are translated via --populate-locale into ar.json (no API limit).
+    # Translating via API wastes key slots — ar.json already covers them.
     _THEME_LOCALE_PREFIXES = (
         "accessibility.",       # Accessibility labels
         "actions.",             # Button/action labels
@@ -100,7 +99,7 @@ def classify_key(key, value):
         "products.",           # Product template strings
     )
     if any(key.startswith(p) for p in _THEME_LOCALE_PREFIXES):
-        return "system", "theme locale string (in ar.json)"
+        return "theme_locale", "theme locale string (covered by ar.json)"
 
     # ── CUSTOM THEME: Custom section/namespace keys ───────────────────
     # Keys from custom theme sections (tara.*, sections.*, quiz_results.*)
@@ -846,9 +845,9 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
         # Skip if already has Arabic translation
         if f["has_translation"] and arabic:
             continue
-        # Skip junk and system keys (Shopify platform + theme locale strings)
+        # Skip junk and theme locale keys (already in ar.json via --populate-locale)
         cat = f.get("category", "")
-        if cat in ("junk", "system"):
+        if cat in ("junk", "theme_locale"):
             continue
         # Skip pure Liquid/HTML with no translatable text
         text_only = re.sub(r"<[^>]+>", "", english).strip()
@@ -1951,10 +1950,11 @@ def main():
                              dry_run=args.dry_run)
         return
 
-    # Remove all non-useful translations (junk + system)
+    # Remove junk + theme_locale translations (keep useful + shopify_platform)
     if args.remove_junk:
+        _KEEP_CATEGORIES = ("useful", "shopify_platform")
         to_remove = [f for f in fields
-                     if f["has_translation"] and f["category"] != "useful"]
+                     if f["has_translation"] and f["category"] not in _KEEP_CATEGORIES]
 
         if not to_remove:
             print("\nNo junk/system translations to remove.")

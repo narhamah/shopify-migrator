@@ -56,22 +56,23 @@ class TestParseJsonWithComments:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestClassifyKey:
-    # ── System keys ──
+    # ── Shopify platform keys ──
     def test_shopify_platform(self):
         cat, _ = classify_key("shopify.checkout.title", "Checkout")
-        assert cat == "system"
+        assert cat == "shopify_platform"
 
     def test_customer_accounts(self):
         cat, _ = classify_key("customer_accounts.login.title", "Log in")
-        assert cat == "system"
+        assert cat == "shopify_platform"
 
+    # ── Theme locale keys ──
     def test_theme_locale_prefix(self):
         cat, _ = classify_key("accessibility.skip_to_content", "Skip to content")
-        assert cat == "system"
+        assert cat == "theme_locale"
 
     def test_products_locale(self):
         cat, _ = classify_key("products.product.add_to_cart", "Add to cart")
-        assert cat == "system"
+        assert cat == "theme_locale"
 
     # ── Junk keys ──
     def test_empty_value(self):
