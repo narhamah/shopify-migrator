@@ -910,6 +910,22 @@ class ShopifyClient:
         """Delete a URL redirect."""
         self._request("DELETE", f"redirects/{redirect_id}.json")
 
+    # --- REST: Customers ---
+
+    def get_customers(self) -> list[dict[str, Any]]:
+        """Get all customers."""
+        return self._paginate("customers.json", "customers")
+
+    def search_customers(self, query: str) -> list[dict[str, Any]]:
+        """Search customers by query (e.g. email:foo@bar.com)."""
+        data, _ = self._get_json(f"customers/search.json?query={query}")
+        return data.get("customers", [])
+
+    def create_customer(self, customer_data: dict[str, Any]) -> dict[str, Any]:
+        """Create a customer. Set send_email_invite=False to skip invite."""
+        resp = self._request("POST", "customers.json", json={"customer": customer_data})
+        return resp.json().get("customer", {})
+
     # --- REST: Inventory ---
 
     def get_locations(self) -> list[dict[str, Any]]:

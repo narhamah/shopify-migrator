@@ -154,6 +154,12 @@ python import_arabic.py [--dry-run]
 python migrate_all_images.py
 python post_migration.py
 
+# Customer import (from Magento CSV export)
+python import_customers.py --input Export_Customers.csv --country "Saudi Arabia" --dry-run
+python import_customers.py --input Export_Customers.csv --country "Saudi Arabia"
+python import_customers.py --input Export_Customers.csv --country "United States,Canada"
+python import_customers.py --input Export_Customers.csv --save-json data/customers.json  # export only
+
 # Fixers
 python fix_prices.py [--update-shopify]
 python fix_status.py
