@@ -34,6 +34,16 @@ class ShopifyClient:
                 logger.warning("  Rate limited. Retrying after %ss...", retry_after)
                 time.sleep(retry_after)
                 continue
+            if resp.status_code == 422:
+                # Include Shopify's validation errors in the exception
+                try:
+                    body = resp.json()
+                    errors = body.get("errors", body)
+                    raise requests.HTTPError(
+                        f"422 Validation Error: {errors}", response=resp
+                    )
+                except (ValueError, KeyError):
+                    pass
             resp.raise_for_status()
             return resp
 
