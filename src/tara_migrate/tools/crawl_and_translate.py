@@ -105,14 +105,46 @@ EXTRACT_ALL_TEXT_JS = """() => {
         }
     });
 
+    // Grab value attributes on submit buttons and inputs
+    // (catches "Sign Up", "Subscribe", "Sold out", "Unavailable", etc.)
+    document.querySelectorAll(
+        'input[type="submit"][value], input[type="button"][value], ' +
+        'button[value], [class*="badge"], [class*="sold-out"], ' +
+        '[class*="unavailable"]'
+    ).forEach(el => {
+        const val = el.getAttribute('value') || el.textContent;
+        const text = (val || '').trim();
+        if (text && text.length >= 2 && !seen.has(text)) {
+            seen.add(text);
+            const rect = el.getBoundingClientRect();
+            results.push({
+                text: text.substring(0, 500),
+                tag: el.tagName.toLowerCase() + '@value',
+                classes: el.className ? el.className.toString().substring(0, 150) : '',
+                id: el.id || '',
+                x: Math.round(rect.x),
+                y: Math.round(rect.y),
+                visible: rect.width > 0 && rect.height > 0,
+            });
+        }
+    });
+
     return results;
 }"""
 
 EXPAND_INTERACTIVE_JS = """() => {
-    // Expand accordions
+    // Expand accordions (broad selector set for various Shopify themes)
     document.querySelectorAll(
         '[data-accordion], .accordion__trigger, details summary, ' +
-        '[aria-expanded="false"], .collapsible-trigger'
+        '[aria-expanded="false"], .collapsible-trigger, ' +
+        // Dawn / Sense / common Shopify themes
+        '.accordion summary, .product__accordion summary, ' +
+        '[class*="accordion"] summary, [class*="accordion"] button, ' +
+        '[class*="collapsible"] button, [class*="toggle"] button, ' +
+        // Tab panels
+        '[role="tab"][aria-selected="false"], .tab-link:not(.active), ' +
+        // FAQ sections
+        '[class*="faq"] button, [class*="FAQ"] button'
     ).forEach(el => {
         try { el.click(); } catch(e) {}
     });
@@ -120,6 +152,19 @@ EXPAND_INTERACTIVE_JS = """() => {
     // Open any closed <details> elements
     document.querySelectorAll('details:not([open])').forEach(el => {
         el.setAttribute('open', '');
+    });
+
+    // Force-show elements hidden by CSS classes
+    document.querySelectorAll(
+        '.hidden, [hidden], .is-hidden, .visually-hidden:not(.skip-link)'
+    ).forEach(el => {
+        // Only unhide if it has translatable text content
+        const text = el.textContent.trim();
+        if (text && text.length >= 2) {
+            el.style.display = '';
+            el.style.visibility = 'visible';
+            el.removeAttribute('hidden');
+        }
     });
 }"""
 
@@ -158,31 +203,44 @@ def _is_english_text(text):
     """Check if text contains meaningful English that needs translation.
 
     Returns True for text that has English words and isn't just brand names,
-    numbers, codes, or technical identifiers.
+    numbers, codes, or technical identifiers.  Also returns True for mixed
+    Arabic+English strings where the English portion is a real word (e.g.
+    "دفع آمن مشفّ Mask") — those need partial translation too.
     """
     if not text or len(text.strip()) < 2:
         return False
 
     cleaned = text.strip()
 
-    # Skip pure numbers, currency, measurements
+    # Skip pure numbers, currency, measurements (e.g. "267 mL", "9 fl oz")
     if re.match(r'^[\d.,+%°×\-–—\s/\\:]+$', cleaned):
         return False
+    if re.match(r'^\d+\s*(?:mL|ml|L|g|kg|oz|fl\.?\s*oz|cm|mm|m)\b', cleaned, re.IGNORECASE):
+        return False
 
-    # Skip pure Arabic text
-    if is_arabic_visible_text(cleaned, min_ratio=0.8):
+    # Skip pure Arabic text (no Latin at all)
+    from tara_migrate.core.language import count_chars
+    arabic, latin = count_chars(cleaned)
+    if latin == 0:
         return False
 
     # Must contain at least 2 consecutive Latin letters
     if not re.search(r'[a-zA-ZÀ-ÿ]{2,}', cleaned):
         return False
 
-    # Skip if mostly Arabic (allow some English brand names mixed in)
-    from tara_migrate.core.language import count_chars
-    arabic, latin = count_chars(cleaned)
+    # For mostly-Arabic text, still flag if it has an English *word* embedded
+    # (e.g. "دفع آمن مشفّ Mask" — "Mask" needs translation)
     total = arabic + latin
     if total > 0 and arabic / total > 0.7:
-        return False
+        # Check for real English words (3+ letters, not brand/INCI names)
+        english_words = re.findall(r'\b[a-zA-Z]{3,}\b', cleaned)
+        # Filter out known brand names that shouldn't be translated
+        brand_names = {'tara', 'ceramide', 'inci', 'nmf'}
+        real_words = [w for w in english_words if w.lower() not in brand_names]
+        if not real_words:
+            return False
+        # It's mixed text with untranslated English words
+        return True
 
     return True
 
@@ -261,10 +319,29 @@ def crawl_arabic_site(page, base_url, locale_prefix="/ar", max_pages=200,
             page.evaluate(EXPAND_INTERACTIVE_JS)
             time.sleep(0.5)
 
-            # Scroll down to trigger lazy loading
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(0.5)
+            # Scroll incrementally to trigger all lazy-loading sections
+            # (single scroll-to-bottom misses multi-stage lazy loaders)
+            page.evaluate("""() => {
+                const step = window.innerHeight;
+                const maxY = document.body.scrollHeight;
+                let y = 0;
+                function scrollStep() {
+                    y += step;
+                    if (y > maxY) return;
+                    window.scrollTo(0, y);
+                    setTimeout(scrollStep, 200);
+                }
+                scrollStep();
+            }""")
+            # Wait for lazy content to render (proportional to page height)
+            page_height = page.evaluate("document.body.scrollHeight")
+            scroll_time = min(max(1.0, page_height / 3000), 5.0)
+            time.sleep(scroll_time)
             page.evaluate("window.scrollTo(0, 0)")
+            time.sleep(0.3)
+
+            # Re-expand after scrolling (new accordions may have appeared)
+            page.evaluate(EXPAND_INTERACTIVE_JS)
             time.sleep(0.3)
 
         except Exception as e:

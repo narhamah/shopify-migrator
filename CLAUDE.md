@@ -214,6 +214,15 @@ python audit_translations.py --mode upload --csv FILE.csv [--dry-run]
 python audit_site.py --base-url https://sa.taraformula.com --locale-prefix /ar
 python audit_site.py --url https://sa.taraformula.com/ar/products/some-product
 
+# Test checkout (Playwright — requires test mode enabled)
+python test_checkout.py                                    # One test order (Visa)
+python test_checkout.py --headed                           # Visible browser
+python test_checkout.py --card visa --card mastercard      # Multiple cards
+python test_checkout.py --card all                         # Test all card types
+python test_checkout.py --test-decline                     # Test declined card
+python test_checkout.py --bogus                            # Use Bogus Gateway cards
+python test_checkout.py --screenshot-dir data/checkout     # Save screenshots
+
 # Translation fixers
 python fix_translations.py --audit audit_fix.json --locale ar
 
