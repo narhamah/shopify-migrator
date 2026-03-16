@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post-migration setup for Saudi Shopify store.
+"""Post-migration setup for destination Shopify store.
 
 Run AFTER import_english.py, import_arabic.py, and migrate_all_images.py.
 
@@ -14,7 +14,7 @@ Handles:
   Step 8:  Migrate discount codes / price rules
   Step 9:  Activate products (draft → active)
   Step 10: Create store policies
-  Step 11: Update handles (Spanish → English)
+  Step 11: Update handles (source → destination)
 
 Usage:
     python post_migration.py                    # Run all steps
@@ -67,22 +67,22 @@ def step_link_products_to_collections(client, dry_run=False):
     """Create product-collection associations from exported collects."""
     print("\n=== Step 2: Link Products to Collections ===")
 
-    id_map = load_json("data/id_map.json", default={})
+    id_map = load_json(config.get_id_map_file(), default={})
     product_map = id_map.get("products", {})
     collection_map = id_map.get("collections", {})
-    progress = load_json("data/collects_progress.json", default={})
+    progress = load_json(config.get_progress_file("collects_progress.json"), default={})
 
     # Try exported collects first
-    collects = load_json("data/source_export/collects.json")
+    collects = load_json(os.path.join(config.SOURCE_DIR, "collects.json"))
     if not collects:
         # Fallback: try to infer from english data
-        collects = load_json("data/english/collects.json")
+        collects = load_json(os.path.join(config.get_en_dir(), "collects.json"))
     if not collects:
         # Last fallback: try spanish export
-        collects = load_json("data/collects.json")
+        collects = load_json(config.get_progress_file("collects.json"))
 
     if not collects:
-        print("  No collects data found. Export collects first (re-run export_spain.py)")
+        print("  No collects data found. Export collects first (re-run export_source.py)")
         print("  Or manually assign products to collections in Shopify admin.")
         return
 
@@ -118,7 +118,7 @@ def step_link_products_to_collections(client, dry_run=False):
             created += 1
             progress[key] = True
             if created % 10 == 0:
-                save_json(progress, "data/collects_progress.json")
+                save_json(progress, config.get_progress_file("collects_progress.json"))
         except Exception as e:
             err_msg = str(e)
             if "already" in err_msg.lower() or "422" in err_msg:
@@ -128,7 +128,7 @@ def step_link_products_to_collections(client, dry_run=False):
                 print(f"  Error linking product {dest_product_id} → {dest_collection_id}: {e}")
                 errors += 1
 
-    save_json(progress, "data/collects_progress.json")
+    save_json(progress, config.get_progress_file("collects_progress.json"))
     print(f"  Created: {created}, Skipped: {skipped}, Errors: {errors}")
 
 
@@ -136,8 +136,8 @@ def step_link_products_to_collections(client, dry_run=False):
 # Step 3: Build navigation menus
 # =============================================
 
-def _resolve_menu_item_for_dest(item, saudi, source_shop_url, dest_shop_url):
-    """Resolve a Spain menu item to a Saudi menu item.
+def _resolve_menu_item_for_dest(item, dest_client, source_shop_url, dest_shop_url):
+    """Resolve a source menu item to a destination menu item.
 
     Maps collection/page/product URLs from source to destination by looking up
     resources by handle on the destination store.
@@ -161,9 +161,9 @@ def _resolve_menu_item_for_dest(item, saudi, source_shop_url, dest_shop_url):
                     handle = parts[idx + 1]
 
         if handle:
-            saudi_colls = saudi.get_collections_by_handle(handle)
-            if saudi_colls:
-                result["resourceId"] = f"gid://shopify/Collection/{saudi_colls[0]['id']}"
+            dest_colls = dest_client.get_collections_by_handle(handle)
+            if dest_colls:
+                result["resourceId"] = f"gid://shopify/Collection/{dest_colls[0]['id']}"
                 return result
 
         # Fallback: use URL path
@@ -183,9 +183,9 @@ def _resolve_menu_item_for_dest(item, saudi, source_shop_url, dest_shop_url):
                 if idx + 1 < len(parts):
                     handle = parts[idx + 1]
         if handle:
-            saudi_pages = saudi.get_pages_by_handle(handle)
-            if saudi_pages:
-                result["resourceId"] = f"gid://shopify/OnlineStorePage/{saudi_pages[0]['id']}"
+            dest_pages = dest_client.get_pages_by_handle(handle)
+            if dest_pages:
+                result["resourceId"] = f"gid://shopify/OnlineStorePage/{dest_pages[0]['id']}"
                 return result
         if url:
             path = url.replace(source_shop_url, "").replace(dest_shop_url, "")
@@ -203,9 +203,9 @@ def _resolve_menu_item_for_dest(item, saudi, source_shop_url, dest_shop_url):
                 if idx + 1 < len(parts):
                     handle = parts[idx + 1]
         if handle:
-            saudi_prods = saudi.get_products_by_handle(handle)
-            if saudi_prods:
-                result["resourceId"] = f"gid://shopify/Product/{saudi_prods[0]['id']}"
+            dest_prods = dest_client.get_products_by_handle(handle)
+            if dest_prods:
+                result["resourceId"] = f"gid://shopify/Product/{dest_prods[0]['id']}"
                 return result
         if url:
             path = url.replace(source_shop_url, "").replace(dest_shop_url, "")
@@ -225,11 +225,11 @@ def _resolve_menu_item_for_dest(item, saudi, source_shop_url, dest_shop_url):
 
 
 def step_build_navigation(client, dry_run=False):
-    """Mirror Spain's navigation menus to destination store.
+    """Mirror source store navigation menus to destination store.
 
-    Strategy: read Spain's menus, resolve each item's target on destination
+    Strategy: read source menus, resolve each item's target on destination
     (by handle lookup), and create matching menus.
-    Falls back to id_map-based approach if Spain client unavailable.
+    Falls back to id_map-based approach if source client unavailable.
     """
     print("\n=== Step 3: Build Navigation Menus ===")
 
@@ -260,7 +260,7 @@ def step_build_navigation(client, dry_run=False):
 
     print(f"  Found {len(source_menus)} menus on source store")
 
-    # Check existing Saudi menus
+    # Check existing destination menus
     try:
         dest_menus = client.get_menus()
         dest_handles = {m.get("handle"): m for m in dest_menus}
@@ -317,13 +317,13 @@ def step_build_navigation(client, dry_run=False):
 
 
 def _step_build_navigation_from_idmap(client, dry_run=False):
-    """Fallback: Build menus by looking up Saudi collections/pages by handle.
+    """Fallback: Build menus by looking up destination collections/pages by handle.
 
     Reads the English export data for collection/page handles, then queries
     the destination store directly to find matching resources — no id_map needed.
     """
-    collections = load_json("data/english/collections.json")
-    pages = load_json("data/english/pages.json")
+    collections = load_json(os.path.join(config.get_en_dir(), "collections.json"))
+    pages = load_json(os.path.join(config.get_en_dir(), "pages.json"))
 
     # Define which collections go in the main menu (top-level shop categories)
     # These are the key non-ingredient collections that form the main nav
@@ -346,7 +346,7 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
     ]
 
     # Build main menu by looking up collections on destination by handle
-    print("  Building main menu from Saudi collections...")
+    print("  Building main menu from destination collections...")
     main_items = []
 
     # Add Shop Hair with sub-items
@@ -408,7 +408,7 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
                 print(f"  Error creating main menu: {e}")
 
     # Build footer menu from pages on destination
-    print("\n  Building footer menu from Saudi pages...")
+    print("\n  Building footer menu from destination pages...")
     footer_items = []
 
     FOOTER_PAGE_HANDLES = [
@@ -419,12 +419,12 @@ def _step_build_navigation_from_idmap(client, dry_run=False):
     ]
 
     for handle, fallback_title in FOOTER_PAGE_HANDLES:
-        saudi_pages = client.get_pages_by_handle(handle)
-        if saudi_pages:
-            title = saudi_pages[0].get("title", fallback_title)
+        dest_pages = client.get_pages_by_handle(handle)
+        if dest_pages:
+            title = dest_pages[0].get("title", fallback_title)
             footer_items.append({
                 "title": title,
-                "resourceId": f"gid://shopify/OnlineStorePage/{saudi_pages[0]['id']}",
+                "resourceId": f"gid://shopify/OnlineStorePage/{dest_pages[0]['id']}",
             })
             print(f"    {title}")
 
@@ -453,12 +453,12 @@ def step_set_seo_tags(client, dry_run=False):
     """Set SEO meta titles and descriptions on products, collections, and pages."""
     print("\n=== Step 4: Set SEO Meta Tags ===")
 
-    id_map = load_json("data/id_map.json", default={})
+    id_map = load_json(config.get_id_map_file(), default={})
     product_map = id_map.get("products", {})
-    progress = load_json("data/seo_progress.json", default={})
+    progress = load_json(config.get_progress_file("seo_progress.json"), default={})
 
     # Products — check for global.title_tag and global.description_tag metafields
-    products = load_json("data/english/products.json")
+    products = load_json(os.path.join(config.get_en_dir(), "products.json"))
     updated = 0
     for product in products:
         source_id = str(product["id"])
@@ -489,10 +489,10 @@ def step_set_seo_tags(client, dry_run=False):
             except Exception as e:
                 print(f"  Product '{product.get('title', '')[:40]}': error: {e}")
 
-    save_json(progress, "data/seo_progress.json")
+    save_json(progress, config.get_progress_file("seo_progress.json"))
 
     # Collections and pages — check their metafields too
-    collections = load_json("data/english/collections.json")
+    collections = load_json(os.path.join(config.get_en_dir(), "collections.json"))
     collection_map = id_map.get("collections", {})
     for coll in collections:
         source_id = str(coll["id"])
@@ -536,7 +536,7 @@ def step_set_seo_tags(client, dry_run=False):
             except Exception as e:
                 print(f"  Collection '{coll.get('title', '')[:40]}': error: {e}")
 
-    pages = load_json("data/english/pages.json")
+    pages = load_json(os.path.join(config.get_en_dir(), "pages.json"))
     page_map = id_map.get("pages", {})
     for page in pages:
         source_id = str(page["id"])
@@ -580,7 +580,7 @@ def step_set_seo_tags(client, dry_run=False):
             except Exception as e:
                 print(f"  Page '{page.get('title', '')[:40]}': error: {e}")
 
-    save_json(progress, "data/seo_progress.json")
+    save_json(progress, config.get_progress_file("seo_progress.json"))
     print(f"  Updated SEO tags on {updated} resources")
 
 
@@ -599,62 +599,62 @@ def _build_handle_remap():
     remap = {}  # "/products/old-handle" → "/products/new-handle"
 
     # Products
-    source_products = load_json("data/source_export/products.json")
-    english_products = load_json("data/english/products.json")
-    spain_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (source_products if isinstance(source_products, list) else [])}
+    source_products = load_json(os.path.join(config.SOURCE_DIR, "products.json"))
+    english_products = load_json(os.path.join(config.get_en_dir(), "products.json"))
+    source_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (source_products if isinstance(source_products, list) else [])}
     eng_prod_by_id = {str(p["id"]): p.get("handle", "") for p in (english_products if isinstance(english_products, list) else [])}
-    for src_id, old_handle in spain_prod_by_id.items():
+    for src_id, old_handle in source_prod_by_id.items():
         new_handle = eng_prod_by_id.get(src_id, "")
         if old_handle and new_handle and old_handle != new_handle:
             remap[f"/products/{old_handle}"] = f"/products/{new_handle}"
 
     # Collections
-    source_collections = load_json("data/source_export/collections.json")
-    english_collections = load_json("data/english/collections.json")
-    spain_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (source_collections if isinstance(source_collections, list) else [])}
+    source_collections = load_json(os.path.join(config.SOURCE_DIR, "collections.json"))
+    english_collections = load_json(os.path.join(config.get_en_dir(), "collections.json"))
+    source_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (source_collections if isinstance(source_collections, list) else [])}
     eng_coll_by_id = {str(c["id"]): c.get("handle", "") for c in (english_collections if isinstance(english_collections, list) else [])}
-    for src_id, old_handle in spain_coll_by_id.items():
+    for src_id, old_handle in source_coll_by_id.items():
         new_handle = eng_coll_by_id.get(src_id, "")
         if old_handle and new_handle and old_handle != new_handle:
             remap[f"/collections/{old_handle}"] = f"/collections/{new_handle}"
 
     # Pages
-    source_pages = load_json("data/source_export/pages.json")
-    english_pages = load_json("data/english/pages.json")
-    spain_page_by_id = {str(p["id"]): p.get("handle", "") for p in (source_pages if isinstance(source_pages, list) else [])}
+    source_pages = load_json(os.path.join(config.SOURCE_DIR, "pages.json"))
+    english_pages = load_json(os.path.join(config.get_en_dir(), "pages.json"))
+    source_page_by_id = {str(p["id"]): p.get("handle", "") for p in (source_pages if isinstance(source_pages, list) else [])}
     eng_page_by_id = {str(p["id"]): p.get("handle", "") for p in (english_pages if isinstance(english_pages, list) else [])}
-    for src_id, old_handle in spain_page_by_id.items():
+    for src_id, old_handle in source_page_by_id.items():
         new_handle = eng_page_by_id.get(src_id, "")
         if old_handle and new_handle and old_handle != new_handle:
             remap[f"/pages/{old_handle}"] = f"/pages/{new_handle}"
 
     # Blogs
-    source_blogs = load_json("data/source_export/blogs.json")
-    english_blogs = load_json("data/english/blogs.json")
-    spain_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (source_blogs if isinstance(source_blogs, list) else [])}
+    source_blogs = load_json(os.path.join(config.SOURCE_DIR, "blogs.json"))
+    english_blogs = load_json(os.path.join(config.get_en_dir(), "blogs.json"))
+    source_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (source_blogs if isinstance(source_blogs, list) else [])}
     eng_blog_by_id = {str(b["id"]): b.get("handle", "") for b in (english_blogs if isinstance(english_blogs, list) else [])}
     blog_handle_map = {}  # old_blog_handle → new_blog_handle
-    for src_id, old_handle in spain_blog_by_id.items():
+    for src_id, old_handle in source_blog_by_id.items():
         new_handle = eng_blog_by_id.get(src_id, "")
         if old_handle and new_handle and old_handle != new_handle:
             remap[f"/blogs/{old_handle}"] = f"/blogs/{new_handle}"
             blog_handle_map[old_handle] = new_handle
 
     # Articles (need blog handle context)
-    source_articles = load_json("data/source_export/articles.json")
-    english_articles = load_json("data/english/articles.json")
+    source_articles = load_json(os.path.join(config.SOURCE_DIR, "articles.json"))
+    english_articles = load_json(os.path.join(config.get_en_dir(), "articles.json"))
     if isinstance(source_articles, list) and isinstance(english_articles, list):
-        spain_art_by_id = {}
+        source_art_by_id = {}
         for a in source_articles:
             blog_id = str(a.get("blog_id", ""))
-            old_blog_handle = spain_blog_by_id.get(blog_id, "")
-            spain_art_by_id[str(a["id"])] = (old_blog_handle, a.get("handle", ""))
+            old_blog_handle = source_blog_by_id.get(blog_id, "")
+            source_art_by_id[str(a["id"])] = (old_blog_handle, a.get("handle", ""))
         eng_art_by_id = {}
         for a in english_articles:
             blog_id = str(a.get("blog_id", ""))
             new_blog_handle = eng_blog_by_id.get(blog_id, "")
             eng_art_by_id[str(a["id"])] = (new_blog_handle, a.get("handle", ""))
-        for src_id, (old_bh, old_ah) in spain_art_by_id.items():
+        for src_id, (old_bh, old_ah) in source_art_by_id.items():
             new_bh, new_ah = eng_art_by_id.get(src_id, ("", ""))
             if old_bh and old_ah and new_bh and new_ah:
                 old_path = f"/blogs/{old_bh}/{old_ah}"
@@ -702,12 +702,12 @@ def _remap_redirect_target(target, remap):
 def step_create_redirects(client, dry_run=False):
     """Create URL redirects from exported redirect data.
 
-    Remaps redirect targets to account for handle changes (Spanish → English)
+    Remaps redirect targets to account for handle changes (source → destination)
     that occurred during import.
     """
     print("\n=== Step 5: Create URL Redirects ===")
 
-    redirects = load_json("data/source_export/redirects.json")
+    redirects = load_json(os.path.join(config.SOURCE_DIR, "redirects.json"))
     if not redirects:
         print("  No redirects found in export data")
         return
@@ -717,7 +717,7 @@ def step_create_redirects(client, dry_run=False):
     if remap:
         print(f"  Built handle remap table with {len(remap)} entries")
 
-    progress = load_json("data/redirects_progress.json", default={})
+    progress = load_json(config.get_progress_file("redirects_progress.json"), default={})
     created = 0
     remapped = 0
 
@@ -754,7 +754,7 @@ def step_create_redirects(client, dry_run=False):
             else:
                 print(f"  Error creating redirect {path}: {e}")
 
-    save_json(progress, "data/redirects_progress.json")
+    save_json(progress, config.get_progress_file("redirects_progress.json"))
     print(f"  Created {created} redirects ({remapped} targets remapped)")
 
 
@@ -766,9 +766,9 @@ def step_set_inventory(client, default_quantity=100, dry_run=False):
     """Set initial inventory quantities for all product variants."""
     print("\n=== Step 6: Set Inventory Quantities ===")
 
-    id_map = load_json("data/id_map.json", default={})
+    id_map = load_json(config.get_id_map_file(), default={})
     product_map = id_map.get("products", {})
-    progress = load_json("data/inventory_progress.json", default={})
+    progress = load_json(config.get_progress_file("inventory_progress.json"), default={})
 
     if dry_run:
         print(f"  Would set inventory to {default_quantity} for all variants")
@@ -814,9 +814,9 @@ def step_set_inventory(client, default_quantity=100, dry_run=False):
 
         progress[product_id] = True
         if updated % 20 == 0:
-            save_json(progress, "data/inventory_progress.json")
+            save_json(progress, config.get_progress_file("inventory_progress.json"))
 
-    save_json(progress, "data/inventory_progress.json")
+    save_json(progress, config.get_progress_file("inventory_progress.json"))
     print(f"  Updated inventory for {updated} variants (qty: {default_quantity})")
 
 
@@ -846,8 +846,8 @@ def step_publish_resources(client, dry_run=False):
     pub_names = [p.get("name", "Unknown") for p in publications]
     print(f"  Sales channels: {', '.join(pub_names)}")
 
-    id_map = load_json("data/id_map.json", default={})
-    progress = load_json("data/publish_progress.json", default={})
+    id_map = load_json(config.get_id_map_file(), default={})
+    progress = load_json(config.get_progress_file("publish_progress.json"), default={})
 
     # Publish products
     product_map = id_map.get("products", {})
@@ -886,7 +886,7 @@ def step_publish_resources(client, dry_run=False):
             else:
                 print(f"  Error publishing collection {dest_id}: {e}")
 
-    save_json(progress, "data/publish_progress.json")
+    save_json(progress, config.get_progress_file("publish_progress.json"))
     print(f"  Published {published} resources to {len(pub_ids)} channels")
 
 
@@ -898,12 +898,12 @@ def step_migrate_discounts(client, dry_run=False):
     """Migrate price rules and discount codes from exported data."""
     print("\n=== Step 8: Migrate Discount Codes ===")
 
-    price_rules = load_json("data/source_export/price_rules.json")
+    price_rules = load_json(os.path.join(config.SOURCE_DIR, "price_rules.json"))
     if not price_rules:
         print("  No price rules found in export data")
         return
 
-    progress = load_json("data/discounts_progress.json", default={})
+    progress = load_json(config.get_progress_file("discounts_progress.json"), default={})
     created_rules = 0
     created_codes = 0
 
@@ -967,7 +967,7 @@ def step_migrate_discounts(client, dry_run=False):
             else:
                 print(f"  Error creating price rule '{rule_data['title']}': {e}")
 
-    save_json(progress, "data/discounts_progress.json")
+    save_json(progress, config.get_progress_file("discounts_progress.json"))
     print(f"  Created {created_rules} price rules, {created_codes} discount codes")
 
 
@@ -983,9 +983,9 @@ def step_activate_products(client, dry_run=False):
         print("  Would activate all draft products")
         return
 
-    id_map = load_json("data/id_map.json", default={})
+    id_map = load_json(config.get_id_map_file(), default={})
     product_map = id_map.get("products", {})
-    progress = load_json("data/activate_progress.json", default={})
+    progress = load_json(config.get_progress_file("activate_progress.json"), default={})
 
     activated = 0
     for source_id, dest_id in product_map.items():
@@ -998,7 +998,7 @@ def step_activate_products(client, dry_run=False):
         except Exception as e:
             print(f"  Error activating product {dest_id}: {e}")
 
-    save_json(progress, "data/activate_progress.json")
+    save_json(progress, config.get_progress_file("activate_progress.json"))
     print(f"  Activated {activated} products")
 
 
@@ -1010,14 +1010,14 @@ def step_create_policies(client, dry_run=False):
     """Create store policies from exported policy data or defaults."""
     print("\n=== Step 10: Store Policies ===")
 
-    policies = load_json("data/source_export/policies.json")
-    english_policies = load_json("data/english/policies.json")
+    policies = load_json(os.path.join(config.SOURCE_DIR, "policies.json"))
+    english_policies = load_json(os.path.join(config.get_en_dir(), "policies.json"))
 
     source = english_policies if english_policies else policies
 
     if not source:
         print("  No policy data found. Policies must be created manually.")
-        print("  Go to: Saudi Shopify Admin → Settings → Policies")
+        print("  Go to: Destination Shopify Admin → Settings → Policies")
         print("  Required: Privacy Policy, Terms of Service, Refund Policy, Shipping Policy")
         return
 
@@ -1033,20 +1033,20 @@ def step_create_policies(client, dry_run=False):
 
 
 # =============================================
-# Step 11: Update handles (Spanish → English)
+# Step 11: Update handles (source → destination)
 # =============================================
 
 def step_update_handles(client, dry_run=False):
     """Update product/collection/page handles from Spanish to English."""
-    print("\n=== Step 11: Update Handles (Spanish → English) ===")
+    print("\n=== Step 11: Update Handles (source → destination) ===")
 
-    id_map = load_json("data/id_map.json", default={})
-    progress = load_json("data/handle_progress.json", default={})
+    id_map = load_json(config.get_id_map_file(), default={})
+    progress = load_json(config.get_progress_file("handle_progress.json"), default={})
 
     # Products
-    products = load_json("data/english/products.json")
-    source_products = load_json("data/source_export/products.json")
-    spain_handles = {str(p["id"]): p.get("handle", "") for p in source_products}
+    products = load_json(os.path.join(config.get_en_dir(), "products.json"))
+    source_products = load_json(os.path.join(config.SOURCE_DIR, "products.json"))
+    source_handles = {str(p["id"]): p.get("handle", "") for p in source_products}
     product_map = id_map.get("products", {})
 
     updated = 0
@@ -1057,7 +1057,7 @@ def step_update_handles(client, dry_run=False):
             continue
 
         new_handle = product.get("handle", "")
-        old_handle = spain_handles.get(source_id, "")
+        old_handle = source_handles.get(source_id, "")
 
         # Only update if handle actually changed (was translated)
         if not new_handle or new_handle == old_handle:
@@ -1076,12 +1076,12 @@ def step_update_handles(client, dry_run=False):
         progress[f"product_{source_id}"] = True
 
     if not dry_run:
-        save_json(progress, "data/handle_progress.json")
+        save_json(progress, config.get_progress_file("handle_progress.json"))
 
     # Collections
-    collections = load_json("data/english/collections.json")
-    source_collections = load_json("data/source_export/collections.json")
-    spain_coll_handles = {str(c["id"]): c.get("handle", "") for c in source_collections}
+    collections = load_json(os.path.join(config.get_en_dir(), "collections.json"))
+    source_collections = load_json(os.path.join(config.SOURCE_DIR, "collections.json"))
+    source_coll_handles = {str(c["id"]): c.get("handle", "") for c in source_collections}
     collection_map = id_map.get("collections", {})
 
     for coll in collections:
@@ -1091,7 +1091,7 @@ def step_update_handles(client, dry_run=False):
             continue
 
         new_handle = coll.get("handle", "")
-        old_handle = spain_coll_handles.get(source_id, "")
+        old_handle = source_coll_handles.get(source_id, "")
 
         if not new_handle or new_handle == old_handle:
             continue
@@ -1117,7 +1117,7 @@ def step_update_handles(client, dry_run=False):
         progress[f"collection_{source_id}"] = True
 
     if not dry_run:
-        save_json(progress, "data/handle_progress.json")
+        save_json(progress, config.get_progress_file("handle_progress.json"))
 
     print(f"  Updated {updated} handles")
 
@@ -1167,7 +1167,7 @@ def main():
     print("\nRemaining MANUAL steps:")
     print("  1. Configure payment gateways (Settings → Payments)")
     print("     → Tap, Mada, Apple Pay, or other KSA providers")
-    print("  2. Configure Saudi VAT 15% (Settings → Taxes and duties)")
+    print("  2. Configure VAT 15% (Settings → Taxes and duties)")
     print("  3. Set up shipping zones/rates (Settings → Shipping and delivery)")
     print("  4. Set up domain and DNS (Settings → Domains)")
     print("  5. Install and configure theme (Online Store → Themes)")

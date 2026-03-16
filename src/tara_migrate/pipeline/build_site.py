@@ -5,7 +5,7 @@ Single entry point that orchestrates ALL build steps: translate → import →
 images → configure. Supports building English only, Arabic only, or both.
 
 Prerequisites:
-    1. export_spain.py      — export source data
+    1. export_source.py      — export source data
     2. scrape_kuwait.py     — scrape EN/AR from Magento
 
 Usage:
@@ -90,7 +90,7 @@ def phase_fix_prices(dry_run=False, **kw):
             print("  WARNING: No prices fetched from Magento")
             return
 
-        save_json(prices, "data/magento_prices.json")
+        save_json(prices, config.get_progress_file("magento_prices.json"))
         print(f"  Fetched SAR prices for {len(prices)} SKUs")
 
         dirs = [EN_DIR]
@@ -192,7 +192,7 @@ def phase_migrate_images(saudi, spain, dry_run=False, **kw):
         phase6_verify,
     )
 
-    id_map = load_json("data/id_map.json") if os.path.exists("data/id_map.json") else {}
+    id_map = load_json(config.get_id_map_file()) if os.path.exists(config.get_id_map_file()) else {}
     file_map = load_json(FILE_MAP_FILE) if os.path.exists(FILE_MAP_FILE) else {}
     if not isinstance(file_map, dict):
         file_map = {}

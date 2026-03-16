@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from tara_migrate.tools.review_content import (
     has_html_bloat,
     strip_html_bloat,
+    parse_and_clean_html,
     has_spanish_content,
     has_spanish_text,
     extract_visible_text,
@@ -71,14 +72,15 @@ class TestHasHtmlBloat:
         html = '<div id="faq" role="region" aria-label="FAQ"><p>Content</p></div>'
         assert not has_html_bloat(html)
 
-    def test_generic_data_attrs_not_flagged(self):
-        """Generic data-* attributes from Shopify apps should not be flagged."""
+    def test_all_data_attrs_flagged(self):
+        """All data-* attributes are bloat — Shopify body_html doesn't use them."""
         html = '<div data-section-id="123"><p>Content</p></div>'
-        assert not has_html_bloat(html)
+        assert has_html_bloat(html)
 
-    def test_non_magento_style_block_not_flagged(self):
+    def test_all_style_blocks_flagged(self):
+        """All <style> blocks are bloat — theme CSS handles styling."""
         html = '<style>.custom { color: red; }</style><p>Content</p>'
-        assert not has_html_bloat(html)
+        assert has_html_bloat(html)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -113,15 +115,15 @@ class TestStripHtmlBloat:
         assert "<style" not in result
         assert "<p>Content</p>" in result
 
-    def test_preserves_style_blocks_with_matching_html(self):
-        """<style> blocks whose selectors match actual HTML classes are kept."""
+    def test_strips_all_style_blocks(self):
+        """All <style> blocks are stripped — theme CSS handles styling."""
         html = (
             '<style>.custom-layout { display: grid; }</style>'
             '<div class="custom-layout"><p>Content</p></div>'
         )
         result = strip_html_bloat(html)
-        assert "<style" in result
-        assert "custom-layout" in result
+        assert "<style" not in result
+        assert "<p>Content</p>" in result
 
     def test_removes_script_blocks(self):
         html = (
@@ -141,12 +143,13 @@ class TestStripHtmlBloat:
         assert "data-appearance" not in result
         assert "<p>Keep</p>" in result
 
-    def test_preserves_generic_data_attributes(self):
-        """Generic data-* attributes could be from Shopify apps — preserve them."""
+    def test_strips_all_data_attributes(self):
+        """All data-* attributes are stripped — body_html doesn't need them."""
         html = '<div data-section-id="123" data-shopify="true"><p>Content</p></div>'
         result = strip_html_bloat(html)
-        assert 'data-section-id' in result
-        assert 'data-shopify' in result
+        assert 'data-section-id' not in result
+        assert 'data-shopify' not in result
+        assert "Content" in result
 
     def test_removes_magento_classes(self):
         html = '<div class="pagebuilder-column myclass"><p>Keep</p></div>'
@@ -292,6 +295,167 @@ class TestStripHtmlBloat:
         assert "post-blogPostContent" not in result
         assert "row-contained" not in result
         assert "text-root" not in result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DOM Parser — parse_and_clean_html
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestParseAndCleanHtml:
+    def test_clean_html_passthrough(self):
+        html = "<p>Hello <strong>world</strong></p>"
+        result = parse_and_clean_html(html)
+        assert "Hello" in result
+        assert "<strong>world</strong>" in result
+
+    def test_empty(self):
+        assert parse_and_clean_html("") == ""
+        assert parse_and_clean_html(None) is None
+
+    def test_strips_all_data_attrs(self):
+        html = '<div data-section-id="123" data-custom="x"><p>Content</p></div>'
+        result = parse_and_clean_html(html)
+        assert "data-" not in result
+        assert "Content" in result
+
+    def test_strips_all_style_blocks(self):
+        html = '<style>.foo { color: red; }</style><p>Content</p>'
+        result = parse_and_clean_html(html)
+        assert "<style" not in result
+        assert "Content" in result
+
+    def test_strips_script_blocks(self):
+        html = '<p>Before</p><script>alert(1)</script><p>After</p>'
+        result = parse_and_clean_html(html)
+        assert "<script" not in result
+        assert "Before" in result
+        assert "After" in result
+
+    def test_strips_event_handlers(self):
+        html = '<div onclick="alert(1)" onmouseover="x()"><p>Content</p></div>'
+        result = parse_and_clean_html(html)
+        assert "onclick" not in result
+        assert "onmouseover" not in result
+
+    def test_collapses_empty_wrappers(self):
+        """Deeply nested empty divs collapse to just the content."""
+        html = '<div><div><div><p>Text</p></div></div></div>'
+        result = parse_and_clean_html(html)
+        assert result == "<p>Text</p>"
+
+    def test_preserves_semantic_elements(self):
+        html = (
+            '<h1>Title</h1><h2>Sub</h2><p>Para</p>'
+            '<ul><li>Item</li></ul>'
+            '<a href="https://example.com">Link</a>'
+            '<img src="img.jpg" alt="Alt">'
+            '<blockquote>Quote</blockquote>'
+            '<table><tr><td>Cell</td></tr></table>'
+        )
+        result = parse_and_clean_html(html)
+        assert "<h1>Title</h1>" in result
+        assert "<h2>Sub</h2>" in result
+        assert "<p>Para</p>" in result
+        assert "<li>Item</li>" in result
+        assert 'href="https://example.com"' in result
+        assert 'src="img.jpg"' in result
+        assert "<blockquote>Quote</blockquote>" in result
+        assert "<td>Cell</td>" in result
+
+    def test_preserves_inline_style_attrs(self):
+        html = '<p style="color: red;">Hello</p>'
+        result = parse_and_clean_html(html)
+        assert 'style=' in result
+        assert "Hello" in result
+
+    def test_preserves_accessibility_attrs(self):
+        html = '<div id="faq" role="region" aria-label="FAQ"><p>Content</p></div>'
+        result = parse_and_clean_html(html)
+        assert 'role="region"' in result
+        assert 'aria-label="FAQ"' in result
+
+    def test_preserves_html_comments(self):
+        html = '<p>Before</p><!-- section marker --><p>After</p>'
+        result = parse_and_clean_html(html)
+        assert "<!-- section marker -->" in result
+
+    def test_preserves_anchor_target_ids(self):
+        html = '<a href="#faq">Go</a><div id="faq"><p>FAQ</p></div>'
+        result = parse_and_clean_html(html)
+        assert 'id="faq"' in result
+
+    def test_void_elements(self):
+        html = '<p>Before<br>After</p><hr><img src="x.jpg">'
+        result = parse_and_clean_html(html)
+        assert "<br>" in result
+        assert "<hr>" in result
+        assert "<img" in result
+
+    def test_entities_preserved(self):
+        html = '<p>A &amp; B &lt; C</p>'
+        result = parse_and_clean_html(html)
+        assert "&amp;" in result
+        assert "&lt;" in result
+
+    def test_idempotent(self):
+        html = '<h1>Title</h1><p>Content with <strong>bold</strong></p>'
+        first = parse_and_clean_html(html)
+        second = parse_and_clean_html(first)
+        assert first == second
+
+    def test_theme_classes_whitelist(self):
+        html = '<div class="rte hero-banner unknown"><p>Content</p></div>'
+        result = parse_and_clean_html(html, theme_classes={"rte", "hero-banner"})
+        assert "rte" in result
+        assert "hero-banner" in result
+        assert "unknown" not in result
+
+    def test_theme_ids_whitelist(self):
+        html = '<div id="pb-junk"><p>Content</p></div>'
+        result = parse_and_clean_html(html, theme_ids=set())
+        assert 'id=' not in result
+
+    def test_real_magento_pagebuilder_bloat(self):
+        """Regression: real Magento PageBuilder HTML from a collection body_html."""
+        bloated = (
+            '<div><div><div><div> <div> '
+            '<h1>Award-Winning Haircare</h1> '
+            '<div><p>We combine proven botanical extracts.</p></div> '
+            '</div> </div></div></div></div> '
+            '<style>#html-body [data-pb-style=PUM06FI],'
+            '#html-body [data-pb-style=S4YVP9U]'
+            '{background-position:left top}</style>'
+            '<div data-content-type="row" data-appearance="contained" '
+            'data-element="main">'
+            '<div data-enable-parallax="0" data-parallax-speed="0.5" '
+            'data-background-images="{}" data-pb-style="PUM06FI">'
+            '<div class="pagebuilder-column-group" data-content-type="column-group">'
+            '<h1 data-content-type="heading" data-pb-style="YQ4D9A4">'
+            'العناية بالشعر</h1> '
+            '<div data-content-type="text" data-pb-style="OIUIHC7">'
+            '<p>نمزج مستخلصات نباتية</p>'
+            '</div></div></div></div>'
+        )
+        result = parse_and_clean_html(bloated)
+        # Bloat gone
+        assert "data-pb-style" not in result
+        assert "data-content-type" not in result
+        assert "<style" not in result
+        assert "pagebuilder" not in result
+        # Content preserved
+        assert "Award-Winning Haircare" in result
+        assert "We combine proven botanical extracts." in result
+        assert "العناية بالشعر" in result
+        assert "نمزج مستخلصات نباتية" in result
+        # Much smaller
+        assert len(result) < len(bloated) // 2
+
+    def test_malformed_html(self):
+        """Unclosed tags should be handled gracefully."""
+        html = '<div><p>Paragraph<div>Nested</div>'
+        result = parse_and_clean_html(html)
+        assert "Paragraph" in result
+        assert "Nested" in result
 
 
 # ─────────────────────────────────────────────────────────────────────────────

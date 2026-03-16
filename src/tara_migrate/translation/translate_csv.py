@@ -48,10 +48,23 @@ from tara_migrate.translation.engine import load_developer_prompt
 from tara_migrate.translation.toon import DELIM, from_toon, to_toon
 from tara_migrate.core import config
 
+try:
+    import tiktoken
+    _TIKTOKEN_ENC = tiktoken.get_encoding("o200k_base")
+except ImportError:
+    _TIKTOKEN_ENC = None
+
 
 # =====================================================================
 # Token estimation & adaptive batching
 # =====================================================================
+
+def _count_tokens(text):
+    """Accurate token count using tiktoken (o200k_base), fallback to estimate."""
+    if _TIKTOKEN_ENC is not None:
+        return len(_TIKTOKEN_ENC.encode(text))
+    return max(1, len(text) // 3)
+
 
 def _estimate_tokens(text):
     """Rough token estimate: ~3 chars per token for mixed EN/AR content."""
@@ -80,7 +93,7 @@ def adaptive_batch(fields, max_tokens=6000, chunk_threshold=6000):
     current_tokens = 0
 
     for field in fields:
-        field_tokens = _estimate_tokens(field["value"])
+        field_tokens = _count_tokens(field["value"])
 
         # Only chunk when a single field exceeds chunk_threshold
         if field_tokens > chunk_threshold:
@@ -101,6 +114,8 @@ def adaptive_batch(fields, max_tokens=6000, chunk_threshold=6000):
             current_tokens = 0
         current_batch.append(field)
         current_tokens += field_tokens
+        # Also account for TOON delimiter overhead (~5 tokens per field)
+        current_tokens += 5
 
     if current_batch:
         batches.append(current_batch)
@@ -788,18 +803,33 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
         f"<TOON>\n{toon_input}\n</TOON>"
     )
 
-    est_tokens = sum(_estimate_tokens(f["value"]) for f in fields)
+    # Accurate token count for the TOON payload using tiktoken
+    input_toon_tokens = _count_tokens(toon_input)
+    # For reasoning models, max_output_tokens includes reasoning tokens.
+    # With xhigh reasoning, the model may use 5-10x the output in reasoning.
+    # Don't set max_output_tokens for reasoning models — let the API use its
+    # default max to avoid truncating the actual TOON output.
+    use_reasoning = reasoning_effort and reasoning_effort != "none"
+    est_output_tokens = int(input_toon_tokens * 2.0) + 1000
     print(f"  Batch {batch_num}/{total_batches}: {len(fields)} fields "
-          f"(~{est_tokens:,} value tokens)...")
+          f"(~{input_toon_tokens:,} input tokens"
+          f"{'' if use_reasoning else f', max_output={est_output_tokens:,}'}"
+          f")...")
 
     for attempt in range(4):
         try:
-            response = client.responses.create(
-                model=model,
-                instructions=developer_prompt,
-                input=user_message,
-                reasoning={"effort": reasoning_effort},
-            )
+            kwargs = {
+                "model": model,
+                "instructions": developer_prompt,
+                "input": user_message,
+            }
+            if use_reasoning:
+                kwargs["reasoning"] = {"effort": reasoning_effort}
+                # Don't cap output — reasoning tokens eat into max_output_tokens
+            else:
+                kwargs["max_output_tokens"] = est_output_tokens
+
+            response = client.responses.create(**kwargs)
 
             # Check for refusal before parsing
             refusal_found = False
@@ -836,6 +866,24 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
                             result += content.text
 
             result = result.strip()
+
+            # Log token breakdown for debugging
+            usage = response.usage
+            reasoning_tokens = getattr(
+                getattr(usage, "output_tokens_details", None),
+                "reasoning_tokens", 0) or 0
+            if reasoning_tokens:
+                print(f"    Tokens: {usage.output_tokens:,} output "
+                      f"({reasoning_tokens:,} reasoning + "
+                      f"{usage.output_tokens - reasoning_tokens:,} text)")
+            if not result:
+                print(f"    WARNING: Empty response text "
+                      f"(output_tokens={usage.output_tokens}, "
+                      f"reasoning={reasoning_tokens})")
+                if attempt < 3:
+                    time.sleep(2)
+                    continue
+                return {}, 0
 
             # Detect text-based refusal
             if result and DELIM not in result and (
@@ -1711,7 +1759,7 @@ def translate_csv(
     output_dir=None,
     output_path=None,
     model="gpt-5-nano",
-    batch_size=120,
+    batch_size=0,
     dry_run=False,
     scrape=True,
     upload=True,
@@ -1927,8 +1975,22 @@ def translate_csv(
     # ------------------------------------------------------------------
     # 5. Batch fields
     # ------------------------------------------------------------------
-    batches = adaptive_batch(fields, max_tokens=batch_size)
-    total_value_tokens = sum(_estimate_tokens(f["value"]) for f in fields)
+    if batch_size <= 0:
+        # Auto-size batches so estimated OUTPUT is ~50K tokens per batch.
+        # Arabic output is ~2x the tokens of English/Spanish input
+        # (Arabic chars consume more tokens than Latin chars).
+        TARGET_OUTPUT = 50_000
+        target_input = int(TARGET_OUTPUT / 2.0)
+        batches = adaptive_batch(fields, max_tokens=target_input)
+        total_input = _count_tokens(
+            " ".join(f["value"] for f in fields)) if fields else 0
+        print(f"\nAuto-batch: ~{total_input:,} total input tokens, "
+              f"target {TARGET_OUTPUT:,} output tokens/batch "
+              f"-> {len(batches)} batches")
+    else:
+        batches = adaptive_batch(fields, max_tokens=batch_size)
+    total_value_tokens = _count_tokens(
+        " ".join(f["value"] for f in fields)) if fields else 0
 
     print(f"\n{len(fields)} fields -> {len(batches)} batches "
           f"(~{total_value_tokens:,} value tokens)")
@@ -1958,8 +2020,12 @@ def translate_csv(
         print("ERROR: OPENAI_API_KEY not set. Add it to .env or environment.")
         sys.exit(1)
 
+    import httpx
     from openai import OpenAI
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(
+        api_key=api_key,
+        timeout=httpx.Timeout(timeout=10800.0, connect=30.0),
+    )
 
     # ------------------------------------------------------------------
     # 8. Load developer prompt / system prompt
@@ -2146,8 +2212,8 @@ def main():
                         help="Explicit output CSV path (overrides --output-dir)")
     parser.add_argument("--model", default="gpt-5",
                         help="OpenAI model (default: gpt-5-nano)")
-    parser.add_argument("--batch-size", type=int, default=120,
-                        help="Max tokens per batch (default: 120)")
+    parser.add_argument("--batch-size", type=int, default=0,
+                        help="Max tokens per batch (0 = unlimited, all fields in one batch)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be translated without API calls")
     parser.add_argument("--no-scrape", action="store_true",
