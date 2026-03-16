@@ -292,6 +292,8 @@ python crawl_and_translate.py --crawl-only                 # Crawl only, save to
 python crawl_and_translate.py --skip-crawl                 # Reuse saved crawl data
 python crawl_and_translate.py --dry-run                    # Show plan, no uploads
 python crawl_and_translate.py --include-checkout           # Also crawl checkout pages
+python crawl_and_translate.py --checkout-only              # ONLY crawl cart+checkout (no site crawl)
+python crawl_and_translate.py --checkout-only --dry-run    # Preview checkout-only plan
 python crawl_and_translate.py --max-pages 300              # Crawl more pages
 python crawl_and_translate.py --model gpt-5-mini           # Override translation model
 python crawl_and_translate.py --skip-remove                # Don't remove unmatched translations
