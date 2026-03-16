@@ -123,10 +123,10 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    input_dir = "data/english"
-    id_map_file = "data/id_map.json"
-    file_map_file = "data/file_map.json"
-    arabic_progress_file = "data/arabic_import_progress.json"
+    input_dir = config.get_en_dir()
+    id_map_file = config.get_id_map_file()
+    file_map_file = config.get_file_map_file()
+    arabic_progress_file = config.get_progress_file("arabic_import_progress.json")
 
     if args.reset:
         for f in [id_map_file, file_map_file, arabic_progress_file]:
@@ -145,8 +145,8 @@ def main():
         access_token = config.get_dest_access_token()
         client = ShopifyClient(shop_url, access_token)
 
-    # Fetch prices from Magento store
-    magento_prices_file = "data/magento_prices.json"
+    # Fetch prices from Magento store (per-destination via MAGENTO_STORE_CODE env var)
+    magento_prices_file = config.get_progress_file("magento_prices.json")
     magento_prices = {}
     try:
         from tara_migrate.fixers.fix_prices import fetch_magento_prices
@@ -430,7 +430,7 @@ def main():
     if not args.dry_run:
         try:
             # Load Spain definitions (exported by export_spain.py)
-            source_defs_file = os.path.join("data", "spain_export", "product_metafield_definitions.json")
+            source_defs_file = os.path.join(config.SOURCE_DIR, "product_metafield_definitions.json")
             source_defs = load_json(source_defs_file) if os.path.exists(source_defs_file) else []
 
             # Fetch destination definitions

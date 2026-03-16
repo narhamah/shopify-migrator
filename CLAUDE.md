@@ -83,6 +83,37 @@ ANTHROPIC_API_KEY=sk-ant-xxx
 
 Legacy env var names (`SPAIN_SHOP_URL`/`SPAIN_ACCESS_TOKEN`, `SAUDI_SHOP_URL`/`SAUDI_ACCESS_TOKEN`) are still supported for backwards compatibility.
 
+## Cross-Store Migration (Multi-Destination)
+
+Set `DEST_NAME` to scope all per-destination files (id_map, progress files, etc.) under `data/{dest_name}/`. The source export (`data/source_export/`) is always shared.
+
+```bash
+# Example: Saudi → Kuwait
+export SOURCE_SHOP_URL=tara-saudi.myshopify.com
+export SOURCE_ACCESS_TOKEN=shpat_saudi_xxx
+export DEST_SHOP_URL=tara-kuwait.myshopify.com
+export DEST_ACCESS_TOKEN=shpat_kuwait_xxx
+export DEST_NAME=kuwait
+export MAGENTO_STORE_CODE=kw-en  # Magento store code for Kuwait prices
+
+# 1. Export from source (one-time, shared)
+python export_spain.py
+
+# 2. Import English content (creates data/kuwait/id_map.json etc.)
+python import_english.py
+
+# 3. Export Arabic translations from source store
+python export_translations.py --locale ar
+
+# 4. Import Arabic translations to destination
+python import_arabic.py
+
+# 5. Post-migration (redirects, menus, SEO, etc.)
+python post_migration.py
+```
+
+When `DEST_NAME` is unset, paths resolve to the flat `data/` layout for backwards compatibility.
+
 ## Data Pipeline
 
 ```
@@ -187,6 +218,11 @@ python translate_gaps.py --lang ar
 python import_arabic.py [--dry-run]
 python migrate_all_images.py
 python post_migration.py
+
+# Cross-store: export translations from source store
+python export_translations.py --locale ar
+python export_translations.py --locale ar --output-dir data/kuwait/arabic
+python export_translations.py --locale ar --resource-type PRODUCT --dry-run
 
 # Customer import (from Magento CSV export)
 python import_customers.py --input Export_Customers.csv --country "Saudi Arabia" --dry-run
