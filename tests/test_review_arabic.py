@@ -506,6 +506,46 @@ class TestClassifyFields:
         assert results[0]["status"] == "HTML_BLOAT"
         assert stats["html_bloat"] == 1
 
+    @patch("tara_migrate.tools.review_arabic._ai_is_spanish", return_value=False)
+    def test_html_bloat_detected_even_when_mixed_language(self, mock_is_spanish):
+        """Regression: bloated Arabic with English HTML remnants was classified
+        as MIXED_LANGUAGE instead of HTML_BLOAT because the bloat check only
+        ran when status == OK. Real Magento PageBuilder HTML contains English
+        text alongside Arabic, triggering MIXED_LANGUAGE first."""
+        bloated_arabic = (
+            '<div><div><div><div> <div> '
+            '<h1>Award-Winning Haircare: Botanical Extracts + Advanced Science </h1> '
+            '<div><p>We combine proven botanical extracts with breakthrough modern '
+            'ingredients to provide the best care for your hair.</p></div> '
+            '</div> </div></div></div></div> '
+            '<style>#html-body [data-pb-style=PUM06FI],'
+            '#html-body [data-pb-style=S4YVP9U]'
+            '{background-position:left top;background-size:cover}</style>'
+            '<div data-content-type="row" data-appearance="contained" '
+            'data-element="main">'
+            '<div data-enable-parallax="0" data-parallax-speed="0.5" '
+            'data-background-images="{}" data-background-type="image" '
+            'data-element="inner" data-pb-style="PUM06FI">'
+            '<div class="pagebuilder-column-group" data-content-type="column-group">'
+            '<h1 data-content-type="heading" data-pb-style="YQ4D9A4">'
+            'العناية بالشعر الحائزة على جوائز: مستخلصات نباتية + علم متقدّم</h1> '
+            '<div data-content-type="text" data-pb-style="OIUIHC7">'
+            '<p>نمزج مستخلصات نباتية مثبتة مع مكوّنات حديثة ومتقدّمة.</p>'
+            '</div></div></div></div>'
+        )
+        fields = [_make_field(
+            english="<h1>Award-Winning Haircare</h1><p>We combine proven botanical extracts.</p>",
+            arabic=bloated_arabic,
+            key="body_html",
+            resource_type="COLLECTION",
+            resource_id="gid://shopify/Collection/466273206505",
+        )]
+        results, stats = classify_fields(fields)
+        assert results[0]["status"] == "HTML_BLOAT", (
+            f"Expected HTML_BLOAT but got {results[0]['status']}: {results[0]['detail']}"
+        )
+        assert stats["html_bloat"] == 1
+
     @patch("tara_migrate.tools.review_arabic.is_spanish", return_value=False)
     def test_has_english(self, mock_is_spanish):
         fields = [_make_field(

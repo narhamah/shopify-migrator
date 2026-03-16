@@ -260,16 +260,18 @@ def classify_fields(fields, audit_model="claude-haiku-4-5-20251001"):
                     results.append({**field, "status": status, "detail": detail})
                     continue
 
+        # Check HTML bloat BEFORE basic classification — bloated Arabic often
+        # contains English text from Magento PageBuilder which triggers
+        # MIXED_LANGUAGE or NOT_ARABIC, masking the real problem (bloat).
+        if arabic and has_html_bloat(arabic) and status not in ("SKIP", "MISSING"):
+            status, detail = "HTML_BLOAT", "Arabic translation contains HTML bloat"
+
         # Enhanced checks for fields that passed basic classification
         if status == "OK":
             ar_text = _extract_checkable_text(arabic) if arabic else ""
 
-            # Check 1: HTML bloat in Arabic translation
-            if arabic and has_html_bloat(arabic):
-                status, detail = "HTML_BLOAT", "Arabic translation contains HTML bloat"
-
             # Check 2: Untranslated English product terms
-            elif ar_text:
+            if ar_text:
                 en_matches = _has_untranslated_english(ar_text)
                 if en_matches:
                     preview = ", ".join(en_matches[:3])
