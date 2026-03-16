@@ -438,6 +438,126 @@ def crawl_arabic_site(page, base_url, locale_prefix="/ar", max_pages=200,
     return all_english_texts, visited
 
 
+def crawl_checkout_only(page, base_url):
+    """Crawl ONLY the cart and checkout pages — nothing else.
+
+    Adds a product to cart first so the checkout page is reachable,
+    then scrapes English strings from /cart and /checkout only.
+    """
+    domain = urlparse(base_url).netloc
+    all_english_texts = []
+    seen_texts = set()
+    visited = set()
+
+    def _scrape_page(url, label):
+        """Visit a URL and extract English text."""
+        parsed = urlparse(url)
+        short_path = parsed.path
+        print(f"\n  [{label}] {short_path}")
+        try:
+            response = page.goto(url, wait_until="networkidle", timeout=30000)
+            if not response or response.status >= 400:
+                status = response.status if response else "no response"
+                print(f"    HTTP {status} — skipping")
+                return
+            time.sleep(1.5)
+
+            # Scroll to reveal lazy content
+            page.evaluate("""() => {
+                const step = window.innerHeight;
+                const maxY = document.body.scrollHeight;
+                let y = 0;
+                function scrollStep() {
+                    y += step;
+                    if (y > maxY) return;
+                    window.scrollTo(0, y);
+                    setTimeout(scrollStep, 200);
+                }
+                scrollStep();
+            }""")
+            time.sleep(2)
+            page.evaluate("window.scrollTo(0, 0)")
+            time.sleep(0.3)
+
+            # Expand interactive elements
+            page.evaluate(EXPAND_INTERACTIVE_JS)
+            time.sleep(0.5)
+
+            texts = page.evaluate(EXTRACT_ALL_TEXT_JS)
+            page_english = []
+            for t in texts:
+                raw = t["text"]
+                if raw in seen_texts:
+                    continue
+                if _is_english_text(raw):
+                    seen_texts.add(raw)
+                    page_english.append({
+                        "text": raw,
+                        "url": url,
+                        "path": short_path,
+                        "tag": t["tag"],
+                        "classes": t.get("classes", ""),
+                        "id": t.get("id", ""),
+                    })
+
+            if page_english:
+                print(f"    {len(page_english)} English strings found:")
+                for item in page_english[:8]:
+                    print(f"      [{item['tag']:10s}] {item['text'][:80]}")
+                if len(page_english) > 8:
+                    print(f"      ... and {len(page_english) - 8} more")
+            else:
+                print(f"    All text appears Arabic ✓")
+
+            all_english_texts.extend(page_english)
+            visited.add(url)
+
+        except Exception as e:
+            print(f"    ERROR: {e}")
+
+    # Step 1: Visit a product page and add to cart so checkout is reachable
+    print(f"\n  Adding a product to cart...")
+    collections_url = f"{base_url.rstrip('/')}/ar/collections/all"
+    try:
+        page.goto(collections_url, wait_until="networkidle", timeout=20000)
+        time.sleep(1)
+        # Find first product link
+        product_link = page.evaluate("""() => {
+            const a = document.querySelector('a[href*="/products/"]');
+            return a ? a.href : null;
+        }""")
+        if product_link:
+            page.goto(product_link, wait_until="networkidle", timeout=20000)
+            time.sleep(1)
+            added = page.evaluate(ADD_TO_CART_JS)
+            if added:
+                print(f"    Added to cart ✓")
+                time.sleep(2)
+            else:
+                print(f"    Could not add to cart (may still work with empty cart)")
+        else:
+            print(f"    No product found (proceeding with empty cart)")
+    except Exception as e:
+        print(f"    Product/cart setup error: {e} (proceeding anyway)")
+
+    # Step 2: Crawl only cart and checkout
+    cart_url = f"{base_url.rstrip('/')}/cart"
+    checkout_url = f"{base_url.rstrip('/')}/checkout"
+
+    _scrape_page(cart_url, "CART")
+    _scrape_page(checkout_url, "CHECKOUT")
+
+    # Also try Arabic-prefixed variants
+    ar_cart = f"{base_url.rstrip('/')}/ar/cart"
+    ar_checkout = f"{base_url.rstrip('/')}/ar/checkout"
+    if ar_cart not in visited:
+        _scrape_page(ar_cart, "CART /ar")
+    if ar_checkout not in visited:
+        _scrape_page(ar_checkout, "CHECKOUT /ar")
+
+    return all_english_texts, visited
+
+
 # ---------------------------------------------------------------------------
 # Matching: scraped text → theme keys
 # ---------------------------------------------------------------------------
@@ -745,6 +865,8 @@ def main():
                         help="Max pages to crawl (default: 200)")
     parser.add_argument("--include-checkout", action="store_true",
                         help="Attempt to crawl checkout pages")
+    parser.add_argument("--checkout-only", action="store_true",
+                        help="ONLY crawl checkout/cart pages — no site-wide crawl")
     parser.add_argument("--headed", action="store_true",
                         help="Run browser visibly (not headless)")
 
@@ -775,8 +897,13 @@ def main():
     crawl_file = args.crawl_data or os.path.join(DATA_DIR, "crawl_english.json")
     keys_file = args.keys_data or os.path.join(DATA_DIR, "theme_keys.json")
 
+    # --checkout-only implies --skip-remove (don't touch existing translations)
+    if args.checkout_only:
+        args.skip_remove = True
+
+    mode_label = "CHECKOUT ONLY" if args.checkout_only else "visible theme strings only"
     print("=" * 70)
-    print("CRAWL → MATCH → TRANSLATE (visible theme strings only)")
+    print(f"CRAWL → MATCH → TRANSLATE ({mode_label})")
     print("=" * 70)
 
     # ── Step 1: Crawl ─────────────────────────────────────────────────────
@@ -798,7 +925,10 @@ def main():
             print("  playwright install chromium")
             sys.exit(1)
 
-        print(f"\n  STEP 1: Crawling {args.base_url}{args.locale_prefix}")
+        if args.checkout_only:
+            print(f"\n  STEP 1: Crawling CHECKOUT ONLY at {args.base_url}")
+        else:
+            print(f"\n  STEP 1: Crawling {args.base_url}{args.locale_prefix}")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=not args.headed)
@@ -808,13 +938,19 @@ def main():
             )
             pw_page = context.new_page()
 
-            scraped, visited = crawl_arabic_site(
-                pw_page,
-                args.base_url,
-                locale_prefix=args.locale_prefix,
-                max_pages=args.max_pages,
-                include_checkout=args.include_checkout,
-            )
+            if args.checkout_only:
+                scraped, visited = crawl_checkout_only(
+                    pw_page,
+                    args.base_url,
+                )
+            else:
+                scraped, visited = crawl_arabic_site(
+                    pw_page,
+                    args.base_url,
+                    locale_prefix=args.locale_prefix,
+                    max_pages=args.max_pages,
+                    include_checkout=args.include_checkout,
+                )
 
             browser.close()
 
