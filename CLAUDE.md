@@ -339,6 +339,28 @@ python validate_addresses.py --validate FILE.csv [--fix]   # Validate/fix addres
 - Third-party apps (Klaviyo, reviews, loyalty)
 - Shopify Flows (export .flow from Spain, import to Saudi — GIDs differ)
 
+## Engineering Principles
+
+### Parse structured formats — never regex them
+
+When working with structured, deterministic formats (HTML, JSON, XML, CSS, rich text), **always use a proper parser**. These formats have defined grammars and stdlib parsers exist for them (`html.parser.HTMLParser`, `json`, `xml.etree`). Regex on serialized structured data is fundamentally the wrong tool — it's fragile, incomplete, and creates endless whack-a-mole with patterns.
+
+**Concrete example:** HTML `body_html` fields may contain Magento PageBuilder remnants. The correct approach is to parse the DOM tree, walk it, keep semantic elements and text, and drop everything not referenced by the Shopify theme's CSS. The theme's class/ID selectors (from `fetch_theme_selectors()`) tell us deterministically what's alive vs dead. Don't regex-match known Magento patterns — parse the tree and keep only what belongs.
+
+This applies everywhere in this codebase:
+- **HTML body_html** → parse with `html.parser`, strip by DOM structure + theme CSS validation
+- **Rich text JSON** → parse with `json`, walk nodes with `extract_text_nodes()` / `rebuild()`
+- **CSS** → parse selectors to build allowlists, don't regex for "Magento-looking" rules
+- **Shopify GraphQL responses** → traverse the typed structure, don't string-match
+
+### Question the paradigm, not just the bug
+
+When fixing a bug, step back and ask: is the approach itself correct, or am I patching a fundamentally wrong abstraction? A control-flow fix on regex-based HTML detection perpetuates the wrong approach. The right fix is to replace regex HTML processing with DOM parsing. Prefer correct abstractions over minimal diffs.
+
+### Use what you already have
+
+Before building detection heuristics, check what deterministic data is already available. This project already fetches theme CSS selectors (`fetch_theme_selectors`) — that's a complete allowlist of what belongs in Shopify HTML. Use it as ground truth instead of guessing with patterns.
+
 ## Conventions
 
 - Shopify API version: `2024-10`
@@ -348,3 +370,4 @@ python validate_addresses.py --validate FILE.csv [--fix]   # Validate/fix addres
 - REST used for: products, collections, pages, blogs, articles
 - Progress files prevent duplicate work on re-runs (idempotent by handle matching)
 - Rich text fields are JSON — always use `sanitize_rich_text_json()` after translation
+- **HTML body_html fields** — always parse with `html.parser.HTMLParser`, never regex. Use `parse_and_clean_html()` from `review_content.py` with theme selectors for stripping foreign content
