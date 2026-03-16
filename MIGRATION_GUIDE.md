@@ -24,7 +24,7 @@ python build_site.py
 pip install -r requirements.txt
 cp .env.example .env              # Edit with your credentials
 python setup_store.py             # Create metaobject/metafield definitions
-python export_spain.py            # Export from Spain Shopify
+python export_source.py            # Export from Spain Shopify
 python scrape_kuwait.py --scrape  # Scrape EN/AR from Magento
 ```
 
@@ -35,7 +35,7 @@ python scrape_kuwait.py --scrape  # Scrape EN/AR from Magento
 ```
 Spain Shopify (ES)          Magento Live Sites (EN/AR)
        │                              │
-  export_spain.py              scrape_kuwait.py
+  export_source.py              scrape_kuwait.py
        │                              │
        ▼                              ▼
 data/spain_export/          data/english/ (scraped)
@@ -138,7 +138,7 @@ Safe to re-run — skips definitions that already exist.
 ### Step 2: Export from Spain Store
 
 ```bash
-python export_spain.py
+python export_source.py
 ```
 
 Exports everything from the Spain Shopify store → `data/spain_export/`:
@@ -523,7 +523,7 @@ Image optimization presets (all converted to WebP):
 | Script | Purpose | When to Run |
 |--------|---------|-------------|
 | `setup_store.py` | Create metaobject/metafield definitions on Saudi store | Once before first build |
-| `export_spain.py` | Export all data from Spain Shopify store → `data/spain_export/` | Once (or when Spain data changes) |
+| `export_source.py` | Export all data from Spain Shopify store → `data/spain_export/` | Once (or when Spain data changes) |
 | `scrape_kuwait.py` | Scrape EN/AR content from Magento → `data/english/`, `data/arabic/` | Once (or when Magento data changes) |
 | `build_site.py` | **Master orchestrator** — runs all 8 phases in order | Main entry point for building |
 

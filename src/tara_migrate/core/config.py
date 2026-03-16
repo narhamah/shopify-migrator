@@ -96,12 +96,6 @@ def _dest_path(default_path):
 # Source export is shared across all destinations (never scoped).
 SOURCE_DIR = "data/source_export"
 
-# These are per-destination: when DEST_NAME=kuwait they resolve to
-# data/kuwait/english, data/kuwait/arabic, etc.
-EN_DIR = property(lambda self: _dest_path("data/english"))  # see module-level getters below
-AR_DIR = property(lambda self: _dest_path("data/arabic"))
-
-
 def get_en_dir():
     return _dest_path("data/english")
 
