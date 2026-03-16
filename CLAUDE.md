@@ -353,9 +353,9 @@ This applies everywhere in this codebase:
 - **CSS** → parse selectors to build allowlists, don't regex for "Magento-looking" rules
 - **Shopify GraphQL responses** → traverse the typed structure, don't string-match
 
-### Question the paradigm, not just the bug
+### Optimize for correct approach instead of minimal change
 
-When fixing a bug, step back and ask: is the approach itself correct, or am I patching a fundamentally wrong abstraction? A control-flow fix on regex-based HTML detection perpetuates the wrong approach. The right fix is to replace regex HTML processing with DOM parsing. Prefer correct abstractions over minimal diffs.
+When fixing a bug, step back and ask: is the approach itself correct, or am I patching a fundamentally wrong abstraction? A control-flow fix on regex-based HTML detection perpetuates the wrong approach. The right fix is to replace regex HTML processing with DOM parsing.
 
 ### Use what you already have
 
