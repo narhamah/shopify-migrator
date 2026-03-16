@@ -60,7 +60,7 @@ Safe to re-run — skips anything that already exists.
 ### Step 1: Export from Spain Store
 
 ```bash
-python export_spain.py
+python export_source.py
 ```
 
 Exports all content to `data/spain_export/`:

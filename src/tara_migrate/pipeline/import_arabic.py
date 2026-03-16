@@ -26,7 +26,11 @@ from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import load_json, sanitize_rich_text_json, save_json
-from tara_migrate.core.config import AR_DIR, EN_DIR, ID_MAP_FILE, get_dest_access_token, get_dest_shop_url
+from tara_migrate.core.config import (
+    AR_DIR, EN_DIR, ID_MAP_FILE,
+    get_ar_dir, get_en_dir, get_id_map_file, get_progress_file,
+    get_dest_access_token, get_dest_shop_url,
+)
 from tara_migrate.core.graphql_queries import (
     FETCH_PRODUCTS_QUERY,
     fetch_translatable_resources,
@@ -679,7 +683,7 @@ def _register_product_image_alts(client, dest_id, handle, lookup):
     """
     ar_fields = lookup.get(handle, {})
     # Check if there are image alt entries in the full Arabic data
-    ar_products = load_json(os.path.join(AR_DIR, "products.json"))
+    ar_products = load_json(os.path.join(get_ar_dir(), "products.json"))
     ar_by_handle = {p.get("handle", ""): p for p in (ar_products if isinstance(ar_products, list) else [])}
 
     # Try matching by handle in Arabic data
@@ -934,13 +938,13 @@ def _run_image_replacement(client, dry_run=False):
     """
     from tara_migrate.tools.image_lang_detect import classify_image_language
 
-    ar_products = load_json(os.path.join(AR_DIR, "products.json"))
+    ar_products = load_json(os.path.join(get_ar_dir(), "products.json"))
     if not isinstance(ar_products, list):
         print("  No Arabic product data for image replacement")
         return
 
     ar_by_handle = {p.get("handle", ""): p for p in ar_products}
-    en_products = load_json(os.path.join(EN_DIR, "products.json"))
+    en_products = load_json(os.path.join(get_en_dir(), "products.json"))
     en_by_handle = {p.get("handle", ""): p for p in (en_products if isinstance(en_products, list) else [])}
 
     report = {
@@ -954,7 +958,7 @@ def _run_image_replacement(client, dry_run=False):
     }
 
     # Get all products from the store
-    id_map = load_json(ID_MAP_FILE)
+    id_map = load_json(get_id_map_file())
     products_map = id_map.get("products", {})
 
     print(f"\n{'='*60}")
@@ -1065,7 +1069,7 @@ def _run_image_replacement(client, dry_run=False):
                 report["errors"] += 1
 
     # Save report
-    save_json(report, "data/image_language_audit.json")
+    save_json(report, get_progress_file("image_language_audit.json"))
     print("\n  Image audit complete:")
     for k, v in report.items():
         print(f"    {k}: {v}")
@@ -1097,7 +1101,9 @@ def main():
     args = parser.parse_args()
 
     load_dotenv()
-    progress_file = "data/arabic_import_progress.json"
+    ar_dir = get_ar_dir()
+    en_dir = get_en_dir()
+    progress_file = get_progress_file("arabic_import_progress.json")
     if args.force:
         progress = {}
         print("  --force: ignoring progress file, re-processing all resources")
@@ -1105,7 +1111,7 @@ def main():
         progress = load_json(progress_file) if os.path.exists(progress_file) else {}
 
     # Load local Arabic translation data
-    progress_ar_file = os.path.join(AR_DIR, "_translation_progress_ar.json")
+    progress_ar_file = os.path.join(ar_dir, "_translation_progress_ar.json")
     progress_ar = load_json(progress_ar_file) if os.path.exists(progress_ar_file) else {}
 
     if args.dry_run:
@@ -1128,19 +1134,19 @@ def main():
             print("WARNING: --ai-fallback specified but OPENAI_API_KEY not set")
 
     # Build local lookups for each resource type
-    ar_metaobjects = load_json(os.path.join(AR_DIR, "metaobjects.json"))
+    ar_metaobjects = load_json(os.path.join(ar_dir, "metaobjects.json"))
     metaobject_lookup = build_metaobject_lookup(
         progress_ar, ar_metaobjects if isinstance(ar_metaobjects, dict) else {}
     )
 
     lookups = {}
     for type_prefix, (filename, builder) in FIELD_BUILDERS.items():
-        ar_path = os.path.join(AR_DIR, filename)
+        ar_path = os.path.join(ar_dir, filename)
         ar_items = load_json(ar_path) if os.path.exists(ar_path) else []
         if isinstance(ar_items, dict):
             ar_items = []
         # Build handle remap: Arabic handles → English handles (via shared source ID)
-        en_path = os.path.join(EN_DIR, filename)
+        en_path = os.path.join(en_dir, filename)
         en_items = load_json(en_path) if os.path.exists(en_path) else []
         if isinstance(en_items, dict):
             en_items = []

@@ -110,7 +110,7 @@ def inspect_value(value, path, registry, depth=0):
 def generate_dictionary():
     export_dir = "data/source_export"
     if not os.path.exists(export_dir):
-        print("Error: data/source_export/ not found. Run export_spain.py first.")
+        print("Error: data/source_export/ not found. Run export_source.py first.")
         return
 
     files = [

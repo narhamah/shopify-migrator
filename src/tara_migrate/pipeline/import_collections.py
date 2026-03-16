@@ -18,7 +18,7 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import ID_MAP_FILE, config, load_json, save_json
+from tara_migrate.core import config, load_json, save_json
 
 
 def deduplicate_collections(collections):
@@ -45,7 +45,7 @@ def build_metafield_def_remap(spain, saudi):
     """
     remap = {}  # Spain numeric ID → Saudi numeric ID
 
-    source_defs_file = "data/source_export/product_metafield_definitions.json"
+    source_defs_file = os.path.join(config.SOURCE_DIR, "product_metafield_definitions.json")
     source_defs = load_json(source_defs_file) if os.path.exists(source_defs_file) else []
 
     if not source_defs:
@@ -141,10 +141,10 @@ def main():
     source = ShopifyClient(source_url, source_token)
     saudi = ShopifyClient(dest_url, dest_token)
 
-    id_map = load_json(ID_MAP_FILE) if os.path.exists(ID_MAP_FILE) else {}
+    id_map = load_json(config.get_id_map_file()) if os.path.exists(config.get_id_map_file()) else {}
 
     # Use English collections (translated titles/descriptions)
-    collections = load_json("data/english/collections.json")
+    collections = load_json(os.path.join(config.get_en_dir(), "collections.json"))
     if not collections:
         print("ERROR: No collections found in data/english/collections.json")
         return
@@ -203,7 +203,7 @@ def main():
             dest_id = existing[0]["id"]
             print(f"  {label} — exists (id: {dest_id}), mapping")
             id_map.setdefault("collections", {})[source_id] = str(dest_id)
-            save_json(id_map, ID_MAP_FILE)
+            save_json(id_map, config.get_id_map_file())
             continue
 
         coll_data = {
@@ -222,7 +222,7 @@ def main():
             if dest_id:
                 print(f"  {label} — created (id: {dest_id})")
                 id_map.setdefault("collections", {})[source_id] = str(dest_id)
-                save_json(id_map, ID_MAP_FILE)
+                save_json(id_map, config.get_id_map_file())
                 created_custom += 1
                 time.sleep(0.3)
         except Exception as e:
@@ -262,7 +262,7 @@ def main():
             dest_id = existing[0]["id"]
             print(f"  {label} — exists (id: {dest_id}), mapping")
             id_map.setdefault("collections", {})[source_id] = str(dest_id)
-            save_json(id_map, ID_MAP_FILE)
+            save_json(id_map, config.get_id_map_file())
             continue
 
         remapped_rules, skip_reason = remap_rules(rules, metafield_def_remap, all_metaobject_id_map)
@@ -289,7 +289,7 @@ def main():
             if dest_id:
                 print(f"  {label} — created (id: {dest_id})")
                 id_map.setdefault("collections", {})[source_id] = str(dest_id)
-                save_json(id_map, ID_MAP_FILE)
+                save_json(id_map, config.get_id_map_file())
                 created_smart += 1
                 time.sleep(0.3)
         except Exception as e:
@@ -307,13 +307,13 @@ def main():
     # --- Phase 3: Link products to custom collections ---
     print("\n--- Phase 3: Product-Collection Links ---")
 
-    collects = load_json("data/source_export/collects.json")
+    collects = load_json(os.path.join(config.SOURCE_DIR, "collects.json"))
     if not collects:
         print("  No collects data found — skipping product links")
     else:
         product_map = id_map.get("products", {})
         collection_map = id_map.get("collections", {})
-        progress = load_json("data/collects_progress.json") if os.path.exists("data/collects_progress.json") else {}
+        progress = load_json(config.get_progress_file("collects_progress.json")) if os.path.exists(config.get_progress_file("collects_progress.json")) else {}
         if not isinstance(progress, dict):
             progress = {}
 
@@ -346,7 +346,7 @@ def main():
                 linked += 1
                 progress[key] = True
                 if linked % 10 == 0:
-                    save_json(progress, "data/collects_progress.json")
+                    save_json(progress, config.get_progress_file("collects_progress.json"))
             except Exception as e:
                 err = str(e)
                 if "already" in err.lower() or "422" in err:
@@ -357,11 +357,11 @@ def main():
                     link_errors += 1
 
         if not args.dry_run:
-            save_json(progress, "data/collects_progress.json")
+            save_json(progress, config.get_progress_file("collects_progress.json"))
         print(f"  Linked {linked} products, skipped {link_skipped}, errors {link_errors}")
 
     # --- Summary ---
-    save_json(id_map, ID_MAP_FILE)
+    save_json(id_map, config.get_id_map_file())
 
     print("\n" + "=" * 60)
     print("COLLECTION IMPORT COMPLETE")

@@ -1,11 +1,11 @@
-"""Tests for export_spain.py."""
+"""Tests for export_source.py."""
 import json
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tara_migrate.pipeline.export_spain import ensure_dir, save_json, main
+from tara_migrate.pipeline.export_source import ensure_dir, save_json, main
 
 
 class TestEnsureDir:
@@ -43,8 +43,8 @@ class TestSaveJson:
 
 
 class TestExportMain:
-    @patch("tara_migrate.pipeline.export_spain.load_dotenv")
-    @patch("tara_migrate.pipeline.export_spain.ShopifyClient")
+    @patch("tara_migrate.pipeline.export_source.load_dotenv")
+    @patch("tara_migrate.pipeline.export_source.ShopifyClient")
     def test_full_export(self, MockClient, mock_dotenv, tmp_path):
         mock_client = MagicMock()
         MockClient.return_value = mock_client
@@ -75,7 +75,7 @@ class TestExportMain:
         os.environ["SOURCE_ACCESS_TOKEN"] = "tok"
 
         # Patch the output dir to use tmp_path
-        with patch("tara_migrate.pipeline.export_spain.os.makedirs"):
+        with patch("tara_migrate.pipeline.export_source.os.makedirs"):
             with patch("builtins.open", create=True) as mock_open:
                 # We can't easily redirect file writes without more complex patching.
                 # Instead, test the function calls to verify correctness.
@@ -91,8 +91,8 @@ class TestExportMain:
         del os.environ["SOURCE_SHOP_URL"]
         del os.environ["SOURCE_ACCESS_TOKEN"]
 
-    @patch("tara_migrate.pipeline.export_spain.load_dotenv")
-    @patch("tara_migrate.pipeline.export_spain.ShopifyClient")
+    @patch("tara_migrate.pipeline.export_source.load_dotenv")
+    @patch("tara_migrate.pipeline.export_source.ShopifyClient")
     def test_export_empty_store(self, MockClient, mock_dotenv):
         mock_client = MagicMock()
         MockClient.return_value = mock_client

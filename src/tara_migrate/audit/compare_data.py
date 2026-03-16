@@ -363,7 +363,7 @@ def main():
         print(f"  Metaobjects: {mo_total} across {len(source_metaobjects)} types")
 
     if not source_products:
-        print("\nERROR: Spain export is empty. Run export_spain.py first.")
+        print("\nERROR: Spain export is empty. Run export_source.py first.")
         sys.exit(1)
 
     gaps = {"en": {}, "ar": {}}

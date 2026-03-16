@@ -96,91 +96,342 @@ TEXT_METAFIELD_TYPES = {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HTML Bloat Detection & Stripping
+# HTML Bloat Detection & Stripping — DOM Parser Approach
 # ─────────────────────────────────────────────────────────────────────────────
-# Conservative approach: only strip what we're CERTAIN is foreign bloat.
-# Shopify body_html can legitimately use inline styles, classes, ids, and
-# aria-* attributes for display and accessibility. We only remove patterns
-# that are definitively from Magento/external platforms.
+# HTML is a deterministic markup language. Parse it as a tree, keep only
+# semantic content and attributes referenced by the Shopify theme's CSS.
+# Drop everything else (scripts, styles, data-* attrs, dead classes/IDs,
+# event handlers, empty wrappers).
 #
-# SAFE to strip (never used by Shopify themes in body_html):
-#   - <script> blocks (Shopify sanitizes these out anyway)
-#   - Magento data-* attributes (data-pb-style, data-content-type, etc.)
-#   - Magento CSS classes (pagebuilder-*, product-item-*, etc.)
-#   - Magento product carousel/widget blocks
-#   - <style> blocks with Magento selectors
-#   - Event handler attributes (onclick, onload, etc.)
-#
-# PRESERVED (could be intentional):
-#   - Inline style="..." attributes (merchants use for alignment, colors)
-#   - Generic class="..." attributes (theme CSS may target these)
-#   - id="..." attributes (could be anchor link targets)
-#   - role, aria-* attributes (accessibility)
-#   - width/height on any element
-#   - <style> blocks without Magento selectors (could be intentional)
-#   - HTML comments (could be Shopify section markers)
+# The theme's class/ID selectors (from fetch_theme_selectors()) are ground
+# truth for what belongs. When theme data isn't available, fall back to
+# stripping known Magento class patterns.
 
-# <script> blocks — Shopify strips these from body_html anyway
-_SCRIPT_RE = re.compile(
-    r'<script[^>]*>.*?</script>',
-    re.IGNORECASE | re.DOTALL,
-)
+from html.parser import HTMLParser
 
-# <style> blocks with Magento pagebuilder selectors (definitely foreign)
-_MAGENTO_STYLE_RE = re.compile(
-    r'<style[^>]*>(?:[^<]|<(?!/style))*?'
-    r'(?:data-pb-style|\.pagebuilder-|\.product-image-container|\.price-)'
-    r'(?:[^<]|<(?!/style))*?</style>',
-    re.IGNORECASE | re.DOTALL,
-)
+# Void elements that don't have closing tags
+_VOID_ELEMENTS = frozenset({
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+    'link', 'meta', 'param', 'source', 'track', 'wbr',
+})
 
-# Magento-specific data-* attributes (NOT generic data-* which could be from
-# Shopify apps or theme JS)
-_MAGENTO_DATA_ATTRS_RE = re.compile(
-    r'\s*(?:data-pb-style|data-content-type|data-appearance|data-element'
-    r'|data-enable-parallax|data-parallax-speed|data-background-images'
-    r'|data-background-type|data-video-loop|data-video-play-only-visible'
-    r'|data-video-lazy-load|data-video-fallback-src|data-grid-size'
-    r'|data-same-width|data-link-type|data-role|data-price-amount'
-    r'|data-price-type|data-price-box|data-product-id|data-product-sku'
-    r'|data-post|data-action|data-autoplay|data-autoplay-speed'
-    r'|data-infinite-loop|data-show-arrows|data-show-dots'
-    r'|data-carousel-mode|data-center-padding)="[^"]*"',
-    re.IGNORECASE,
-)
-
-# Event handler attributes (onclick, onload, etc.) — security risk, never needed
-_EVENT_HANDLER_RE = re.compile(
-    r'\s+on[a-z]+="[^"]*"',
-    re.IGNORECASE,
-)
-
-# Magento-specific CSS classes
+# Magento-specific CSS classes (blacklist fallback when no theme data)
 _MAGENTO_CLASSES = re.compile(
-    r'pagebuilder-|product-item-|widget-product-|price-container|'
+    r'pagebuilder-|product-items?|product-item-|widget-product-|price-container|'
     r'price-final_price|price-wrapper|tocart|towishlist|tocompare|'
     r'yotpo |bottomLine|bottomline-|columnGroup-root|column-root|'
     r'post-blogPostContent|row-contained-|row-root-|row-full-width|'
     r'text-root-|image-root-|image-img-|actions-primary|actions-secondary|'
     r'product-image-container|product-image-wrapper|product-image-photo|'
-    r'block-with-products|productsCarousel|mage-',
+    r'block-with-products|productsCarousel|mage-|left-image|text-wrapper',
     re.IGNORECASE,
 )
-
-# Product carousel blocks (entire <ol class="product-items ..."> ... </ol>)
-_PRODUCT_CAROUSEL_RE = re.compile(
-    r'<ol\s+class="product-items[^"]*"[^>]*>.*?</ol>',
-    re.IGNORECASE | re.DOTALL,
-)
-
-# Non-breaking spaces used as layout hacks (3+ in a row)
-_NBSP_LINES_RE = re.compile(r'(?:&nbsp;\s*){3,}')
 
 # CSS class selector extractor (matches .classname in CSS)
 _CSS_CLASS_SELECTOR_RE = re.compile(r'\.([a-zA-Z_][a-zA-Z0-9_-]*)')
 
 # CSS ID selector extractor (matches #idname in CSS)
 _CSS_ID_SELECTOR_RE = re.compile(r'#([a-zA-Z_][a-zA-Z0-9_-]*)')
+
+# Non-breaking spaces used as layout hacks (3+ in a row)
+_NBSP_RE = re.compile(r'(?:&nbsp;\s*){3,}')
+
+
+# ── DOM Node Types ──
+
+class _TextNode:
+    __slots__ = ('text',)
+    def __init__(self, text):
+        self.text = text
+
+class _CommentNode:
+    __slots__ = ('text',)
+    def __init__(self, text):
+        self.text = text
+
+class _ElementNode:
+    __slots__ = ('tag', 'attrs', 'children')
+    def __init__(self, tag, attrs=None):
+        self.tag = tag.lower()
+        self.attrs = dict(attrs) if attrs else {}
+        self.children = []
+
+
+class _TreeBuilder(HTMLParser):
+    """Parse HTML into a lightweight DOM tree using stdlib html.parser."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.root = _ElementNode('__root__')
+        self._stack = [self.root]
+        self._skip_content = False  # True when inside <script>/<style>
+
+    @property
+    def _current(self):
+        return self._stack[-1]
+
+    def handle_starttag(self, tag, attrs):
+        tag_lower = tag.lower()
+        node = _ElementNode(tag_lower, attrs)
+        self._current.children.append(node)
+        if tag_lower in ('script', 'style'):
+            self._skip_content = True
+            self._stack.append(node)
+        elif tag_lower not in _VOID_ELEMENTS:
+            self._stack.append(node)
+
+    def handle_endtag(self, tag):
+        tag_lower = tag.lower()
+        if tag_lower in _VOID_ELEMENTS:
+            return
+        # Walk up stack to find matching open tag (lenient for malformed HTML)
+        for i in range(len(self._stack) - 1, 0, -1):
+            if self._stack[i].tag == tag_lower:
+                self._stack[i:] = []
+                break
+        self._skip_content = any(
+            n.tag in ('script', 'style') for n in self._stack[1:]
+        )
+
+    def handle_startendtag(self, tag, attrs):
+        node = _ElementNode(tag.lower(), attrs)
+        self._current.children.append(node)
+
+    def handle_data(self, data):
+        if not self._skip_content:
+            self._current.children.append(_TextNode(data))
+        else:
+            # Store script/style content as text inside the element
+            self._current.children.append(_TextNode(data))
+
+    def handle_entityref(self, name):
+        self._current.children.append(_TextNode(f'&{name};'))
+
+    def handle_charref(self, name):
+        self._current.children.append(_TextNode(f'&#{name};'))
+
+    def handle_comment(self, data):
+        if not self._skip_content:
+            self._current.children.append(_CommentNode(data))
+
+
+def _parse_html(html):
+    """Parse HTML string into a DOM tree. Returns the root _ElementNode."""
+    builder = _TreeBuilder()
+    builder.feed(html)
+    return builder.root
+
+
+def _collect_anchor_targets(node):
+    """Collect all href="#id" anchor targets in the tree."""
+    targets = set()
+    if isinstance(node, _ElementNode):
+        href = node.attrs.get('href', '')
+        if href.startswith('#') and len(href) > 1:
+            targets.add(href[1:])
+        for child in node.children:
+            targets.update(_collect_anchor_targets(child))
+    return targets
+
+
+def _clean_tree(node, theme_classes, theme_ids, anchor_targets):
+    """Walk the tree and clean each element in-place. Returns True to keep, False to remove."""
+    if isinstance(node, (_TextNode, _CommentNode)):
+        return True
+
+    # Remove <script> and <style> elements entirely
+    if node.tag in ('script', 'style'):
+        return False
+
+    # Clean attributes
+    cleaned_attrs = {}
+    for attr, val in node.attrs.items():
+        # Strip ALL data-* attributes
+        if attr.startswith('data-'):
+            continue
+        # Strip event handlers (on*)
+        if attr.startswith('on') and attr[2:].isalpha():
+            continue
+        # Filter classes
+        if attr == 'class' and val:
+            classes = val.split()
+            if theme_classes is not None:
+                # Whitelist mode: keep only classes in theme CSS
+                classes = [c for c in classes if c in theme_classes]
+            else:
+                # Blacklist mode: strip known Magento classes
+                classes = [c for c in classes if not _MAGENTO_CLASSES.match(c)]
+            if classes:
+                cleaned_attrs['class'] = ' '.join(classes)
+            continue
+        # Filter IDs
+        if attr == 'id' and val:
+            if theme_ids is not None:
+                if val not in theme_ids and val not in anchor_targets:
+                    continue
+            elif val not in anchor_targets:
+                # Without theme data, keep IDs that are anchor targets
+                # Also keep all IDs (we can't know if they're needed)
+                pass
+            cleaned_attrs[attr] = val
+            continue
+        cleaned_attrs[attr] = val if val is not None else ''
+    node.attrs = cleaned_attrs
+
+    # Recurse into children
+    node.children = [
+        child for child in node.children
+        if _clean_tree(child, theme_classes, theme_ids, anchor_targets)
+    ]
+
+    return True
+
+
+def _collapse_wrappers(node):
+    """Collapse empty wrapper divs/spans: no attrs, no direct text, one child element → unwrap."""
+    if not isinstance(node, _ElementNode):
+        return node
+
+    # Recurse first (bottom-up)
+    node.children = [_collapse_wrappers(child) for child in node.children]
+
+    # Collapsible: div/span with no attributes, no text children, exactly one element child
+    if node.tag in ('div', 'span') and not node.attrs:
+        element_children = [c for c in node.children if isinstance(c, _ElementNode)]
+        text_children = [c for c in node.children if isinstance(c, _TextNode) and c.text.strip()]
+        if len(element_children) == 1 and not text_children:
+            return element_children[0]
+
+    return node
+
+
+def _remove_empty(node):
+    """Remove empty non-void elements (no text, no children, no meaningful attrs)."""
+    if not isinstance(node, _ElementNode):
+        return node
+
+    node.children = [_remove_empty(c) for c in node.children]
+    node.children = [
+        c for c in node.children
+        if not isinstance(c, _ElementNode)
+        or c.tag in _VOID_ELEMENTS
+        or c.children
+        or c.attrs.get('src')
+        or c.attrs.get('href')
+    ]
+    return node
+
+
+def _serialize(node):
+    """Serialize a DOM tree back to an HTML string."""
+    if isinstance(node, _TextNode):
+        return node.text
+    if isinstance(node, _CommentNode):
+        return f'<!--{node.text}-->'
+
+    parts = []
+    if node.tag != '__root__':
+        attr_str = ''
+        if node.attrs:
+            attr_parts = []
+            for k, v in node.attrs.items():
+                if v == '':
+                    attr_parts.append(k)
+                else:
+                    # Escape quotes in attribute values
+                    escaped = v.replace('&', '&amp;').replace('"', '&quot;')
+                    attr_parts.append(f'{k}="{escaped}"')
+            attr_str = ' ' + ' '.join(attr_parts)
+        parts.append(f'<{node.tag}{attr_str}>')
+        if node.tag in _VOID_ELEMENTS:
+            return parts[0]
+
+    for child in node.children:
+        parts.append(_serialize(child))
+
+    if node.tag != '__root__':
+        parts.append(f'</{node.tag}>')
+
+    return ''.join(parts)
+
+
+def parse_and_clean_html(html, theme_classes=None, theme_ids=None):
+    """Parse HTML into a DOM tree, strip bloat, serialize back to clean HTML.
+
+    This is the correct approach: HTML is a deterministic markup language.
+    Parse it, walk the tree, keep semantic content and theme-referenced
+    attributes, drop everything else.
+
+    Args:
+        html: Raw HTML string (body_html from Shopify).
+        theme_classes: Set of CSS class names from the active theme (whitelist).
+            If None, falls back to stripping known Magento class patterns.
+        theme_ids: Set of CSS ID names from the active theme.
+            If None, keeps all IDs.
+    """
+    if not html:
+        return html
+
+    # Parse
+    root = _parse_html(html)
+
+    # Collect anchor targets before cleaning (needed for ID filtering)
+    anchor_targets = _collect_anchor_targets(root)
+
+    # Clean (strip scripts, styles, data-*, event handlers, dead classes/IDs)
+    _clean_tree(root, theme_classes, theme_ids, anchor_targets)
+
+    # Collapse empty wrappers (multiple passes for deeply nested)
+    for _ in range(10):
+        prev_root = root
+        root = _collapse_wrappers(root)
+        if root is prev_root:
+            break
+
+    # Remove empty elements
+    root = _remove_empty(root)
+
+    # Serialize
+    result = _serialize(root)
+
+    # Final whitespace normalization
+    result = _NBSP_RE.sub(' ', result)
+    result = re.sub(r'\n{3,}', '\n\n', result)
+    result = re.sub(r'  +', ' ', result)
+    result = result.strip()
+
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public API (used by review_arabic.py and internally)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def has_html_bloat(html):
+    """Check if HTML contains bloat by parsing and comparing.
+
+    Parses the HTML, cleans it, and compares to the original.
+    If the cleaned output differs, there is bloat.
+    """
+    if not html:
+        return False
+    cleaned = parse_and_clean_html(html)
+    # Normalize whitespace for comparison
+    def _normalize(s):
+        return re.sub(r'\s+', ' ', s).strip()
+    return _normalize(html) != _normalize(cleaned)
+
+
+def strip_html_bloat(html, theme_classes=None, theme_ids=None):
+    """Strip HTML bloat by parsing the DOM and keeping only clean content.
+
+    Delegates to parse_and_clean_html() — the correct approach for
+    processing structured markup.
+    """
+    if not html:
+        return html
+    return parse_and_clean_html(html, theme_classes, theme_ids)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Theme-Aware CSS Validation
@@ -233,189 +484,6 @@ def fetch_theme_selectors(client):
 
     print(f"  Extracted {len(all_classes)} class selectors, {len(all_ids)} ID selectors from theme CSS")
     return all_classes, all_ids
-
-
-def strip_dead_classes(html, theme_classes):
-    """Remove CSS classes from HTML that aren't referenced in the theme's CSS.
-
-    A class NOT in the theme CSS is dead weight — it has no styling rules
-    and does nothing for display. Safe to strip unconditionally.
-    """
-    if not html or theme_classes is None:
-        return html
-
-    def _filter_classes(m):
-        classes = m.group(1).split()
-        # Keep only classes that exist in the theme CSS
-        live = [c for c in classes if c in theme_classes]
-        if not live:
-            return ''
-        return f'class="{" ".join(live)}"'
-
-    result = re.sub(r'class="([^"]*)"', _filter_classes, html)
-    # Clean up empty class="" remnants
-    result = re.sub(r'\s+class=""', '', result)
-    return result
-
-
-def strip_dead_ids(html, theme_ids):
-    """Remove id attributes from HTML that aren't referenced in the theme's CSS.
-
-    Only strips IDs that have no corresponding CSS selector. IDs used as
-    anchor targets (href="#id") within the same HTML are preserved.
-    """
-    if not html or theme_ids is None:
-        return html
-
-    # Also preserve IDs referenced as anchor links within this HTML
-    anchor_refs = set(re.findall(r'href="#([^"]+)"', html))
-
-    def _filter_id(m):
-        id_val = m.group(1)
-        if id_val in theme_ids or id_val in anchor_refs:
-            return m.group(0)  # Keep it
-        return ''
-
-    result = re.sub(r'\s+id="([^"]*)"', _filter_id, html)
-    return result
-
-
-def strip_orphan_styles(html):
-    """Remove <style> blocks whose selectors don't match anything in the HTML.
-
-    A <style> block is orphaned if none of its class/ID selectors match
-    classes or IDs actually present in the HTML. Safe to strip.
-    """
-    if not html:
-        return html
-
-    # Extract classes and IDs present in the HTML (outside <style> blocks)
-    html_without_styles = re.sub(r'<style[^>]*>.*?</style>', '', html,
-                                  flags=re.IGNORECASE | re.DOTALL)
-    html_classes = set(re.findall(r'class="([^"]*)"', html_without_styles))
-    html_class_set = set()
-    for cls_attr in html_classes:
-        html_class_set.update(cls_attr.split())
-    html_ids = set(re.findall(r'id="([^"]*)"', html_without_styles))
-
-    def _check_style_block(m):
-        style_content = m.group(0)
-        # Extract selectors referenced in this style block
-        style_classes = set(_CSS_CLASS_SELECTOR_RE.findall(style_content))
-        style_ids = set(_CSS_ID_SELECTOR_RE.findall(style_content))
-
-        # If any selector matches the HTML, keep the block
-        if style_classes & html_class_set or style_ids & html_ids:
-            return style_content
-        # No selectors match — orphaned, strip it
-        return ''
-
-    result = re.sub(r'<style[^>]*>.*?</style>', _check_style_block, html,
-                    flags=re.IGNORECASE | re.DOTALL)
-    return result
-
-
-def has_html_bloat(html):
-    """Check if HTML contains bloat that should be stripped.
-
-    Conservative: only flags patterns we're certain are foreign (Magento,
-    event handlers, etc.). Does NOT flag legitimate Shopify HTML like
-    inline styles, generic classes, ids, or aria-* attributes.
-    """
-    if not html:
-        return False
-    return bool(
-        _SCRIPT_RE.search(html)
-        or _MAGENTO_STYLE_RE.search(html)
-        or _MAGENTO_DATA_ATTRS_RE.search(html)
-        or _MAGENTO_CLASSES.search(html)
-        or _EVENT_HANDLER_RE.search(html)
-    )
-
-
-def strip_html_bloat(html, theme_classes=None, theme_ids=None):
-    """Strip HTML bloat using both fingerprint rules and theme CSS validation.
-
-    Two-layer approach:
-      Layer 1 — Fingerprint rules (always applied):
-        Known Magento patterns, <script> blocks, event handlers.
-      Layer 2 — Theme-aware (when theme_classes/theme_ids provided):
-        Strips classes/IDs not in the theme's CSS, removes orphan <style> blocks.
-        This is the key insight: if a class has no CSS rule in the theme,
-        it does NOTHING for display — safe to strip automatically.
-
-    When theme selectors are NOT provided, falls back to fingerprint-only mode.
-    """
-    if not html:
-        return html
-
-    result = html
-
-    # ── Layer 1: Fingerprint rules (always safe) ──
-
-    # 1. Remove <script> blocks (Shopify sanitizes these anyway)
-    result = _SCRIPT_RE.sub('', result)
-
-    # 2. Remove <style> blocks with Magento selectors
-    result = _MAGENTO_STYLE_RE.sub('', result)
-
-    # 3. Remove product carousel / widget blocks
-    result = _PRODUCT_CAROUSEL_RE.sub('', result)
-
-    # 4. Remove Magento-specific data-* attributes only
-    result = _MAGENTO_DATA_ATTRS_RE.sub('', result)
-
-    # 5. Remove event handler attributes (onclick, onload, etc.)
-    result = _EVENT_HANDLER_RE.sub('', result)
-
-    # 6. Strip known Magento CSS classes
-    def _clean_magento_classes(m):
-        classes = m.group(1)
-        cleaned = _MAGENTO_CLASSES.sub('', classes).strip()
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        if not cleaned:
-            return ''
-        return f'class="{cleaned}"'
-
-    result = re.sub(r'class="([^"]*)"', _clean_magento_classes, result)
-
-    # ── Layer 2: Theme-aware stripping (when CSS data available) ──
-
-    if theme_classes is not None:
-        # 7. Remove classes not in theme CSS — they have no styling rules
-        result = strip_dead_classes(result, theme_classes)
-
-    if theme_ids is not None:
-        # 8. Remove IDs not in theme CSS and not used as anchors
-        result = strip_dead_ids(result, theme_ids)
-
-    # 9. Remove orphan <style> blocks (selectors don't match remaining HTML)
-    result = strip_orphan_styles(result)
-
-    # ── Cleanup ──
-
-    # 10. Remove empty attribute remnants
-    result = re.sub(r'\s+class=""', '', result)
-    result = re.sub(r'\s+>', '>', result)
-    result = re.sub(r'(<[^>]*?)  +', r'\1 ', result)
-
-    # 11. Remove empty tags left behind
-    for _ in range(5):
-        prev = result
-        result = re.sub(
-            r'<(div|span|figure|ol|ul|li|strong|em|b|i|a|form|button)\b[^>]*>\s*</\1>',
-            '', result, flags=re.IGNORECASE | re.DOTALL,
-        )
-        if result == prev:
-            break
-
-    # 12. Clean up &nbsp; spam and normalize whitespace
-    result = _NBSP_LINES_RE.sub(' ', result)
-    result = re.sub(r'\n{3,}', '\n\n', result)
-    result = re.sub(r'  +', ' ', result)
-    result = result.strip()
-
-    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────

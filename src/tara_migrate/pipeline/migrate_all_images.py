@@ -66,7 +66,7 @@ def phase1_product_images(spain, saudi, id_map, file_map, dry_run=False):
         return
 
     # Load source products for image data
-    en_products = load_json("data/english/products.json")
+    en_products = load_json(os.path.join(config.get_en_dir(), "products.json"))
     source_by_id = {}
     for p in en_products:
         source_by_id[str(p.get("id", ""))] = p
@@ -144,7 +144,7 @@ def phase2_collection_images(spain, saudi, id_map, file_map, dry_run=False):
         print("  No collection mappings found — run import_english.py first")
         return
 
-    en_collections = load_json("data/english/collections.json")
+    en_collections = load_json(os.path.join(config.get_en_dir(), "collections.json"))
     source_by_id = {}
     for c in en_collections:
         source_by_id[str(c.get("id", ""))] = c
@@ -234,7 +234,7 @@ def phase3_homepage_images(spain, saudi, id_map, file_map, dry_run=False):
     if not spain_images:
         return
 
-    cache_file = "data/homepage_image_cache.json"
+    cache_file = config.get_progress_file("homepage_image_cache.json")
     cache = load_json(cache_file) if os.path.exists(cache_file) and isinstance(load_json(cache_file), dict) else {}
 
     updated = 0
@@ -573,7 +573,7 @@ def phase5_article_files(spain, saudi, id_map, file_map, dry_run=False):
     print("=" * 60)
 
     file_map_file = FILE_MAP_FILE
-    articles = load_json("data/english/articles.json")
+    articles = load_json(os.path.join(config.get_en_dir(), "articles.json"))
     if not isinstance(articles, list):
         articles = []
     article_map = id_map.get("articles", {})
@@ -743,7 +743,7 @@ def phase6_verify(spain, saudi, id_map, file_map, dry_run=False):
     print(f"  Homepage images set:         {report['homepage_images_set']}")
     print(f"  File map entries (cache):    {report['file_map_entries']}")
 
-    save_json(report, "data/image_migration_report.json")
+    save_json(report, config.get_progress_file("image_migration_report.json"))
     print("\n  Report saved to data/image_migration_report.json")
 
 
@@ -785,7 +785,7 @@ def main():
     source = ShopifyClient(source_url, source_token)
     saudi = ShopifyClient(dest_url, dest_token)
 
-    id_map = load_json("data/id_map.json") if os.path.exists("data/id_map.json") else {}
+    id_map = load_json(config.get_id_map_file()) if os.path.exists(config.get_id_map_file()) else {}
     file_map_file = FILE_MAP_FILE
     file_map = load_json(file_map_file) if os.path.exists(file_map_file) else {}
     if not isinstance(file_map, dict):

@@ -42,7 +42,7 @@ data/                      ← Pipeline data (gitignored): spain_export/, englis
 ALL root-level scripts are 3-5 line entry points:
 ```python
 #!/usr/bin/env python3
-from tara_migrate.pipeline.export_spain import main
+from tara_migrate.pipeline.export_source import main
 if __name__ == "__main__":
     main()
 ```
@@ -82,6 +82,67 @@ ANTHROPIC_API_KEY=sk-ant-xxx
 ```
 
 Legacy env var names (`SPAIN_SHOP_URL`/`SPAIN_ACCESS_TOKEN`, `SAUDI_SHOP_URL`/`SAUDI_ACCESS_TOKEN`) are still supported for backwards compatibility.
+
+## Cross-Store Migration (Multi-Destination)
+
+Set `DEST_NAME` to scope all per-destination files (id_map, progress files, etc.) under `data/{dest_name}/`. The source export (`data/source_export/`) is always shared.
+
+```bash
+# ── 0. Configure ──
+export SOURCE_SHOP_URL=tara-saudi.myshopify.com
+export SOURCE_ACCESS_TOKEN=shpat_saudi_xxx
+export DEST_SHOP_URL=tara-kuwait.myshopify.com
+export DEST_ACCESS_TOKEN=shpat_kuwait_xxx
+export DEST_NAME=kuwait
+export MAGENTO_STORE_CODE=kw-en  # Magento store code for Kuwait prices
+
+# ── 1. Export EVERYTHING from source (one-time, shared across destinations) ──
+python export_source.py
+# Exports: products, collections, pages, blogs, articles, metaobjects (defs+entries),
+#          collects, redirects, policies, price rules, metafield definitions, relations
+
+# ── 2. Prepare English import data ──
+# Cross-store (source already in English): copy source → english
+python prepare_import.py
+# OR original pipeline (source in Spanish): translate
+# python translate_gaps.py --lang en
+
+# ── 3. Set up destination store schema ──
+python setup_store.py
+# Creates: metaobject definitions (benefit, faq_entry, blog_author, ingredient),
+#          product metafield definitions (19 fields), article metafield definitions (12 fields)
+
+# ── 4. Import English content ──
+python import_english.py
+# Creates: metaobjects → products → collections → pages → blogs → articles
+# Remaps: all GID references (ingredient→benefit, product→ingredient/faq, etc.)
+# Saves: data/kuwait/id_map.json
+
+# ── 5. Import collections (smart rules + product links) ──
+python import_collections.py
+
+# ── 6. Migrate ALL images ──
+python migrate_all_images.py
+# 6 stages: product images, collection images, homepage hero, metaobject images,
+#           article images, variant images
+
+# ── 7. Post-migration (11 steps) ──
+python post_migration.py
+# Steps: locale, collects, menus, SEO, redirects, inventory, publish, discounts,
+#        activate, policies, handles
+
+# ── 8. Export Arabic translations from source store ──
+python export_translations.py --locale ar
+
+# ── 9. Import Arabic translations to destination ──
+python import_arabic.py
+
+# ── 10. Deploy theme ──
+# Upload brand images to new store's Files section first
+# shopify theme push --store tara-kuwait
+```
+
+When `DEST_NAME` is unset, paths resolve to the flat `data/` layout for backwards compatibility.
 
 ## Data Pipeline
 
@@ -166,7 +227,7 @@ python -m pytest -x                         # Stop on first failure
 - **Framework**: pytest (`pytest.ini` sets `pythonpath = src`)
 - **Fixtures** in `tests/conftest.py`: `make_product()`, `make_collection()`, `make_article()`, `make_metaobject()`, `make_id_map()`, `tmp_data_dir()`
 - **All tests use mocks** — no live API calls
-- **Test files**: test_shopify_client, test_translator, test_import_english, test_import_arabic, test_post_migration, test_setup_store, test_export_spain, test_optimize_images, test_verify_fix, test_review_arabic, test_review_content, test_patch_spanish, test_shopify_fields
+- **Test files**: test_shopify_client, test_translator, test_import_english, test_import_arabic, test_post_migration, test_setup_store, test_export_source, test_optimize_images, test_verify_fix, test_review_arabic, test_review_content, test_patch_spanish, test_shopify_fields
 
 ## Dependencies
 
@@ -180,13 +241,18 @@ python build_site.py
 
 # Individual steps
 python setup_store.py [--dry-run]
-python export_spain.py
+python export_source.py
 python translate_gaps.py --lang en
 python import_english.py --exchange-rate 4.13 [--dry-run]
 python translate_gaps.py --lang ar
 python import_arabic.py [--dry-run]
 python migrate_all_images.py
 python post_migration.py
+
+# Cross-store: export translations from source store
+python export_translations.py --locale ar
+python export_translations.py --locale ar --output-dir data/kuwait/arabic
+python export_translations.py --locale ar --resource-type PRODUCT --dry-run
 
 # Customer import (from Magento CSV export)
 python import_customers.py --input Export_Customers.csv --country "Saudi Arabia" --dry-run
@@ -297,8 +363,6 @@ python crawl_and_translate.py --crawl-only                 # Crawl only, save to
 python crawl_and_translate.py --skip-crawl                 # Reuse saved crawl data
 python crawl_and_translate.py --dry-run                    # Show plan, no uploads
 python crawl_and_translate.py --include-checkout           # Also crawl checkout pages
-python crawl_and_translate.py --checkout-only              # ONLY crawl cart+checkout (no site crawl)
-python crawl_and_translate.py --checkout-only --dry-run    # Preview checkout-only plan
 python crawl_and_translate.py --max-pages 300              # Crawl more pages
 python crawl_and_translate.py --model gpt-5-mini           # Override translation model
 python crawl_and_translate.py --skip-remove                # Don't remove unmatched translations
@@ -355,7 +419,7 @@ This applies everywhere in this codebase:
 - **CSS** → parse selectors to build allowlists, don't regex for "Magento-looking" rules
 - **Shopify GraphQL responses** → traverse the typed structure, don't string-match
 
-### Optimize for correct approach instead of minimal change
+### Always optimize for correct approach instead of minimal change
 
 When fixing a bug, step back and ask: is the approach itself correct, or am I patching a fundamentally wrong abstraction? A control-flow fix on regex-based HTML detection perpetuates the wrong approach. The right fix is to replace regex HTML processing with DOM parsing.
 
