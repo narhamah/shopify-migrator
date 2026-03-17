@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Export a normalized Tara quiz product catalog from Shopify.
 
-Fetches live product data from Shopify and produces a structured JSON file
-that the quiz frontend and Cloudflare Worker can consume for recommendation
-handle matching and bundle rendering.
+Fetches live product data from Shopify via GraphQL (by handle) and produces
+a structured JSON file that the quiz frontend and Cloudflare Worker can
+consume for recommendation handle matching and bundle rendering.
+
+Bundle component relationships are queried live from Shopify's bundle API,
+not hardcoded.
 
 Output: data/shopify_quiz_catalog.json (or data/{dest}/shopify_quiz_catalog.json)
 
@@ -25,7 +28,7 @@ from tara_migrate.core.utils import save_json
 logger = get_logger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Quiz-relevant product handles
+# Quiz-relevant product handles (expected in the store)
 # ─────────────────────────────────────────────────────────────────────────────
 
 BUNDLE_HANDLES = [
@@ -63,48 +66,6 @@ INDIVIDUAL_HANDLES = [
 ]
 
 ALL_QUIZ_HANDLES = set(BUNDLE_HANDLES + INDIVIDUAL_HANDLES)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Bundle → component mappings (source of truth for known bundles)
-# ─────────────────────────────────────────────────────────────────────────────
-
-BUNDLE_COMPONENTS: dict[str, list[str]] = {
-    "nurture-system": [
-        "nurture-shampoo",
-        "nurture-conditioner",
-        "nurture-leave-in-conditioner",
-    ],
-    "hair-wellness-system": [
-        "nourishing-shampoo",
-        "hydrating-conditioner",
-        "rejuvenating-scalp-serum",
-    ],
-    "scalp-hair-revival-system": [
-        "charcoal-salicylic-exfoliating-shampoo",
-        "ghassoul-avocado-smoothing-conditioner",
-        "cactus-red-seaweed-scalp-serum",
-    ],
-    "hair-density-system": [
-        "scalp-prep-shampoo",
-        "strand-thicken-conditioner",
-        "follicle-boost-serum",
-    ],
-    "age-well-system": [
-        "revitalizing-shampoo",
-        "replenishing-conditioner",
-        "scalp-support-serum",
-    ],
-    "hair-stimulation-system": [
-        "volumizing-shampoo",
-        "thickening-conditioner",
-        "follicle-stimulating-scalp-serum",
-    ],
-    "hair-strength-system": [
-        "invigorating-shampoo",
-        "repairing-hair-mask",
-        "strengthening-scalp-serum",
-    ],
-}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Quiz family mappings (bundle handle → quiz collection identity)
@@ -155,9 +116,9 @@ _TYPE_KEYWORDS = [
 ]
 
 
-def derive_product_type(handle: str, title: str) -> str:
+def derive_product_type(handle: str, title: str, is_bundle: bool) -> str:
     """Derive quiz product_type from handle/title deterministically."""
-    if handle in BUNDLE_COMPONENTS:
+    if is_bundle:
         return "bundle"
     combined = f"{handle} {title}".lower()
     for keyword, ptype in _TYPE_KEYWORDS:
@@ -176,61 +137,146 @@ def derive_quiz_roles(product_type: str, is_bundle: bool) -> list[str]:
     return roles or ["product"]
 
 
-def _find_family_for_handle(handle: str) -> str | None:
+def _find_family_for_handle(handle: str, bundle_map: dict[str, list[str]]) -> str | None:
     """Find which bundle family a product handle belongs to."""
-    if handle in BUNDLE_COMPONENTS:
+    if handle in bundle_map:
         return handle
-    for bundle_handle, components in BUNDLE_COMPONENTS.items():
+    for bundle_handle, components in bundle_map.items():
         if handle in components:
             return bundle_handle
     return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# GraphQL queries — fetch products by handle with bundle components
+# ─────────────────────────────────────────────────────────────────────────────
+
+PRODUCT_BY_HANDLE_QUERY = """
+query productByHandle($handle: String!) {
+  productByHandle(handle: $handle) {
+    id
+    handle
+    title
+    vendor
+    status
+    tags
+    onlineStoreUrl
+    featuredMedia {
+      preview {
+        image {
+          url
+        }
+      }
+    }
+    priceRangeV2 {
+      minVariantPrice {
+        amount
+        currencyCode
+      }
+      maxVariantPrice {
+        amount
+        currencyCode
+      }
+    }
+    totalInventory
+    hasOnlyDefaultVariant
+    variants(first: 100) {
+      edges {
+        node {
+          id
+          sku
+          price
+          availableForSale
+          inventoryQuantity
+        }
+      }
+    }
+    bundleComponents(first: 20) {
+      edges {
+        node {
+          componentProduct {
+            id
+            handle
+            title
+          }
+          quantity
+        }
+      }
+    }
+    metafield(namespace: "custom", key: "tagline") {
+      value
+    }
+    collections(first: 50) {
+      edges {
+        node {
+          id
+          title
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def _gid_to_numeric(gid: str) -> int:
+    """Extract numeric ID from a Shopify GID string."""
+    return int(gid.split("/")[-1])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Shopify data fetching
 # ─────────────────────────────────────────────────────────────────────────────
 
+def fetch_product_by_handle(client: ShopifyClient, handle: str) -> dict[str, Any] | None:
+    """Fetch a single product by handle via GraphQL, including bundle components."""
+    data = client._graphql(PRODUCT_BY_HANDLE_QUERY, {"handle": handle})
+    return data.get("productByHandle")
+
+
 def fetch_quiz_products(client: ShopifyClient) -> dict[str, dict[str, Any]]:
-    """Fetch all products from Shopify and filter to quiz-relevant handles."""
-    logger.info("Fetching all products from Shopify...")
-    all_products = client.get_products()
-    logger.info("  Fetched %d total products", len(all_products))
-
+    """Fetch all quiz-relevant products by handle from Shopify."""
     by_handle: dict[str, dict[str, Any]] = {}
-    for p in all_products:
-        handle = p.get("handle", "")
-        if handle in ALL_QUIZ_HANDLES:
-            by_handle[handle] = p
+    missing: list[str] = []
 
-    logger.info("  Matched %d quiz-relevant products", len(by_handle))
+    for handle in sorted(ALL_QUIZ_HANDLES):
+        logger.info("  Fetching %s...", handle)
+        product = fetch_product_by_handle(client, handle)
+        if product:
+            by_handle[handle] = product
+        else:
+            missing.append(handle)
+            logger.warning("  Product not found: %s", handle)
+
+    logger.info("Fetched %d quiz products (%d missing)", len(by_handle), len(missing))
     return by_handle
 
 
-def fetch_collection_memberships(
-    client: ShopifyClient,
-    product_ids: set[int],
-) -> dict[int, list[dict[str, Any]]]:
-    """Fetch collection memberships for given product IDs."""
-    logger.info("Fetching collections...")
-    collections = client.get_collections()
-    logger.info("  Found %d collections", len(collections))
+# ─────────────────────────────────────────────────────────────────────────────
+# Bundle component extraction from GraphQL response
+# ─────────────────────────────────────────────────────────────────────────────
 
-    # Build product_id → list of {id, title} mappings
-    memberships: dict[int, list[dict[str, Any]]] = {pid: [] for pid in product_ids}
+def extract_bundle_map(products_by_handle: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
+    """Build bundle → component handle map from live Shopify bundle data."""
+    bundle_map: dict[str, list[str]] = {}
 
-    for coll in collections:
-        coll_id = coll["id"]
-        coll_title = coll.get("title", "")
-        try:
-            collects = client.get_collects(coll_id)
-        except Exception:
+    for handle in BUNDLE_HANDLES:
+        product = products_by_handle.get(handle)
+        if not product:
             continue
-        for c in collects:
-            pid = c.get("product_id")
-            if pid in memberships:
-                memberships[pid].append({"id": coll_id, "title": coll_title})
 
-    return memberships
+        components_edges = (product.get("bundleComponents") or {}).get("edges", [])
+        component_handles = []
+        for edge in components_edges:
+            node = edge.get("node", {})
+            comp_product = node.get("componentProduct", {})
+            comp_handle = comp_product.get("handle")
+            if comp_handle:
+                component_handles.append(comp_handle)
+
+        bundle_map[handle] = component_handles
+
+    return bundle_map
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -239,18 +285,18 @@ def fetch_collection_memberships(
 
 def normalize_product(
     product: dict[str, Any],
-    collection_memberships: list[dict[str, Any]],
     bundle_map: dict[str, list[str]],
     shop_domain: str,
 ) -> dict[str, Any]:
-    """Normalize a Shopify product into the quiz catalog schema."""
+    """Normalize a Shopify GraphQL product into the quiz catalog schema."""
     handle = product["handle"]
     title = product.get("title", "")
-    product_id = product["id"]
+    gid = product["id"]
+    product_id = _gid_to_numeric(gid)
 
-    is_bundle = handle in bundle_map
-    product_type = derive_product_type(handle, title)
-    family_handle = _find_family_for_handle(handle)
+    is_bundle = handle in bundle_map and len(bundle_map[handle]) > 0
+    product_type = derive_product_type(handle, title, is_bundle)
+    family_handle = _find_family_for_handle(handle, bundle_map)
 
     # Quiz family metadata
     family_meta = QUIZ_FAMILIES.get(family_handle or "", {})
@@ -258,61 +304,66 @@ def normalize_product(
     quiz_collection_name = family_meta.get("quiz_collection_name", "")
 
     # Variants
-    variants = product.get("variants", [])
+    variant_edges = (product.get("variants") or {}).get("edges", [])
+    variants = [e["node"] for e in variant_edges]
     prices = [float(v.get("price", 0)) for v in variants if v.get("price")]
-    variant_ids = [v["id"] for v in variants]
+    variant_ids = [_gid_to_numeric(v["id"]) for v in variants]
     variant_skus = [v.get("sku", "") for v in variants if v.get("sku")]
 
+    # Price range (prefer priceRangeV2 for accuracy)
+    price_range = product.get("priceRangeV2") or {}
+    min_price = price_range.get("minVariantPrice", {})
+    max_price = price_range.get("maxVariantPrice", {})
+    price_min = float(min_price.get("amount", 0)) if min_price else (min(prices) if prices else 0.0)
+    price_max = float(max_price.get("amount", 0)) if max_price else (max(prices) if prices else 0.0)
+    currency = min_price.get("currencyCode", "SAR") if min_price else "SAR"
+
     # Image
-    image = product.get("image")
-    featured_image = image["src"] if image else None
+    featured_media = product.get("featuredMedia") or {}
+    preview = featured_media.get("preview") or {}
+    image_data = preview.get("image") or {}
+    featured_image = image_data.get("url")
 
     # Tags
-    raw_tags = product.get("tags", "") or ""
-    tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
+    tags = product.get("tags") or []
 
     # Availability
-    available = any(
-        v.get("inventory_quantity", 0) > 0 or v.get("inventory_policy") == "continue"
-        for v in variants
-    )
-    # If no inventory tracking, consider available if status is active
-    if not variants:
-        available = product.get("status") == "active"
+    available = any(v.get("availableForSale", False) for v in variants)
 
     # Online store URL
-    online_store_url = f"https://{shop_domain}/products/{handle}"
+    online_store_url = product.get("onlineStoreUrl") or f"https://{shop_domain}/products/{handle}"
 
-    # Currency from first variant's presentment prices or default
-    currency = "SAR"
+    # Subtitle from tagline metafield
+    tagline_mf = product.get("metafield") or {}
+    subtitle = tagline_mf.get("value", "")
 
-    # Subtitle from metafields (tagline) — best-effort from product data
-    subtitle = ""
-    metafields = product.get("metafields", [])
-    if isinstance(metafields, list):
-        for mf in metafields:
-            if isinstance(mf, dict) and mf.get("key") == "tagline":
-                subtitle = mf.get("value", "")
-                break
+    # Collections
+    collection_edges = (product.get("collections") or {}).get("edges", [])
+    collections = [e["node"] for e in collection_edges]
+    collection_ids = [_gid_to_numeric(c["id"]) for c in collections]
+    collection_titles = [c.get("title", "") for c in collections]
+
+    # Status
+    status = (product.get("status") or "ACTIVE").lower()
 
     return {
         "id": product_id,
-        "admin_graphql_api_id": f"gid://shopify/Product/{product_id}",
+        "admin_graphql_api_id": gid,
         "handle": handle,
         "title": title,
         "subtitle": subtitle,
         "vendor": product.get("vendor", "TARA"),
         "product_type": product_type,
-        "status": product.get("status", "active"),
+        "status": status,
         "online_store_url": online_store_url,
         "featured_image": featured_image,
-        "price_min": min(prices) if prices else 0.0,
-        "price_max": max(prices) if prices else 0.0,
+        "price_min": price_min,
+        "price_max": price_max,
         "currency": currency,
         "available_for_sale": available,
         "tags": tags,
-        "collection_ids": [c["id"] for c in collection_memberships],
-        "collection_titles": [c["title"] for c in collection_memberships],
+        "collection_ids": collection_ids,
+        "collection_titles": collection_titles,
         "quiz_collection_id": quiz_collection_id,
         "quiz_collection_name": quiz_collection_name,
         "quiz_roles": derive_quiz_roles(product_type, is_bundle),
@@ -360,6 +411,8 @@ def validate_catalog(
     for bundle_handle, components in bundle_map.items():
         if bundle_handle not in handles_in_catalog:
             continue
+        if not components:
+            errors.append(f"Bundle {bundle_handle} has no components")
         for comp in components:
             if comp not in handles_in_catalog:
                 errors.append(
@@ -402,10 +455,12 @@ def print_summary(
         print("\n  Validation: PASSED")
 
     # Bundle membership summary
-    print("\n  Bundle compositions:")
-    for bh, comps in bundle_map.items():
+    print("\n  Bundle compositions (from Shopify):")
+    for bh in BUNDLE_HANDLES:
+        comps = bundle_map.get(bh, [])
         status = "OK" if bh in handles_found else "MISSING"
-        print(f"    {bh} [{status}]: {', '.join(comps) if comps else '(no components resolved)'}")
+        comp_str = ", ".join(comps) if comps else "(no components found)"
+        print(f"    {bh} [{status}]: {comp_str}")
 
     print("=" * 60 + "\n")
 
@@ -427,7 +482,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Export Tara quiz product catalog from Shopify")
     parser.add_argument("--dry-run", action="store_true", help="Fetch and validate but do not write file")
     parser.add_argument("--output", "-o", type=str, default=None, help="Override output file path")
-    parser.add_argument("--skip-collections", action="store_true", help="Skip fetching collection memberships (faster)")
     args = parser.parse_args()
 
     # Connect to destination store
@@ -439,34 +493,43 @@ def main() -> None:
     shop_info = client.get_shop()
     shop_domain = shop_info.get("domain", shop_url.replace("https://", "").replace(".myshopify.com", ".com"))
 
-    # Fetch products
+    # Fetch each quiz product by handle via GraphQL (includes bundle components)
     products_by_handle = fetch_quiz_products(client)
 
-    # Fetch collection memberships
-    memberships: dict[int, list[dict[str, Any]]] = {}
-    if not args.skip_collections:
-        product_ids = {p["id"] for p in products_by_handle.values()}
-        memberships = fetch_collection_memberships(client, product_ids)
+    # Extract bundle composition from live Shopify data
+    bundle_map = extract_bundle_map(products_by_handle)
+    logger.info("Bundle map from Shopify: %s",
+                {k: v for k, v in bundle_map.items()})
+
+    # Any component handles found that we didn't already expect?
+    all_component_handles = {h for comps in bundle_map.values() for h in comps}
+    unexpected = all_component_handles - ALL_QUIZ_HANDLES
+    if unexpected:
+        logger.info("Discovered %d additional component handles from Shopify bundles: %s",
+                     len(unexpected), unexpected)
+        # Fetch any unexpected component products we don't have yet
+        for handle in sorted(unexpected):
+            if handle not in products_by_handle:
+                logger.info("  Fetching discovered component: %s", handle)
+                product = fetch_product_by_handle(client, handle)
+                if product:
+                    products_by_handle[handle] = product
 
     # Normalize
     catalog: list[dict[str, Any]] = []
     for handle in sorted(products_by_handle.keys()):
         product = products_by_handle[handle]
-        pid = product["id"]
-        coll_list = memberships.get(pid, [])
-        normalized = normalize_product(product, coll_list, BUNDLE_COMPONENTS, shop_domain)
+        normalized = normalize_product(product, bundle_map, shop_domain)
         catalog.append(normalized)
 
     # Validate
-    errors = validate_catalog(catalog, BUNDLE_COMPONENTS)
+    errors = validate_catalog(catalog, bundle_map)
 
     # Summary
-    print_summary(catalog, errors, BUNDLE_COMPONENTS)
+    print_summary(catalog, errors, bundle_map)
 
     if errors:
         logger.error("Validation failed with %d error(s). See summary above.", len(errors))
-        # Still write the file (with warnings) — don't block on non-critical gaps
-        # But exit with error code if bundles or components are missing
         critical = [e for e in errors if "Missing required bundle" in e or "references missing component" in e]
         if critical:
             logger.error("Critical errors found — catalog may be incomplete.")
