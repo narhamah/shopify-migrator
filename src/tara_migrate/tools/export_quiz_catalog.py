@@ -57,6 +57,9 @@ INDIVIDUAL_HANDLES = [
     "scalp-support-serum",
     "replenishing-conditioner",
     "revitalizing-shampoo",
+    "invigorating-shampoo",
+    "repairing-hair-mask",
+    "strengthening-scalp-serum",
 ]
 
 ALL_QUIZ_HANDLES = set(BUNDLE_HANDLES + INDIVIDUAL_HANDLES)
@@ -96,7 +99,11 @@ BUNDLE_COMPONENTS: dict[str, list[str]] = {
         "thickening-conditioner",
         "follicle-stimulating-scalp-serum",
     ],
-    # hair-strength-system: components derived from Shopify at runtime
+    "hair-strength-system": [
+        "invigorating-shampoo",
+        "repairing-hair-mask",
+        "strengthening-scalp-serum",
+    ],
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -224,41 +231,6 @@ def fetch_collection_memberships(
                 memberships[pid].append({"id": coll_id, "title": coll_title})
 
     return memberships
-
-
-def resolve_hair_strength_components(
-    products_by_handle: dict[str, dict[str, Any]],
-) -> list[str]:
-    """Try to derive hair-strength-system components from Shopify product data.
-
-    Looks at the product's body_html or tags for component references.
-    Falls back to empty list if components cannot be determined.
-    """
-    bundle = products_by_handle.get("hair-strength-system")
-    if not bundle:
-        return []
-
-    # Check tags for component handles
-    tags = [t.strip().lower() for t in (bundle.get("tags", "") or "").split(",") if t.strip()]
-
-    # Check if any individual handles appear in tags
-    candidates = []
-    for handle in INDIVIDUAL_HANDLES:
-        if handle in tags:
-            candidates.append(handle)
-    if candidates:
-        return candidates
-
-    # Check body_html for individual product handle references
-    body = (bundle.get("body_html") or "").lower()
-    for handle in INDIVIDUAL_HANDLES:
-        if handle in body and handle not in candidates:
-            candidates.append(handle)
-    if candidates:
-        return candidates
-
-    logger.warning("  Could not derive hair-strength-system components from Shopify data")
-    return []
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -470,16 +442,6 @@ def main() -> None:
     # Fetch products
     products_by_handle = fetch_quiz_products(client)
 
-    # Resolve hair-strength-system components dynamically
-    bundle_map = dict(BUNDLE_COMPONENTS)
-    if "hair-strength-system" in products_by_handle and "hair-strength-system" not in bundle_map:
-        resolved = resolve_hair_strength_components(products_by_handle)
-        if resolved:
-            bundle_map["hair-strength-system"] = resolved
-            logger.info("  Resolved hair-strength-system components: %s", resolved)
-        else:
-            bundle_map["hair-strength-system"] = []
-
     # Fetch collection memberships
     memberships: dict[int, list[dict[str, Any]]] = {}
     if not args.skip_collections:
@@ -492,14 +454,14 @@ def main() -> None:
         product = products_by_handle[handle]
         pid = product["id"]
         coll_list = memberships.get(pid, [])
-        normalized = normalize_product(product, coll_list, bundle_map, shop_domain)
+        normalized = normalize_product(product, coll_list, BUNDLE_COMPONENTS, shop_domain)
         catalog.append(normalized)
 
     # Validate
-    errors = validate_catalog(catalog, bundle_map)
+    errors = validate_catalog(catalog, BUNDLE_COMPONENTS)
 
     # Summary
-    print_summary(catalog, errors, bundle_map)
+    print_summary(catalog, errors, BUNDLE_COMPONENTS)
 
     if errors:
         logger.error("Validation failed with %d error(s). See summary above.", len(errors))

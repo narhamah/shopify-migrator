@@ -24,6 +24,9 @@ class TestDeriveProductType:
     def test_bundle(self):
         assert derive_product_type("nurture-system", "Nurture System") == "bundle"
 
+    def test_hair_strength_bundle(self):
+        assert derive_product_type("hair-strength-system", "Hair Strength System") == "bundle"
+
     def test_shampoo(self):
         assert derive_product_type("nurture-shampoo", "Nurture Shampoo") == "shampoo"
 
@@ -35,6 +38,9 @@ class TestDeriveProductType:
 
     def test_leave_in(self):
         assert derive_product_type("nurture-leave-in-conditioner", "Nurture Leave-In Conditioner") == "leave-in"
+
+    def test_mask(self):
+        assert derive_product_type("repairing-hair-mask", "Repairing Hair Mask") == "mask"
 
     def test_unknown(self):
         assert derive_product_type("mystery-product", "Mystery Product") == "other"
