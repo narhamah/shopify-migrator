@@ -27,7 +27,8 @@ src/tara_migrate/          ← Production library (all logic lives here)
                              enable_ingredient_pages, patch_spanish, remap_redirects,
                              get_flow_ids, get_token, generate_data_dictionary, image_lang_detect,
                              test_checkout (Playwright checkout testing),
-                             purge_arabic, validate_addresses
+                             purge_arabic, validate_addresses,
+                             export_quiz_catalog (quiz product catalog sync for frontend/Worker)
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -227,7 +228,7 @@ python -m pytest -x                         # Stop on first failure
 - **Framework**: pytest (`pytest.ini` sets `pythonpath = src`)
 - **Fixtures** in `tests/conftest.py`: `make_product()`, `make_collection()`, `make_article()`, `make_metaobject()`, `make_id_map()`, `tmp_data_dir()`
 - **All tests use mocks** — no live API calls
-- **Test files**: test_shopify_client, test_translator, test_import_english, test_import_arabic, test_post_migration, test_setup_store, test_export_source, test_optimize_images, test_verify_fix, test_review_arabic, test_review_content, test_patch_spanish, test_shopify_fields
+- **Test files**: test_shopify_client, test_translator, test_import_english, test_import_arabic, test_post_migration, test_setup_store, test_export_source, test_optimize_images, test_verify_fix, test_review_arabic, test_review_content, test_patch_spanish, test_shopify_fields, test_export_quiz_catalog
 
 ## Dependencies
 
@@ -394,6 +395,12 @@ python import_collections.py                               # Standalone collecti
 python purge_arabic.py [--dry-run] [--skip-theme] [--type PRODUCT]  # Remove all Arabic translations
 python validate_addresses.py --fetch-cities                # Fetch canonical Saudi city names
 python validate_addresses.py --validate FILE.csv [--fix]   # Validate/fix addresses in CSV
+
+# Quiz catalog export (for quiz frontend + Cloudflare Worker)
+python export_quiz_catalog.py                              # Full export to data/shopify_quiz_catalog.json
+python export_quiz_catalog.py --dry-run                    # Fetch + validate, no file written
+python export_quiz_catalog.py --output PATH                # Override output path
+python export_quiz_catalog.py --skip-collections           # Skip collection membership fetch (faster)
 ```
 
 ## Manual Steps (Cannot Be Automated)
