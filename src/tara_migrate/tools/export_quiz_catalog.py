@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Export a normalized Tara quiz product catalog from Shopify.
+"""Export a normalized Tara consultation product catalog from Shopify.
 
 Fetches live product data from Shopify via GraphQL (by handle) and produces
-a structured JSON file that the quiz frontend and Cloudflare Worker can
+a structured JSON file that the consultation frontend and Cloudflare Worker can
 consume for recommendation handle matching and bundle rendering.
 
 Bundle component relationships are queried live from Shopify's bundle API,
 not hardcoded.
 
-Output: data/shopify_quiz_catalog.json (or data/{dest}/shopify_quiz_catalog.json)
+Output: data/shopify_consultation_catalog.json (or data/{dest}/shopify_consultation_catalog.json)
 
 Usage:
-    python export_quiz_catalog.py [--dry-run] [--output PATH]
+    python export_consultation_catalog.py [--dry-run] [--output PATH]
 """
 
 import argparse
@@ -117,7 +117,7 @@ _TYPE_KEYWORDS = [
 
 
 def derive_product_type(handle: str, title: str, is_bundle: bool) -> str:
-    """Derive quiz product_type from handle/title deterministically."""
+    """Derive consultation product_type from handle/title deterministically."""
     if is_bundle:
         return "bundle"
     combined = f"{handle} {title}".lower()
@@ -128,7 +128,7 @@ def derive_product_type(handle: str, title: str, is_bundle: bool) -> str:
 
 
 def derive_quiz_roles(product_type: str, is_bundle: bool) -> list[str]:
-    """Derive quiz_roles from product_type."""
+    """Derive consultation roles from product_type."""
     roles = []
     if is_bundle:
         roles.append("bundle")
@@ -235,7 +235,7 @@ def fetch_product_by_handle(client: ShopifyClient, handle: str) -> dict[str, Any
 
 
 def fetch_quiz_products(client: ShopifyClient) -> dict[str, dict[str, Any]]:
-    """Fetch all quiz-relevant products by handle from Shopify."""
+    """Fetch all consultation-relevant products by handle from Shopify."""
     by_handle: dict[str, dict[str, Any]] = {}
     missing: list[str] = []
 
@@ -248,7 +248,7 @@ def fetch_quiz_products(client: ShopifyClient) -> dict[str, dict[str, Any]]:
             missing.append(handle)
             logger.warning("  Product not found: %s", handle)
 
-    logger.info("Fetched %d quiz products (%d missing)", len(by_handle), len(missing))
+    logger.info("Fetched %d consultation products (%d missing)", len(by_handle), len(missing))
     return by_handle
 
 
@@ -288,7 +288,7 @@ def normalize_product(
     bundle_map: dict[str, list[str]],
     shop_domain: str,
 ) -> dict[str, Any]:
-    """Normalize a Shopify GraphQL product into the quiz catalog schema."""
+    """Normalize a Shopify GraphQL product into the consultation catalog schema."""
     handle = product["handle"]
     title = product.get("title", "")
     gid = product["id"]
@@ -470,16 +470,16 @@ def print_summary(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_output_path(override: str | None = None) -> str:
-    """Determine the output path for the quiz catalog."""
+    """Determine the output path for the consultation catalog."""
     if override:
         return override
-    return config.get_progress_file("shopify_quiz_catalog.json")
+    return config.get_progress_file("shopify_consultation_catalog.json")
 
 
 def main() -> None:
     load_dotenv()
 
-    parser = argparse.ArgumentParser(description="Export Tara quiz product catalog from Shopify")
+    parser = argparse.ArgumentParser(description="Export Tara consultation product catalog from Shopify")
     parser.add_argument("--dry-run", action="store_true", help="Fetch and validate but do not write file")
     parser.add_argument("--output", "-o", type=str, default=None, help="Override output file path")
     args = parser.parse_args()
@@ -542,7 +542,7 @@ def main() -> None:
     else:
         output_path = get_output_path(args.output)
         save_json(catalog, output_path)
-        logger.info("Wrote quiz catalog (%d products) to %s", len(catalog), output_path)
+        logger.info("Wrote consultation catalog (%d products) to %s", len(catalog), output_path)
         print(f"Catalog written to: {output_path}")
 
     if errors:

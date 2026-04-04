@@ -20,7 +20,7 @@ src/tara_migrate/          ← Production library (all logic lives here)
   setup/                   ← Schema creation: setup_store, setup_collections, setup_menus, setup_homepage
   fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status,
                              fix_redirects, fix_translations (GraphQL translation fixer)
-  tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images,
+  tools/                   ← Utilities: scrape_kuwait, purge_destination, resolve_metaobject_diffs, optimize_images,
                              review_content (English content review), review_arabic (Arabic translation review),
                              crawl_and_translate (Playwright crawl → match → translate visible theme strings),
                              audit_theme_keys (theme translation key management),
@@ -28,7 +28,7 @@ src/tara_migrate/          ← Production library (all logic lives here)
                              get_flow_ids, get_token, generate_data_dictionary, image_lang_detect,
                              test_checkout (Playwright checkout testing),
                              purge_arabic, validate_addresses,
-                             export_quiz_catalog (quiz product catalog sync for frontend/Worker)
+                             export_consultation_catalog (consultation product catalog sync for frontend/Worker)
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -394,11 +394,11 @@ python purge_arabic.py [--dry-run] [--skip-theme] [--type PRODUCT]  # Remove all
 python validate_addresses.py --fetch-cities                # Fetch canonical Saudi city names
 python validate_addresses.py --validate FILE.csv [--fix]   # Validate/fix addresses in CSV
 
-# Quiz catalog export (for quiz frontend + Cloudflare Worker)
-python export_quiz_catalog.py                              # Full export to data/shopify_quiz_catalog.json
-python export_quiz_catalog.py --dry-run                    # Fetch + validate, no file written
-python export_quiz_catalog.py --output PATH                # Override output path
-python export_quiz_catalog.py --skip-collections           # Skip collection membership fetch (faster)
+# Consultation catalog export (for consultation frontend + Cloudflare Worker)
+python export_consultation_catalog.py                      # Full export to data/shopify_consultation_catalog.json
+python export_consultation_catalog.py --dry-run            # Fetch + validate, no file written
+python export_consultation_catalog.py --output PATH        # Override output path
+python export_consultation_catalog.py --skip-collections   # Skip collection membership fetch (faster)
 ```
 
 ## Manual Steps (Cannot Be Automated)
