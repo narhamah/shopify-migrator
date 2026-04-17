@@ -1098,6 +1098,8 @@ def main():
                         help="OCR-scan and replace wrong-language product images")
     parser.add_argument("--force", action="store_true",
                         help="Ignore progress file and re-process all resources")
+    parser.add_argument("--skip-source-sync", action="store_true",
+                        help="Skip the live source->destination Arabic sync pass")
     args = parser.parse_args()
 
     load_dotenv()
@@ -1189,6 +1191,19 @@ def main():
                 openai_client=openai_client, model=args.model,
                 ai_fallback=args.ai_fallback and not args.no_ai_fallback,
             )
+
+    # Source-of-truth sync: copy any live Arabic translations directly from the source store.
+    # This fills gaps that the local Arabic JSON export can miss, especially metafields.
+    if not args.dry_run and client and not args.skip_source_sync:
+        if not args.resource_type:
+            from tara_migrate.pipeline.sync_live_translations import (
+                sync_live_source_arabic_translations,
+            )
+            print("\n=== Live Source Arabic Sync ===")
+            source_sync_report = sync_live_source_arabic_translations(dest_client=client)
+            for section in ["resources", "metaobjects", "product_metafields", "article_metafields"]:
+                value = source_sync_report.get(section, {})
+                print(f"  {section}: {value}")
 
     # Image replacement (separate pass)
     if args.replace_images:

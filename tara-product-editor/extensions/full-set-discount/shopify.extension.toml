@@ -1,0 +1,23 @@
+api_version = "2026-01"
+
+[[extensions]]
+name = "t:name"
+handle = "full-set-discount"
+type = "function"
+uid = "65d68083-4cf4-b5ae-f1bf-7edcc1bc9dfcf0144f9c"
+description = "t:description"
+
+  [[extensions.targeting]]
+  target = "cart.lines.discounts.generate.run"
+  input_query = "src/cart_lines_discounts_generate_run.graphql"
+  export = "cart_lines_discounts_generate_run"
+
+  [[extensions.targeting]]
+  target = "cart.delivery-options.discounts.generate.run"
+  input_query = "src/cart_delivery_options_discounts_generate_run.graphql"
+  export = "cart_delivery_options_discounts_generate_run"
+
+  [extensions.build]
+  command = "cargo build --target=wasm32-unknown-unknown --release"
+  path = "target/wasm32-unknown-unknown/release/full-set-discount.wasm"
+  watch = [ "src/**/*.rs" ]

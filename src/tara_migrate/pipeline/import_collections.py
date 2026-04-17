@@ -99,6 +99,13 @@ def remap_rules(rules, metafield_def_remap, metaobject_id_map):
                 rule["condition_object_id"] = dest_coid
             elif rule.get("column") == "product_metafield_definition":
                 return None, f"no matching metafield definition for condition_object_id {coid}"
+        elif coid and isinstance(coid, str) and coid.isdigit():
+            numeric = int(coid)
+            dest_numeric = metafield_def_remap.get(numeric)
+            if dest_numeric:
+                rule["condition_object_id"] = dest_numeric
+            elif rule.get("column") == "product_metafield_definition":
+                return None, f"no matching metafield definition for condition_object_id {coid}"
         elif coid and isinstance(coid, str) and coid.startswith("gid://"):
             numeric = int(coid.split("/")[-1])
             dest_numeric = metafield_def_remap.get(numeric)
@@ -121,6 +128,22 @@ def remap_rules(rules, metafield_def_remap, metaobject_id_map):
     return remapped, None
 
 
+def create_collection_with_image_fallback(client, create_fn, coll_data):
+    """Create a collection, retrying without image if Shopify times out fetching it.
+
+    Collection images are migrated later by ``migrate_all_images.py``, so a
+    transient image-download failure should not block the collection itself.
+    """
+    try:
+        return create_fn(coll_data)
+    except Exception as e:
+        if "Image upload failed" not in str(e) or "image" not in coll_data:
+            raise
+        retry_data = dict(coll_data)
+        retry_data.pop("image", None)
+        return create_fn(retry_data)
+
+
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(
@@ -134,12 +157,12 @@ def main():
     dest_url = config.get_dest_shop_url()
     dest_token = config.get_dest_access_token()
 
-    if not all([source_url, source_token, dest_url, saudi_token]):
+    if not all([source_url, source_token, dest_url, dest_token]):
         print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         return
 
     source = ShopifyClient(source_url, source_token)
-    saudi = ShopifyClient(dest_url, dest_token)
+    dest = ShopifyClient(dest_url, dest_token)
 
     id_map = load_json(config.get_id_map_file()) if os.path.exists(config.get_id_map_file()) else {}
 
@@ -165,7 +188,7 @@ def main():
 
     # Metafield definition remap (for smart collection rules)
     if not args.dry_run:
-        metafield_def_remap = build_metafield_def_remap(spain, saudi)
+        metafield_def_remap = build_metafield_def_remap(source, dest)
         print(f"  Mapped {len(metafield_def_remap)} metafield definition GIDs")
     else:
         metafield_def_remap = {}
@@ -198,7 +221,7 @@ def main():
             continue
 
         # Check if already exists by handle
-        existing = saudi.get_collections_by_handle(handle)
+        existing = dest.get_collections_by_handle(handle)
         if existing:
             dest_id = existing[0]["id"]
             print(f"  {label} — exists (id: {dest_id}), mapping")
@@ -217,7 +240,7 @@ def main():
             coll_data["image"] = {"src": coll["image"]["src"]}
 
         try:
-            created = saudi.create_custom_collection(coll_data)
+            created = create_collection_with_image_fallback(dest, dest.create_custom_collection, coll_data)
             dest_id = created.get("id")
             if dest_id:
                 print(f"  {label} — created (id: {dest_id})")
@@ -257,7 +280,7 @@ def main():
         # Check if already exists by handle on destination
         # For smart collections, get_collections_by_handle only checks custom,
         # so also try fetching all smart collections
-        existing = saudi.get_collections_by_handle(handle)
+        existing = dest.get_collections_by_handle(handle)
         if existing:
             dest_id = existing[0]["id"]
             print(f"  {label} — exists (id: {dest_id}), mapping")
@@ -284,7 +307,7 @@ def main():
             coll_data["image"] = {"src": coll["image"]["src"]}
 
         try:
-            created = saudi.create_smart_collection(coll_data)
+            created = create_collection_with_image_fallback(dest, dest.create_smart_collection, coll_data)
             dest_id = created.get("id")
             if dest_id:
                 print(f"  {label} — created (id: {dest_id})")
@@ -342,7 +365,7 @@ def main():
                 continue
 
             try:
-                saudi.create_collect(dest_pid, dest_cid)
+                dest.create_collect(dest_pid, dest_cid)
                 linked += 1
                 progress[key] = True
                 if linked % 10 == 0:

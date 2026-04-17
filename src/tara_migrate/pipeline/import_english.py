@@ -16,12 +16,19 @@ Phases:
 import argparse
 import json
 import os
+import sys
 
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, sanitize_rich_text_json, save_json
 from tara_migrate.core.utils import ascii_slugify as _ascii_slugify
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 
 def prepare_product_for_import(product, magento_prices=None):
@@ -196,9 +203,6 @@ def main():
             DEFINITION_ORDER.index(d["type"]) if d["type"] in DEFINITION_ORDER else 999
         ))
 
-        # Filter out Shopify-reserved system types (shopify--*)
-        sorted_defs = [d for d in sorted_defs if not d["type"].startswith("shopify--")]
-
         print(f"\nChecking/creating {len(sorted_defs)} metaobject definitions...")
 
         # Build a map of source definition type → newly created dest GID
@@ -231,7 +235,6 @@ def main():
                 if fd.get("validations"):
                     # Remap metaobject_definition_id validations to dest store GIDs
                     remapped_validations = []
-                    skip_field = False
                     for v in fd["validations"]:
                         if v.get("name") == "metaobject_definition_id":
                             # Find which type this references by checking existing defs
@@ -247,17 +250,11 @@ def main():
                                     "name": "metaobject_definition_id",
                                     "value": source_type_to_dest_id[ref_type],
                                 })
-                            elif ref_type and ref_type.startswith("shopify--"):
-                                # Skip fields that reference reserved Shopify types
-                                skip_field = True
-                                break
                             else:
                                 # Can't remap — skip this validation
                                 print(f"    WARNING: cannot remap validation {v} for field {fd['key']}, skipping validation")
                         else:
                             remapped_validations.append(v)
-                    if skip_field:
-                        continue
                     if remapped_validations:
                         field_def["validations"] = remapped_validations
                 field_defs.append(field_def)
@@ -268,6 +265,21 @@ def main():
                 "fieldDefinitions": field_defs,
                 "access": {"storefront": "PUBLIC_READ"},
             }
+            display_key = defn.get("displayNameKey")
+            if display_key:
+                def_input["displayNameKey"] = display_key
+            capabilities = defn.get("capabilities") or {}
+            normalized_caps = {}
+            for cap_key, cap_value in capabilities.items():
+                if not cap_value:
+                    continue
+                item = {"enabled": bool(cap_value.get("enabled"))}
+                data = cap_value.get("data") or {}
+                if item["enabled"] and data:
+                    item["data"] = {k: v for k, v in data.items() if v}
+                normalized_caps[cap_key] = item
+            if normalized_caps:
+                def_input["capabilities"] = normalized_caps
 
             try:
                 result = client.create_metaobject_definition(def_input)
@@ -280,12 +292,13 @@ def main():
             except Exception as e:
                 print(f"{label} — error: {e}")
 
-        # Create metaobject entries (skip Shopify-reserved system types)
+        # Create metaobject entries
         for mo_type, type_data in all_metaobjects.items():
-            if mo_type.startswith("shopify--"):
-                continue
             objects = type_data.get("objects", [])
             if not objects:
+                continue
+            if not args.dry_run and mo_type not in existing_defs:
+                print(f"\n  {mo_type}: definition not available on destination - skipping {len(objects)} entries")
                 continue
 
             # Deduplicate by handle (translated FAQs can collide)
@@ -423,10 +436,9 @@ def main():
     # =============================================
     collections = load_json(os.path.join(input_dir, "collections.json"))
 
-    # Build metafield definition GID remapping for smart collection rules.
-    # Smart collection rules reference MetafieldDefinition GIDs from the source
-    # store — we need to remap them to the destination store's GIDs.
-    source_def_gid_to_dest = {}  # Source MetafieldDefinition GID → dest GID
+    # Build metafield definition remapping for smart collection rules.
+    # REST smart collection rules expect destination definition numeric IDs.
+    source_def_gid_to_dest = {}  # Source MetafieldDefinition GID -> dest numeric ID
     if not args.dry_run:
         try:
             # Load source definitions (exported by export_source.py)
@@ -437,9 +449,9 @@ def main():
             dest_product_defs = client.get_metafield_definitions("PRODUCT")
             dest_mf_def_map = {}
             for d in dest_product_defs:
-                dest_mf_def_map[(d["namespace"], d["key"])] = d["id"]
+                dest_mf_def_map[(d["namespace"], d["key"])] = int(str(d["id"]).split("/")[-1])
 
-            # Map source GID → dest GID by matching namespace.key
+            # Map source GID -> dest numeric ID by matching namespace.key
             for sd in source_defs:
                 nk = (sd["namespace"], sd["key"])
                 if nk in dest_mf_def_map:
@@ -490,8 +502,16 @@ def main():
                     rule = dict(rule)  # shallow copy
                     # Remap condition_object_id (MetafieldDefinition GID)
                     coid = rule.get("condition_object_id")
-                    if coid and coid.startswith("gid://"):
-                        dest_coid = source_def_gid_to_dest.get(coid)
+                    source_gid = None
+                    if isinstance(coid, int):
+                        source_gid = f"gid://shopify/MetafieldDefinition/{coid}"
+                    elif isinstance(coid, str) and coid.isdigit():
+                        source_gid = f"gid://shopify/MetafieldDefinition/{coid}"
+                    elif isinstance(coid, str) and coid.startswith("gid://"):
+                        source_gid = coid
+
+                    if source_gid:
+                        dest_coid = source_def_gid_to_dest.get(source_gid)
                         if dest_coid:
                             rule["condition_object_id"] = dest_coid
                         else:
@@ -500,7 +520,7 @@ def main():
                             break
                     # Remap condition (metaobject GID)
                     cond = rule.get("condition", "")
-                    if cond.startswith("gid://shopify/Metaobject/"):
+                    if isinstance(cond, str) and cond.startswith("gid://shopify/Metaobject/"):
                         dest_cond = all_metaobject_id_map.get(cond)
                         if dest_cond:
                             rule["condition"] = dest_cond
@@ -655,7 +675,15 @@ def main():
                         "type": mf_type,
                     })
 
-            created = client.create_article(dest_blog_id, art_data)
+            try:
+                created = client.create_article(dest_blog_id, art_data)
+            except Exception as e:
+                if art_data.get("image") and "Image upload failed" in str(e):
+                    art_data = dict(art_data)
+                    art_data.pop("image", None)
+                    created = client.create_article(dest_blog_id, art_data)
+                else:
+                    raise
             dest_art_id = created.get("id")
             print(f"  {art_label} — created (id: {dest_art_id})")
             id_map.setdefault("articles", {})[art_source_id] = dest_art_id
@@ -715,17 +743,29 @@ def main():
 
         # 6b. Product → ingredient/faq references via metafieldsSet
         products = load_json(os.path.join(input_dir, "products.json"))
+        source_products = load_json(os.path.join(config.SOURCE_DIR, "products.json"))
+        source_products_by_id = {str(product["id"]): product for product in source_products}
         product_map = id_map.get("products", {})
-        faq_map = id_map.get("metaobjects_faq_entry", {})
+        metaobject_gid_map = {}
+        for map_key, mapping in id_map.items():
+            if map_key.startswith("metaobjects_") and isinstance(mapping, dict):
+                metaobject_gid_map.update(mapping)
 
         for product in products:
             source_id = str(product["id"])
             dest_id = product_map.get(source_id)
-            if not dest_id or f"product_{source_id}" in ref_progress:
+            if not dest_id:
                 continue
 
+            source_product = source_products_by_id.get(source_id, {})
+            product_metafields = {(mf.get("namespace"), mf.get("key")): mf for mf in product.get("metafields", [])}
+            for mf in source_product.get("metafields", []):
+                ns_key = (mf.get("namespace"), mf.get("key"))
+                if ns_key not in product_metafields:
+                    product_metafields[ns_key] = mf
+
             metafields_to_set = []
-            for mf in product.get("metafields", []):
+            for mf in product_metafields.values():
                 mf_type = mf.get("type", "")
                 if "reference" not in mf_type or not mf.get("value"):
                     continue
@@ -734,29 +774,22 @@ def main():
                 key = mf.get("key", "")
                 value = mf["value"]
 
-                if key == "ingredients" and "metaobject_reference" in mf_type:
+                if "metaobject_reference" in mf_type:
                     try:
-                        source_refs = json.loads(value)
-                        dest_refs = [ingredient_map.get(ref, ref) for ref in source_refs if ingredient_map.get(ref)]
-                        if dest_refs:
+                        source_refs = json.loads(value) if "list." in mf_type else [value]
+                        dest_refs = [metaobject_gid_map.get(ref) for ref in source_refs if metaobject_gid_map.get(ref)]
+                        if dest_refs and "list." in mf_type:
                             metafields_to_set.append({
                                 "ownerId": f"gid://shopify/Product/{dest_id}",
                                 "namespace": ns, "key": key,
                                 "value": json.dumps(dest_refs),
                                 "type": mf_type,
                             })
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-
-                elif key == "faqs" and "metaobject_reference" in mf_type:
-                    try:
-                        source_refs = json.loads(value)
-                        dest_refs = [faq_map.get(ref, ref) for ref in source_refs if faq_map.get(ref)]
-                        if dest_refs:
+                        elif dest_refs:
                             metafields_to_set.append({
                                 "ownerId": f"gid://shopify/Product/{dest_id}",
                                 "namespace": ns, "key": key,
-                                "value": json.dumps(dest_refs),
+                                "value": dest_refs[0],
                                 "type": mf_type,
                             })
                     except (json.JSONDecodeError, TypeError):
@@ -774,12 +807,11 @@ def main():
         # 6c. Article → blog_author/ingredient/related references
         articles = load_json(os.path.join(input_dir, "articles.json"))
         article_map = id_map.get("articles", {})
-        blog_author_map = id_map.get("metaobjects_blog_author", {})
 
         for article in articles:
             source_id = str(article["id"])
             dest_id = article_map.get(source_id)
-            if not dest_id or f"article_{source_id}" in ref_progress:
+            if not dest_id:
                 continue
 
             metafields_to_set = []
@@ -792,25 +824,22 @@ def main():
                 key = mf.get("key", "")
                 value = mf["value"]
 
-                if key == "author" and "metaobject_reference" in mf_type:
-                    dest_ref = blog_author_map.get(value)
-                    if dest_ref:
-                        metafields_to_set.append({
-                            "ownerId": f"gid://shopify/OnlineStoreArticle/{dest_id}",
-                            "namespace": ns, "key": key,
-                            "value": dest_ref,
-                            "type": mf_type,
-                        })
-
-                elif key == "ingredients" and "metaobject_reference" in mf_type:
+                if "metaobject_reference" in mf_type:
                     try:
-                        source_refs = json.loads(value)
-                        dest_refs = [ingredient_map.get(ref, ref) for ref in source_refs if ingredient_map.get(ref)]
-                        if dest_refs:
+                        source_refs = json.loads(value) if "list." in mf_type else [value]
+                        dest_refs = [metaobject_gid_map.get(ref) for ref in source_refs if metaobject_gid_map.get(ref)]
+                        if dest_refs and "list." in mf_type:
                             metafields_to_set.append({
                                 "ownerId": f"gid://shopify/OnlineStoreArticle/{dest_id}",
                                 "namespace": ns, "key": key,
                                 "value": json.dumps(dest_refs),
+                                "type": mf_type,
+                            })
+                        elif dest_refs:
+                            metafields_to_set.append({
+                                "ownerId": f"gid://shopify/OnlineStoreArticle/{dest_id}",
+                                "namespace": ns, "key": key,
+                                "value": dest_refs[0],
                                 "type": mf_type,
                             })
                     except (json.JSONDecodeError, TypeError):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Purge migrated content from the Saudi Shopify store.
+"""Purge migrated content from the configured destination Shopify store.
 
 WARNING: This is DESTRUCTIVE and IRREVERSIBLE.
 
@@ -11,11 +11,14 @@ re-running setup_store.py.
 Use --definitions to also delete metaobject definitions (full reset).
 
 Usage:
-    python purge_saudi.py --dry-run       # Show what would be deleted
-    python purge_saudi.py                 # Delete data only (keeps definitions)
-    python purge_saudi.py --definitions   # Delete everything including definitions
-    python purge_saudi.py --yes           # Skip confirmation prompt
-    python purge_saudi.py --only products,collections  # Purge specific resources
+    python purge_destination.py --dry-run       # Show what would be deleted
+    python purge_destination.py                 # Delete data only (keeps definitions)
+    python purge_destination.py --definitions   # Delete everything including definitions
+    python purge_destination.py --yes           # Skip confirmation prompt
+    python purge_destination.py --only products,collections  # Purge specific resources
+
+Legacy alias:
+    python purge_saudi.py ...
 """
 
 import argparse

@@ -472,7 +472,7 @@
         "fields": [
           {
             "key": "label",
-            "value": "Scalp Serum",
+            "value": "سيروم فروة الرأس",
             "type": "single_line_text_field"
           },
           {
@@ -555,7 +555,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"لا. كل منتجات سلسلة Onion + Peptides لها عطر منعش وزهري. يُضاف مستخلص البصل لأثره المحفّز فقط وليس له رائحة ظاهرة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"لا. كل منتجات سلسلة البصل + ببتيدات لها عطر منعش وزهري. يُضاف مستخلص البصل لأثره المحفّز فقط وليس له رائحة ظاهرة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -572,7 +572,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم. هذه التركيبات مناسبة لجميع أنواع الشعر ويمكن استخدامها بأمان على الشعر المصبوغ أو المعالج كيميائياً.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم. هذه التركيبات مناسبة لجميع أنواع الشعر ويمكن استخدامها بأمان على الشعر المصبوغ أو المعالج كيميائياً.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -589,7 +589,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"صُمّم روتيننا ليكفي لمدة شهر مع الاستخدام اليومي، لكنه قد يدوم أكثر اعتمادًا على عدد مرات غسل الشعر وما إذا كنت تقومين بالتنظيف المزدوج في كل غسلة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"صُمّم روتيننا ليكفي لمدة شهر مع الاستخدام اليومي، لكنه قد يدوم أكثر اعتمادًا على عدد مرات غسل الشعر وما إذا كنت تقومين بالتنظيف المزدوج في كل غسلة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -606,7 +606,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"بينما يمكن استخدام السيروم مع منتجات أخرى، شامبونا وبلسمنا مصمّمان للعمل بتآزر. نوصي باستخدام العلاج الكامل لمدة 3 أشهر للحصول على الفوائد الكاملة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"بينما يمكن استخدام السيروم مع منتجات أخرى، شامبونا وبلسمنا مصمّمان للعمل بتآزر. نوصي باستخدام العلاج الكامل لمدة 3 أشهر للحصول على الفوائد الكاملة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -623,7 +623,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"لأن الشامبو يحتاج الماء للتفعيل والتوزيع بشكل صحيح. إضافة بضع قطرات من الماء وفركه بين اليدين قبل التطبيق يشجّع على تكوّن رغوة أفضل. ترطيب الشعر جيدًا يساعد على تنظيف فعال دون تهييج فروة الرأس أو إثقال الخصلات.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"لأن الشامبو يحتاج الماء للتفعيل والتوزيع بشكل صحيح. إضافة بضع قطرات من الماء وفركه بين اليدين قبل التطبيق يشجّع على تكوّن رغوة أفضل. ترطيب الشعر جيدًا يساعد على تنظيف فعال دون تهييج فروة الرأس أو إثقال الخصلات.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -635,12 +635,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "كم مرة يمكنني استخدام شامبو Onion + Peptides؟",
+            "value": "كم مرة يمكنني استخدام شامبو البصل + ببتيدات؟",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"قدرما تحتاجين. شامبوهاتنا خالية من الكبريتات، لذا تنظّف بلطف دون نزع زيوت الفروة الأساسية أو تعطيل الـ pH.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"قدرما تحتاجين. شامبوهاتنا خالية من الكبريتات، لذا تنظّف بلطف دون نزع زيوت الفروة الأساسية أو تعطيل الـ pH.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -652,12 +652,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "هل أستطيع دمج شامبو Onion + Peptides مع منتجات أخرى؟",
+            "value": "هل أستطيع دمج شامبو البصل + ببتيدات مع منتجات أخرى؟",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم، رغم أنه يُفضل اقترانه ببلسمنا من نفس السلسلة لتحسين النتائج. شامبونا ينقّي البصيلات بعمق والبلسم يعيد الترطيب الطبيعي. نوصي بإتمام العلاج الثلاثي لمدة 3 أشهر على الأقل للحصول على الفائدة الكاملة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم، رغم أنه يُفضل اقترانه ببلسمنا من نفس السلسلة لتحسين النتائج. شامبونا ينقّي البصيلات بعمق والبلسم يعيد الترطيب الطبيعي. نوصي بإتمام العلاج الثلاثي لمدة 3 أشهر على الأقل للحصول على الفائدة الكاملة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -674,7 +674,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"الشامبو الأول يزيل الأوساخ والبقايا؛ الثاني يسمح للشامبو بالعمل ومعالجة الفروة بشكل صحيح، ما يترك الشعر أنظف وأكثر صحة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"الشامبو الأول يزيل الأوساخ والبقايا؛ الثاني يسمح للشامبو بالعمل ومعالجة الفروة بشكل صحيح، ما يترك الشعر أنظف وأكثر صحة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -691,7 +691,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم. بلسماتنا تغذّي بعمق لكنها خفيفة الوزن، لذا لن تترك رواسب على فروة الرأس أو تثقل الشعر حتى مع الاستخدام اليومي.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم. بلسماتنا تغذّي بعمق لكنها خفيفة الوزن، لذا لن تترك رواسب على فروة الرأس أو تثقل الشعر حتى مع الاستخدام اليومي.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -703,12 +703,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "هل أستطيع دمج بلسم Onion + Peptides مع منتجات أخرى؟",
+            "value": "هل أستطيع دمج بلسم البصل + ببتيدات مع منتجات أخرى؟",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم، رغم أننا نوصي باستخدام العلاج الثلاثي لمدة 3 أشهر على الأقل لتحسين النتائج. تركيباتنا يمكن دمجها بفاعلية لمعالجة احتياجات شعرك المحددة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم، رغم أننا نوصي باستخدام العلاج الثلاثي لمدة 3 أشهر على الأقل لتحسين النتائج. تركيباتنا يمكن دمجها بفاعلية لمعالجة احتياجات شعرك المحددة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -725,7 +725,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"لا. منتجاتنا لا تحتوي على سيليكونات أو بارابين أو مواد ضارة أخرى، مما يضمن علاجًا آمنًا ونظيفًا لشعرك وفروة رأسك.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"لا. منتجاتنا لا تحتوي على سيليكونات أو بارابين أو مواد ضارة أخرى، مما يضمن علاجًا آمنًا ونظيفًا لشعرك وفروة رأسك.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -742,7 +742,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"طبّقي أنبوب قطارة كامل على طول خط الشعر، الجانبين والجزء الخلفي. دلكي فروة الرأس بحركات دائرية لتوزيع المنتج بالتساوي. لا تشطفي.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"طبّقي أنبوب قطارة كامل على طول خط الشعر، الجانبين والجزء الخلفي. دلكي فروة الرأس بحركات دائرية لتوزيع المنتج بالتساوي. لا تشطفي.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -759,7 +759,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"لا. اتركيه يعمل على فروة الرأس ولا تشطفيه. سيروماتنا مائية الخلطة وخفيفة وغير دهنية وتجف بسرعة دون ترك رواسب.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"لا. اتركيه يعمل على فروة الرأس ولا تشطفيه. سيروماتنا مائية الخلطة وخفيفة وغير دهنية وتجف بسرعة دون ترك رواسب.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -776,7 +776,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم، رغم أن تركيباتنا صمّمت للعمل بتآزر مع منتجات الفئة نفسها. لذلك نوصي باستخدام العلاج الثلاثي لمدة 3 أشهر للحصول على كل فوائده.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم، رغم أن تركيباتنا صمّمت للعمل بتآزر مع منتجات الفئة نفسها. لذلك نوصي باستخدام العلاج الثلاثي لمدة 3 أشهر للحصول على كل فوائده.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -788,12 +788,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "ما الذي يميّز علاج Rosemary + Peptides لدينا؟",
+            "value": "ما الذي يميّز علاج إكليل الجبل + ببتيدات لدينا؟",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"هذا النظام الثلاثي يجمع قوة تكثيف إكليل الجبل والببتيدات مع الكيراتين المحلل ومستخلص خشب Larix Europaea لتنشيط البصيلات، تهدئة تهيّج الفروة، والحفاظ على شعر صحي وأكثر كثافة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"هذا النظام الثلاثي يجمع قوة تكثيف إكليل الجبل والببتيدات مع الكيراتين المحلل ومستخلص خشب Larix Europaea لتنشيط البصيلات، تهدئة تهيّج الفروة، والحفاظ على شعر صحي وأكثر كثافة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -805,12 +805,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "كم مرة يمكنني استخدام علاج Rosemary + Peptides؟",
+            "value": "كم مرة يمكنني استخدام علاج إكليل الجبل + ببتيدات؟",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"لأفضل نتيجة، ضمي الشامبو والبلسم إلى روتين العناية الاعتيادي وطبّقي السيروم يوميًا.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"لأفضل نتيجة، ضمي الشامبو والبلسم إلى روتين العناية الاعتيادي وطبّقي السيروم يوميًا.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -827,7 +827,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم. هذا العلاج يفيد أي نوع شعر عبر تهدئة التهيّج، تحفيز البصيلات وزيادة الكثافة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم. هذا العلاج يفيد أي نوع شعر عبر تهدئة التهيّج، تحفيز البصيلات وزيادة الكثافة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -844,7 +844,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم، منتجات سلسلة Rosemary + Peptides يمكن دمجها مع منتجات أخرى. نوصي باستخدام النظام الكامل للحصول على أفضل نتيجة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم، منتجات سلسلة إكليل الجبل + ببتيدات يمكن دمجها مع منتجات أخرى. نوصي باستخدام النظام الكامل للحصول على أفضل نتيجة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -861,7 +861,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"يلاحظ كثيرون تحسّنًا في الملمس وكثافة الشعر بعد 4–6 أسابيع من الاستخدام اليومي.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"يلاحظ كثيرون تحسّنًا في الملمس وكثافة الشعر بعد 4–6 أسابيع من الاستخدام اليومي.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -878,7 +878,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم. هذه المنتجات مُصاغة بمكوّنات مهدّئة مثل إكليل الجبل ومستخلص زهرة البرسيم، التي تهدئ التهيّج ومناسبة للفروة الحساسة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم. هذه المنتجات مُصاغة بمكوّنات مهدّئة مثل إكليل الجبل ومستخلص زهرة البرسيم، التي تهدئ التهيّج ومناسبة للفروة الحساسة.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -895,7 +895,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"على الرغم من أن التركيز الرئيسي للعلاج هو زيادة الكثافة، تساهم مكوّنات مثل إكليل الجبل والببتيدات في المحافظة على فروة رأس صحية، ما قد يقلّل القشرة بعد مدة من الاستخدام.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"على الرغم من أن التركيز الرئيسي للعلاج هو زيادة الكثافة، تساهم مكوّنات مثل إكليل الجبل والببتيدات في المحافظة على فروة رأس صحية، ما قد يقلّل القشرة بعد مدة من الاستخدام.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -912,7 +912,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"شامبونا، الذي لا يجفّف الفروة، يزيل التراكمات بلطف ويهيئ الفروة والشعر لصحة وكثافة مثلى. يحتوي على مزيج فريد من مستخلصات طبيعية وببتيدات تنظّف دون نزع الزيوت الأساسية، مكوّناً أساسًا مثاليًا لروتين العناية.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"شامبونا، الذي لا يجفّف الفروة، يزيل التراكمات بلطف ويهيئ الفروة والشعر لصحة وكثافة مثلى. يحتوي على مزيج فريد من مستخلصات طبيعية وببتيدات تنظّف دون نزع الزيوت الأساسية، مكوّناً أساسًا مثاليًا لروتين العناية.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -929,7 +929,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For best results, incorporate this shampoo into your regular hair care routine. Being sulfate‑free, you can use it daily or as needed to keep scalp and hair clean and healthy.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"For best results, incorporate this shampoo into your regular hair care routine. Being sulfate‑free, you can use it daily or as needed to keep scalp and hair clean and healthy.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -946,7 +946,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, our gentle sulfate‑free formula is designed for daily use and is suitable for all hair types, including those prone to dryness or sensitivity. It cleans effectively without removing the scalp’s natural oils, providing rich lather without damaging or irritating hair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, our gentle sulfate‑free formula is designed for daily use and is suitable for all hair types, including those prone to dryness or sensitivity. It cleans effectively without removing the scalp’s natural oils, providing rich lather without damaging or irritating hair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -963,7 +963,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No, our shampoo is formulated to cleanse effectively without stripping essential oils, leaving hair deeply clean, balanced and nourished. Key ingredients like oleander extract help regulate sebum, reduce flaking and soothe irritation, while lavender extract promotes scalp health and improves hair hydration and manageability.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No, our shampoo is formulated to cleanse effectively without stripping essential oils, leaving hair deeply clean, balanced and nourished. Key ingredients like oleander extract help regulate sebum, reduce flaking and soothe irritation, while lavender extract promotes scalp health and improves hair hydration and manageability.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -980,7 +980,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, our shampoo is safe for colored and chemically treated hair, making it an excellent option to maintain healthy hair after treatment.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, our shampoo is safe for colored and chemically treated hair, making it an excellent option to maintain healthy hair after treatment.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -992,12 +992,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes our Rosemary + Peptides treatment unique?",
+            "value": "What makes our إكليل الجبل + ببتيدات treatment unique?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This 3‑step system combines the densifying power of rosemary and peptides with hydrolyzed keratin and Larix Europaea wood extract to revitalize follicles, calm scalp irritation, and maintain healthy, denser hair. \"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This 3‑step system combines the densifying power of rosemary and peptides with hydrolyzed keratin and Larix Europaea wood extract to revitalize follicles, calm scalp irritation, and maintain healthy, denser hair. \"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1009,12 +1009,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How often can I use the Rosemary + Peptides treatment?",
+            "value": "How often can I use the إكليل الجبل + ببتيدات treatment?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For best results, incorporate the shampoo and conditioner into your regular hair care routine and apply the serum daily. \"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"For best results, incorporate the shampoo and conditioner into your regular hair care routine and apply the serum daily. \"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1031,7 +1031,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. This treatment benefits any hair type by calming irritation, stimulating follicles and increasing hair density.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. This treatment benefits any hair type by calming irritation, stimulating follicles and increasing hair density.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1048,7 +1048,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Our serum combines the power of rosemary and peptides with hydrolyzed keratin and Larix europaea wood extract, revitalizing follicles, calming scalp irritation and promoting healthier, thicker hair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Our serum combines the power of rosemary and peptides with hydrolyzed keratin and Larix europaea wood extract, revitalizing follicles, calming scalp irritation and promoting healthier, thicker hair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1060,12 +1060,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How often should I use this scalp serum?",
+            "value": "How often should I use this سيروم فروة الرأس?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For optimal results, apply the serum daily. After towel‑drying or on dry hair, massage the contents of one pipette along the hairline, parting, sides and back of the scalp. This product does not require rinsing, so you can style as usual.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"For optimal results, apply the serum daily. After towel‑drying or on dry hair, massage the contents of one pipette along the hairline, parting, sides and back of the scalp. This product does not require rinsing, so you can style as usual.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1082,7 +1082,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, our serum benefits all hair types by stimulating follicles and increasing hair density.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, our serum benefits all hair types by stimulating follicles and increasing hair density.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1094,12 +1094,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Will the scalp serum leave my hair greasy or flat?",
+            "value": "Will the سيروم فروة الرأس leave my hair greasy or flat?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No, all our serums are water‑based and lightweight. They absorb quickly into the scalp, leaving no residue and preserving the hair’s natural texture.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No, all our serums are water‑based and lightweight. They absorb quickly into the scalp, leaving no residue and preserving the hair’s natural texture.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1116,7 +1116,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, our serum works well with other hair care products. For best density results, we recommend using it together with our Shampoo and Conditioner from the Rosemary + Peptides collection.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, our serum works well with other hair care products. For best density results, we recommend using it together with our Shampoo and Conditioner from the إكليل الجبل + ببتيدات collection.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1128,12 +1128,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How long does a bottle of scalp serum last?",
+            "value": "How long does a bottle of سيروم فروة الرأس last?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The bottle contains 50 mL of product, which typically lasts one month with daily use.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The bottle contains 50 mL of product, which typically lasts one month with daily use.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1150,7 +1150,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Many clients begin to notice improvements in texture after a few uses, and changes in hair density between 4 and 6 weeks of consistent daily use. The scalp and follicles need time to renew and grow. \"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Many clients begin to notice improvements in texture after a few uses, and changes in hair density between 4 and 6 weeks of consistent daily use. The scalp and follicles need time to renew and grow. \"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1167,7 +1167,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, the serum is dermatologically tested and classified as \"},{\"type\":\"text\",\"value\":\"Non‑Irritating\",\"bold\":true},{\"type\":\"text\",\"value\":\". It is fully suitable for sensitive scalps.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, the serum is dermatologically tested and classified as \"}, {\"type\": \"text\", \"value\": \"Non‑Irritating\", \"bold\": true}, {\"type\": \"text\", \"value\": \". It is fully suitable for sensitive scalps.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1184,7 +1184,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"While its primary objective is hair density, ingredients like rosemary and peptides help maintain a healthy scalp, which can reduce dandruff over time.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"While its primary objective is hair density, ingredients like rosemary and peptides help maintain a healthy scalp, which can reduce dandruff over time.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1201,7 +1201,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes — for better absorption, apply the serum to towel‑dried hair after washing.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes — for better absorption, apply the serum to towel‑dried hair after washing.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1218,7 +1218,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This shampoo combines the power of sage extract with a multivitamin blend, including sodium ascorbyl phosphate (Vitamin C), retinyl palmitate (Vitamin A) and tocopheryl acetate (Vitamin E). These ingredients are designed to combat hair ageing, protect against environmental stressors and promote overall scalp health.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This shampoo combines the power of مستخلص الميرمية with a multivitamin blend, including sodium ascorbyl phosphate (Vitamin C), retinyl palmitate (Vitamin A) and tocopheryl acetate (Vitamin E). These ingredients are designed to combat hair ageing, protect against environmental stressors and promote overall scalp health.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1235,7 +1235,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, the antioxidant properties of Vitamin C and the nourishing effects of Vitamin A work together to strengthen hair follicles, reduce thinning and slow the greying process by protecting against oxidative stress.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, the antioxidant properties of Vitamin C and the nourishing effects of Vitamin A work together to strengthen hair follicles, reduce thinning and slow the greying process by protecting against oxidative stress.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1252,7 +1252,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The multivitamin blend, including Vitamins C, A and E, provides essential nutrients that support collagen production, improve scalp health and deliver deep hydration. These ingredients offer antioxidant benefits, improving hair strength and shine.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The multivitamin blend, including Vitamins C, A and E, provides essential nutrients that support collagen production, improve scalp health and deliver deep hydration. These ingredients offer antioxidant benefits, improving hair strength and shine.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1269,7 +1269,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, antioxidants like Vitamin C help protect hair color from fading caused by oxidative stress and UV exposure, keeping your color vibrant for longer.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, antioxidants like Vitamin C help protect hair color from fading caused by oxidative stress and UV exposure, keeping your color vibrant for longer.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1298,12 +1298,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What is the Sage + Multivitamin routine for?",
+            "value": "What is the الميرمية + فيتامينات متعددة routine for?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"It’s a revitalizing hair well‑aging routine designed to strengthen hair, protect against hair ageing and help prolong color and vitality over time.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"It’s a revitalizing hair well‑aging routine designed to strengthen hair, protect against hair ageing and help prolong color and vitality over time.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1320,7 +1320,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Its formula with sage extract, peptides such as SilverFree™ and antioxidant actives helps protect natural hair pigmentation and delay greying associated with hair ageing.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Its formula with مستخلص الميرمية, peptides such as SilverFree™ and antioxidant actives helps protect natural hair pigmentation and delay greying associated with hair ageing.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1337,7 +1337,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"It can be used at any age as a preventive routine. It’s ideal when signs of finer hair, reduced shine or early greys begin to appear.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"It can be used at any age as a preventive routine. It’s ideal when signs of finer hair, reduced shine or early greys begin to appear.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1354,7 +1354,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Improvements in hair density and texture are visible in two weeks, while reduction in greys is usually observed after 4 to 6 weeks.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Improvements in hair density and texture are visible in two weeks, while reduction in greys is usually observed after 4 to 6 weeks.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1366,12 +1366,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How often should I use the Sage + Multivitamin Regenerating Repair Conditioner?",
+            "value": "How often should I use the الميرمية + فيتامينات متعددة Regenerating Repair Conditioner?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For best results, use this conditioner every time you shampoo. It’s gentle enough for daily use and provides ongoing nourishment and protection.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"For best results, use this conditioner every time you shampoo. It’s gentle enough for daily use and provides ongoing nourishment and protection.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1388,7 +1388,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No, the formula is designed to deeply hydrate without weighing hair down. It leaves hair light, soft and manageable.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No, the formula is designed to deeply hydrate without weighing hair down. It leaves hair light, soft and manageable.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1405,7 +1405,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No. It has a mild, natural aroma derived from its botanical ingredients, offering a pleasant and refreshing experience.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No. It has a mild, natural aroma derived from its botanical ingredients, offering a pleasant and refreshing experience.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1422,7 +1422,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, this conditioner is formulated to be gentle and suitable for all scalp types, including sensitive scalps.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, this conditioner is formulated to be gentle and suitable for all scalp types, including sensitive scalps.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1439,7 +1439,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The serum focuses on scalp health by stimulating collagen production and providing antioxidant protection with ingredients like Palmitoyl Dipeptide‑52 and sodium ascorbyl phosphate (Vitamin C). This helps reduce oxidative stress and fosters a healthy scalp environment for stronger, more youthful hair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The serum focuses on scalp health by stimulating collagen production and providing antioxidant protection with ingredients like Palmitoyl Dipeptide‑52 and sodium ascorbyl phosphate (Vitamin C). This helps reduce oxidative stress and fosters a healthy scalp environment for stronger, more youthful hair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1456,7 +1456,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, it contains Acetyl Tetrapeptide‑3 and Palmitoyl Dipeptide‑52, which work to strengthen hair follicles, promote thicker hair and reduce thinning over time, making it ideal for those experiencing age‑related thinning.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, it contains Acetyl Tetrapeptide‑3 and Palmitoyl Dipeptide‑52, which work to strengthen hair follicles, promote thicker hair and reduce thinning over time, making it ideal for those experiencing age‑related thinning.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1468,12 +1468,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes the Strawberry + NMF Nutritive System unique?",
+            "value": "What makes the الفراولة + عوامل الترطيب الطبيعية Nutritive System unique?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The Strawberry + NMF Nutritive System combines the natural benefits of strawberry extract with a scientifically formulated NMF complex to deliver comprehensive hair care. It nourishes, hydrates and protects your hair, keeping it healthy, soft and full of vitality.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The الفراولة + عوامل الترطيب الطبيعية Nutritive System combines the natural benefits of مستخلص الفراولة with a scientifically formulated NMF complex to deliver comprehensive hair care. It nourishes, hydrates and protects your hair, keeping it healthy, soft and full of vitality.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1485,12 +1485,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How often should I use the Strawberry + NMF Nutritive System?",
+            "value": "How often should I use the الفراولة + عوامل الترطيب الطبيعية Nutritive System?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This system is designed for daily use. For best results, use the Nutritive Shampoo, followed by the Nutritive Conditioner, and finish with the leave‑in Nutritive Conditioner daily to maintain optimal hair health.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This system is designed for daily use. For best results, use the Nutritive Shampoo, followed by the Nutritive Conditioner, and finish with the leave‑in Nutritive Conditioner daily to maintain optimal hair health.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1502,12 +1502,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Is the Strawberry + NMF collection suitable for all hair types?",
+            "value": "Is the الفراولة + عوامل الترطيب الطبيعية collection suitable for all hair types?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, this collection is suitable for all hair types, including dry, oily and color‑treated hair. It’s formulated to provide hydration and nourishment without weighing hair down.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, this collection is suitable for all hair types, including dry, oily and color‑treated hair. It’s formulated to provide hydration and nourishment without weighing hair down.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1524,7 +1524,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, although the products are designed to work together and deliver the best results, they can also be used individually according to your hair’s specific needs.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, although the products are designed to work together and deliver the best results, they can also be used individually according to your hair’s specific needs.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1536,12 +1536,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Does the Strawberry + NMF Nutritive System help with damage and breakage?",
+            "value": "Does the الفراولة + عوامل الترطيب الطبيعية Nutritive System help with damage and breakage?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, the NMF complex (Natural Moisturizing Factors), enriched with amino acids and natural oils, helps repair damage, strengthen hair and reduce breakage over time.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, the NMF complex (Natural Moisturizing Factors), enriched with amino acids and natural oils, helps repair damage, strengthen hair and reduce breakage over time.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1553,12 +1553,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Is the Strawberry + NMF routine safe for sensitive scalps?",
+            "value": "Is the الفراولة + عوامل الترطيب الطبيعية routine safe for sensitive scalps?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. It’s formulated with gentle, soothing ingredients, making it safe for sensitive scalps. It cleanses, hydrates and protects without causing irritation.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. It’s formulated with gentle, soothing ingredients, making it safe for sensitive scalps. It cleanses, hydrates and protects without causing irritation.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1570,12 +1570,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes the Strawberry + NMF Nutritive Conditioner unique?",
+            "value": "What makes the الفراولة + عوامل الترطيب الطبيعية Nutritive Conditioner unique?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This conditioner combines the antioxidant benefits of strawberry extract with the moisturizing properties of sodium PCA and urea. It retains moisture with grape seed and olive seed oils, smooths cuticles and strengthens hair, leaving it soft, nourished and protected from damage.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This conditioner combines the antioxidant benefits of مستخلص الفراولة with the moisturizing properties of sodium PCA and urea. It retains moisture with grape seed and olive seed oils, smooths cuticles and strengthens hair, leaving it soft, nourished and protected from damage.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1587,12 +1587,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Does this Strawberry + NMF product have a strong fragrance?",
+            "value": "Does this الفراولة + عوامل الترطيب الطبيعية product have a strong fragrance?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"It has a soft, natural fragrance derived from strawberry extract, providing a refreshing scent that is not overpowering.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"It has a soft, natural fragrance derived from مستخلص الفراولة, providing a refreshing scent that is not overpowering.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1609,7 +1609,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, the smoothing properties of grape seed and olive oils combined with the hydrating effects of sodium PCA and urea help tame frizz and improve hair manageability.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, the smoothing properties of grape seed and olive oils combined with the hydrating effects of sodium PCA and urea help tame frizz and improve hair manageability.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1621,12 +1621,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes the Strawberry + NMF Leave‑In Nourishing Conditioner unique?",
+            "value": "What makes the الفراولة + عوامل الترطيب الطبيعية Leave‑In Nourishing Conditioner unique?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This leave‑in conditioner combines the antioxidant power of strawberry extract with the moisturizing properties of sodium PCA and urea. It detangles, adds shine and protects against damage, leaving hair soft, nourished and manageable all day.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This leave‑in conditioner combines the antioxidant power of مستخلص الفراولة with the moisturizing properties of sodium PCA and urea. It detangles, adds shine and protects against damage, leaving hair soft, nourished and manageable all day.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1638,12 +1638,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How often should I use the Strawberry + NMF Leave‑In Hydrating Conditioner?",
+            "value": "How often should I use the الفراولة + عوامل الترطيب الطبيعية Leave‑In Hydrating Conditioner?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This leave‑in conditioner is perfect for daily use. Apply it after shampoo and conditioner, or use as needed for touch‑ups to keep hair hydrated and soft.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This leave‑in conditioner is perfect for daily use. Apply it after shampoo and conditioner, or use as needed for touch‑ups to keep hair hydrated and soft.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1660,7 +1660,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No, the conditioner is lightweight and absorbs quickly, ensuring your hair remains soft, shiny and without a greasy feel.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No, the conditioner is lightweight and absorbs quickly, ensuring your hair remains soft, shiny and without a greasy feel.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1677,7 +1677,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, the formula is safe for color‑treated hair. It helps protect and preserve color while keeping hair nourished and vibrant.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, the formula is safe for color‑treated hair. It helps protect and preserve color while keeping hair nourished and vibrant.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1694,7 +1694,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, the combination of grape seed and olive oils in this conditioner helps reduce frizz and flyaways, keeping hair soft and manageable.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, the combination of grape seed and olive oils in this conditioner helps reduce frizz and flyaways, keeping hair soft and manageable.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1711,7 +1711,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This system consists of three steps: a gentle shampoo, a strengthening conditioner and a leave‑in serum. Together they remove residue buildup, deliver vitamins and proteins to the hair and care for the scalp, for stronger hair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This system consists of three steps: a gentle shampoo, a strengthening conditioner and a leave‑in serum. Together they remove residue buildup, deliver vitamins and proteins to the hair and care for the scalp, for stronger hair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1723,12 +1723,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What hair type is the Date + Multivitamin collection recommended for?",
+            "value": "What hair type is the التمر + فيتامينات متعددة collection recommended for?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"It’s indicated for dry, damaged, dull or breakage‑prone hair. It’s also ideal for chemically treated hair that needs deep nourishment and strengthening.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"It’s indicated for dry, damaged, dull or breakage‑prone hair. It’s also ideal for chemically treated hair that needs deep nourishment and strengthening.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1745,7 +1745,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Its formula with date extract, a multivitamin complex and nourishing oils strengthens the hair fiber, improves elasticity and helps reduce breakage and split ends with continued use.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Its formula with مستخلص التمر, a multivitamin complex and nourishing oils strengthens the hair fiber, improves elasticity and helps reduce breakage and split ends with continued use.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1762,7 +1762,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. It deeply nourishes without leaving a heavy feeling, keeping hair loose, flexible and with natural movement.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. It deeply nourishes without leaving a heavy feeling, keeping hair loose, flexible and with natural movement.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1779,7 +1779,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Its antioxidant actives help protect against environmental damage and oxidative stress, keeping hair stronger and healthier.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Its antioxidant actives help protect against environmental damage and oxidative stress, keeping hair stronger and healthier.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1791,12 +1791,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Does the Date + Multivitamin collection help prevent hair ageing?",
+            "value": "Does the التمر + فيتامينات متعددة collection help prevent hair ageing?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Thanks to its combination of antioxidants and vitamins, it helps protect against premature hair ageing caused by environmental factors and oxidative stress.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Thanks to its combination of antioxidants and vitamins, it helps protect against premature hair ageing caused by environmental factors and oxidative stress.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1808,12 +1808,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Does the Date + Multivitamin conditioner help control frizz?",
+            "value": "Does the التمر + فيتامينات متعددة conditioner help control frizz?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, it’s specifically designed to reduce frizz. Its moisturizing agents penetrate the hair fiber, sealing in moisture and keeping hair soft and frizz‑free even in high humidity.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, it’s specifically designed to reduce frizz. Its moisturizing agents penetrate the hair fiber, sealing in moisture and keeping hair soft and frizz‑free even in high humidity.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1830,7 +1830,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Its combination of lightweight oils and conditioning agents deeply nourishes and improves hair elasticity. This reduces breakage risk and makes hair more flexible and easier to style while protecting it from external damage.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Its combination of lightweight oils and conditioning agents deeply nourishes and improves hair elasticity. This reduces breakage risk and makes hair more flexible and easier to style while protecting it from external damage.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1842,12 +1842,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What does the Black Garlic + Ceramides Strengthening System include?",
+            "value": "What does the الثوم الأسود + سيراميدات Strengthening System include?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"It includes the Revitalizing Shampoo, the Repairing Mask and the Scalp Strengthening Serum. A complete 3‑step treatment that targets the scalp, follicles and hair fiber for full restoration.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"It includes the Revitalizing Shampoo, the Repairing Mask and the Scalp Strengthening Serum. A complete 3‑step treatment that targets the scalp, follicles and hair fiber for full restoration.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1864,7 +1864,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Ideal for weak, dry, brittle, dull or chemically treated hair, as well as for scalps that are unbalanced or prone to shedding and need deep repair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Ideal for weak, dry, brittle, dull or chemically treated hair, as well as for scalps that are unbalanced or prone to shedding and need deep repair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1881,7 +1881,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. This reparative ritual is formulated to reverse mechanical and chemical damage and protect hair from future aggressions. All formulas are sulfate‑ and silicone‑free, helping preserve softness, shine and color intensity.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. This reparative ritual is formulated to reverse mechanical and chemical damage and protect hair from future aggressions. All formulas are sulfate‑ and silicone‑free, helping preserve softness, shine and color intensity.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1898,7 +1898,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Use the shampoo at every wash, the mask 1–3 times per week as needed (combined with conditioner), and the serum daily or after washing on clean towel‑dried hair. Consistency is key for full scalp and fiber renewal.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Use the shampoo at every wash, the mask 1–3 times per week as needed (combined with conditioner), and the serum daily or after washing on clean towel‑dried hair. Consistency is key for full scalp and fiber renewal.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1915,7 +1915,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"From the first application you’ll notice a fresher scalp and softer hair. Visible improvements in strength, shine and density appear after 4–6 weeks of continuous use.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"From the first application you’ll notice a fresher scalp and softer hair. Visible improvements in strength, shine and density appear after 4–6 weeks of continuous use.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1932,7 +1932,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No. The three formulas are lightweight and silicone‑free, offering deep nourishment without weighing hair down. For fine hair, use the mask once a week; for oily scalps, apply the serum to damp hair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No. The three formulas are lightweight and silicone‑free, offering deep nourishment without weighing hair down. For fine hair, use the mask once a week; for oily scalps, apply the serum to damp hair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1949,7 +1949,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes, although for optimal results and synergistic action, we recommend using the full 3‑step system consistently.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes, although for optimal results and synergistic action, we recommend using the full 3‑step system consistently.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1966,7 +1966,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Unlike traditional treatments, this system addresses scalp health and fiber reconstruction simultaneously. The synergy between Black Garlic ABG10+® and biomimetic ceramides rebuilds from within, restoring strength, vitality and shine across the hair ecosystem.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Unlike traditional treatments, this system addresses scalp health and fiber reconstruction simultaneously. The synergy between الثوم الأسود ABG10+® and biomimetic ceramides rebuilds from within, restoring strength, vitality and shine across the hair ecosystem.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -1983,7 +1983,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. All formulas have been dermatologically tested and are non‑irritating, suitable even for sensitive scalps.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. All formulas have been dermatologically tested and are non‑irritating, suitable even for sensitive scalps.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2000,7 +2000,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"This shampoo is suitable for all hair types, especially weakened, dry or damaged hair that needs strength, deep repair and scalp balance.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"This shampoo is suitable for all hair types, especially weakened, dry or damaged hair that needs strength, deep repair and scalp balance.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2017,7 +2017,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"From the first use, hair feels softer, shinier and more manageable. Visible improvements in strength and vitality are seen after 2–4 weeks of regular use. For optimal results such as fiber reconstruction or reduced breakage, we recommend using the full Black Garlic + Ceramides system, including the repair mask and scalp serum, for at least 4–6 weeks to allow scalp, follicles and fiber to regenerate from the inside out.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"From the first use, hair feels softer, shinier and more manageable. Visible improvements in strength and vitality are seen after 2–4 weeks of regular use. For optimal results such as fiber reconstruction or reduced breakage, we recommend using the full الثوم الأسود + سيراميدات system, including the repair mask and سيروم فروة الرأس, for at least 4–6 weeks to allow scalp, follicles and fiber to regenerate from the inside out.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2034,7 +2034,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. For best results, continue with the Repairing Mask and the Scalp Strengthening Serum from Black Garlic + Ceramides. You can also combine products from other collections according to your hair’s needs. Contact us for a personalized diagnosis.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. For best results, continue with the Repairing Mask and the Scalp Strengthening Serum from الثوم الأسود + سيراميدات. You can also combine products from other collections according to your hair’s needs. Contact us for a personalized diagnosis.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2051,7 +2051,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Not at all. It contains Black Garlic extract, which loses its garlic smell during its maturation process. The formula leaves hair fresh, clean and lightly fragranced.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Not at all. It contains الثوم الأسود extract, which loses its garlic smell during its maturation process. The formula leaves hair fresh, clean and lightly fragranced.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2063,12 +2063,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes the Revitalizing Black Garlic + Ceramides Shampoo different from others?",
+            "value": "What makes the Revitalizing الثوم الأسود + سيراميدات Shampoo different from others?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Its cutting‑edge formula combines scientific innovation (Ceramides) and botanical strength (Black Garlic ABG10+®) to act on scalp health and fiber repair simultaneously, working from the root to deliver lasting strength, vitality and resilience.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Its cutting‑edge formula combines scientific innovation (Ceramides) and botanical strength (الثوم الأسود ABG10+®) to act on scalp health and fiber repair simultaneously, working from the root to deliver lasting strength, vitality and resilience.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2080,12 +2080,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What hair type is the Black Garlic + Ceramides mask suitable for?",
+            "value": "What hair type is the الثوم الأسود + سيراميدات mask suitable for?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The Repairing Mask is suitable for all hair types, especially weak, brittle, dry or chemically treated hair that needs intensive repair and deep nourishment.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The Repairing Mask is suitable for all hair types, especially weak, brittle, dry or chemically treated hair that needs intensive repair and deep nourishment.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2097,12 +2097,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How often should I use the Repairing Mask Black Garlic + Ceramides?",
+            "value": "How often should I use the Repairing Mask الثوم الأسود + سيراميدات?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Use it 1 or 2 times per week, or more often if your hair is very damaged, porous or dry. Leave it on for 5–10 minutes for maximum efficacy. If your hair is fine or oily, use it approximately every 10 days.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Use it 1 or 2 times per week, or more often if your hair is very damaged, porous or dry. Leave it on for 5–10 minutes for maximum efficacy. If your hair is fine or oily, use it approximately every 10 days.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2119,7 +2119,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. The Repairing Mask Black Garlic + Ceramides is formulated to restore damaged hair health and protect it from future damage. Being silicone‑free, it does not interfere with recent chemical treatments.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. The Repairing Mask الثوم الأسود + سيراميدات is formulated to restore damaged hair health and protect it from future damage. Being silicone‑free, it does not interfere with recent chemical treatments.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2136,7 +2136,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No. Its light, creamy texture deeply nourishes without weighing hair down. Avoid applying the Repairing Mask to roots and rinse thoroughly to remove any residue.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No. Its light, creamy texture deeply nourishes without weighing hair down. Avoid applying the Repairing Mask to roots and rinse thoroughly to remove any residue.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2153,7 +2153,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"If you want intensive repair, you can apply the mask to dry hair or leave it on for at least 30 minutes or overnight. Rinse well the next day and continue with your washing routine.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"If you want intensive repair, you can apply the mask to dry hair or leave it on for at least 30 minutes or overnight. Rinse well the next day and continue with your washing routine.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2170,7 +2170,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"It is not recommended to apply it to the roots, as it’s designed to treat the hair fiber. Its rich texture could clog pores or add weight. To care for the scalp, use our specific leave‑in serums designed to strengthen follicles and balance the scalp.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"It is not recommended to apply it to the roots, as it’s designed to treat the hair fiber. Its rich texture could clog pores or add weight. To care for the scalp, use our specific leave‑in serums designed to strengthen follicles and balance the scalp.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2182,12 +2182,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Who can use the Black Garlic + Ceramides Strengthening Serum?",
+            "value": "Who can use the الثوم الأسود + سيراميدات Strengthening Serum?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"It’s suitable for all scalp and hair types, especially those with weakening, breakage, dullness, damage or scalp imbalance. It’s also ideal for anyone seeking to strengthen hair, increase density and improve long‑term vitality.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"It’s suitable for all scalp and hair types, especially those with weakening, breakage, dullness, damage or scalp imbalance. It’s also ideal for anyone seeking to strengthen hair, increase density and improve long‑term vitality.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2204,7 +2204,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Its light, water‑based non‑greasy formula is fully compatible with oily scalps. We recommend applying the Black Garlic + Ceramides Strengthening Serum to clean towel‑dried hair rather than on dry hair to promote better absorption.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Its light, water‑based non‑greasy formula is fully compatible with oily scalps. We recommend applying the الثوم الأسود + سيراميدات Strengthening Serum to clean towel‑dried hair rather than on dry hair to promote better absorption.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2221,7 +2221,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"From the first week you’ll notice greater comfort and freshness in the scalp. Visible results in strength, shine and density are usually seen after 4–6 weeks of consistent use, as the scalp and follicles renew.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"From the first week you’ll notice greater comfort and freshness in the scalp. Visible results in strength, shine and density are usually seen after 4–6 weeks of consistent use, as the scalp and follicles renew.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2233,12 +2233,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes the Detox routine unique?",
+            "value": "What makes the ديتوكس routine unique?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Our system combines charcoal’s detoxifying power with the hydrating benefits of Ghassoul clay and avocado oil, plus the soothing properties of cactus and red algae. This holistic approach delivers deep cleansing, hydration, and scalp balance for healthier, more resilient hair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Our system combines charcoal’s ديتوكسifying power with the hydrating benefits of Ghassoul clay and avocado oil, plus the soothing properties of cactus and red algae. This holistic approach delivers deep cleansing, hydration, and scalp balance for healthier, more resilient hair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2250,12 +2250,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How do I know if I need a detox for my scalp and hair?",
+            "value": "How do I know if I need a ديتوكس for my scalp and hair?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"If you notice scalp oil buildup, dryness, itching, or dull hair, a detox can help reset and revitalize your scalp and hair, restoring their natural balance and health.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"If you notice scalp oil buildup, dryness, itching, or dull hair, a ديتوكس can help reset and revitalize your scalp and hair, restoring their natural balance and health.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2272,7 +2272,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes — our products are formulated with gentle, natural ingredients suitable for sensitive scalps. The soothing properties of red algae and celery seed help calm irritation and support scalp health.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes — our products are formulated with gentle, natural ingredients suitable for sensitive scalps. The soothing properties of red algae and celery seed help calm irritation and support scalp health.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2289,7 +2289,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"While not a targeted dandruff treatment, the Detox routine supports a healthier scalp environment, which can reduce flaking and discomfort associated with dandruff.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"While not a targeted dandruff treatment, the ديتوكس routine supports a healthier scalp environment, which can reduce flaking and discomfort associated with dandruff.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2301,12 +2301,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "How does the Detox system benefit oily hair?",
+            "value": "How does the ديتوكس system benefit oily hair?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Charcoal and Ghassoul clay in our shampoo effectively remove excess oil and buildup, while celery seed in our serum helps regulate sebum production, keeping the scalp balanced and feeling fresh.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Charcoal and Ghassoul clay in our shampoo effectively remove excess oil and buildup, while celery seed in our serum helps regulate sebum production, keeping the scalp balanced and feeling fresh.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2318,12 +2318,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Can men use the Detox collection?",
+            "value": "Can men use the ديتوكس collection?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Our system is suitable for both men and women looking to improve scalp and hair health.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Our system is suitable for both men and women looking to improve scalp and hair health.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2340,7 +2340,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"By removing buildup, hydrating the scalp and hair, and maintaining a balanced scalp environment, our Detox system helps promote stronger, healthier hair over time.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"By removing buildup, hydrating the scalp and hair, and maintaining a balanced scalp environment, our ديتوكس system helps promote stronger, healthier hair over time.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2352,12 +2352,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes the Detox Exfoliating Shampoo with Charcoal + Salicylic Acid unique?",
+            "value": "What makes the ديتوكس Exfoliating Shampoo with Charcoal + Salicylic Acid unique?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Our shampoo is formulated with activated charcoal and salicylic acid to deeply cleanse the scalp, removing impurities, buildup, and excess oil. It also contains black pepper, Inga alba bark, and ginger root to stimulate circulation, strengthen hair, and restore hydration for a complete detox.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Our shampoo is formulated with activated charcoal and salicylic acid to deeply cleanse the scalp, removing impurities, buildup, and excess oil. It also contains black pepper, Inga alba bark, and ginger root to stimulate circulation, strengthen hair, and restore hydration for a complete ديتوكس.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2374,7 +2374,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For best results, use the Detox Exfoliating Shampoo once a week. Use it when your scalp feels oily, hair looks dull, or curls have lost shape and elasticity. It can be used before or instead of your regular shampoo. Always follow with a conditioner to nourish the fiber after exfoliation.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"For best results, use the ديتوكس Exfoliating Shampoo once a week. Use it when your scalp feels oily, hair looks dull, or curls have lost shape and elasticity. It can be used before or instead of your regular shampoo. Always follow with a conditioner to nourish the fiber after exfoliation.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2391,7 +2391,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The Detox shampoo is designed as part of a three-step system that includes a conditioner and a scalp serum. Using the shampoo alone may cause dryness. The conditioner replenishes the strand’s nutrients, while the serum soothes and rebalances the scalp for optimal health. We recommend using all three steps together to detoxify without stripping natural hydration, keeping hair soft and shiny.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The ديتوكس shampoo is designed as part of a three-step system that includes a conditioner and a سيروم فروة الرأس. Using the shampoo alone may cause dryness. The conditioner replenishes the strand’s nutrients, while the serum soothes and rebalances the scalp for optimal health. We recommend using all three steps together to ديتوكسify without stripping natural hydration, keeping hair soft and shiny.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2408,7 +2408,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Salicylic acid gently exfoliates the scalp, removing dead skin cells and reducing flaking. This helps maintain a clean, healthy scalp—essential for overall hair health.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Salicylic acid gently exfoliates the scalp, removing dead skin cells and reducing flaking. This helps maintain a clean, healthy scalp—essential for overall hair health.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2425,7 +2425,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Our shampoo can be used alongside other haircare products. It should be added to routines once weekly to maintain long-term scalp health. For best results, we recommend using it as part of our 3-step Scalp & Hair Detox System, which includes a Conditioner and a calming Scalp Serum.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Our shampoo can be used alongside other haircare products. It should be added to routines once weekly to maintain long-term scalp health. For best results, we recommend using it as part of our 3-step Scalp & Hair ديتوكس System, which includes a Conditioner and a calming سيروم فروة الرأس.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2442,7 +2442,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. The shampoo is formulated with gentle ingredients like ginger root and Inga alba bark to soothe and balance the scalp, making it suitable for sensitive scalps. If you have sensitivity, always pair it with our Detox Scalp Serum to soothe and rebalance.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. The shampoo is formulated with gentle ingredients like ginger root and Inga alba bark to soothe and balance the scalp, making it suitable for sensitive scalps. If you have sensitivity, always pair it with our ديتوكس سيروم فروة الرأس to soothe and rebalance.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2454,12 +2454,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Does this Detox shampoo help with dandruff?",
+            "value": "Does this ديتوكس shampoo help with dandruff?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. This Detox shampoo can help with dandruff. It contains salicylic acid and other calming ingredients that reduce flaking while keeping the scalp clean and healthy. Salicylic acid exfoliates and removes dead skin cells, while the other ingredients soothe and rebalance the scalp.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. This ديتوكس shampoo can help with dandruff. It contains salicylic acid and other calming ingredients that reduce flaking while keeping the scalp clean and healthy. Salicylic acid exfoliates and removes dead skin cells, while the other ingredients soothe and rebalance the scalp.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2476,7 +2476,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Our conditioner combines Ghassoul clay’s purifying properties with the hydrating benefits of avocado oil and the light nourishment of rapeseed oil. This blend improves texture, volume, and shine while preserving natural hydration and preventing residue buildup.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Our conditioner combines Ghassoul clay’s purifying properties with the hydrating benefits of avocado oil and the light nourishment of rapeseed oil. This blend improves texture, volume, and shine while preserving natural hydration and preventing residue buildup.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2493,7 +2493,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"For best results, use it every time you shampoo. It’s suitable for regular use to keep hair hydrated and smooth.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"For best results, use it every time you shampoo. It’s suitable for regular use to keep hair hydrated and smooth.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2510,7 +2510,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"No. Our formula is designed to nourish deeply without weighing hair down. Rapeseed oil keeps hair light and full-bodied.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"No. Our formula is designed to nourish deeply without weighing hair down. Rapeseed oil keeps hair light and full-bodied.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2527,7 +2527,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Yes. Our conditioner is suitable for all hair types, including curly, straight, and wavy. It enhances texture and volume while providing hydration and shine.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Yes. Our conditioner is suitable for all hair types, including curly, straight, and wavy. It enhances texture and volume while providing hydration and shine.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2539,12 +2539,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "What makes this Soothing Scalp Serum unique?",
+            "value": "What makes this Soothing سيروم فروة الرأس unique?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"Our serum blends tradition and science: cactus antioxidants, red algae hydration, and celery seed’s balancing effects. This unique formula soothes and hydrates the scalp, promoting healthier, stronger hair.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"Our serum blends tradition and science: cactus antioxidants, red algae hydration, and celery seed’s balancing effects. This unique formula soothes and hydrates the scalp, promoting healthier, stronger hair.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2556,12 +2556,12 @@
         "fields": [
           {
             "key": "question",
-            "value": "Does the Detox collection serum help with dandruff?",
+            "value": "Does the ديتوكس collection serum help with dandruff?",
             "type": "single_line_text_field"
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"While the Detox Scalp Serum isn’t specifically formulated as a dandruff treatment, some ingredients help reduce flaking and discomfort linked to scalp dryness. We recommend pairing it with our Detox Exfoliating Shampoo to remove flake buildup and residue.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"While the ديتوكس سيروم فروة الرأس isn’t specifically formulated as a dandruff treatment, some ingredients help reduce flaking and discomfort linked to scalp dryness. We recommend pairing it with our ديتوكس Exfoliating Shampoo to remove flake buildup and residue.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2578,7 +2578,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"يربط البلسم تغذية زيت الزيتون العميقة بخصائص حماية زيت بذور العنب وبفيتامين B5 لزيادة المرونة.\"},{\"type\":\"text\",\"value\":\"ينعم الطبقة القشرية، يهدّئ فروة الرأس، ويقوّي كل خصلة، ليترك الشعر ناعماً، أكثر كثافة، ولامعاً.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"يربط البلسم تغذية زيت الزيتون العميقة بخصائص حماية زيت بذور العنب وبفيتامين B5 لزيادة المرونة.\"}, {\"type\": \"text\", \"value\": \"ينعم الطبقة القشرية، يهدّئ فروة الرأس، ويقوّي كل خصلة، ليترك الشعر ناعماً، أكثر كثافة، ولامعاً.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2595,7 +2595,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم. تركيبتنا اللطيفة مصممة للاستخدام اليومي ومناسبة لجميع أنواع الشعر، بما في ذلك فروات الرأس الجافة أو الحسّاسة. تُرطّب بفعالية دون إثقال الشعر.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم. تركيبتنا اللطيفة مصممة للاستخدام اليومي ومناسبة لجميع أنواع الشعر، بما في ذلك فروات الرأس الجافة أو الحسّاسة. تُرطّب بفعالية دون إثقال الشعر.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -2612,7 +2612,7 @@
           },
           {
             "key": "answer",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نعم. بلسمنا آمن للشعر المعالج بالصبغة والمعالجات الكيميائية، وهو خيار جيد للحفاظ على صحة الشعر بعد العلاج.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نعم. بلسمنا آمن للشعر المعالج بالصبغة والمعالجات الكيميائية، وهو خيار جيد للحفاظ على صحة الشعر بعد العلاج.\"}]}]}",
             "type": "rich_text_field"
           }
         ]
@@ -3554,7 +3554,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مستخلص مركز من البصل الأحمر مُختار لاحتوائه العالي من الكيرسيتين والكبريت الغذائي.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" الكبريت هو \\\"المهندس\\\" للشعر؛ ضروري لتكوين الروابط الثنائية الكبريتيدية التي تمنح الشعرة القوة. يمدّ هذا المستخلص المصفوفة الحيوية للشعر بكبريت متاح بيولوجيًا، محوّلًا الخصل الهشة إلى ألياف مرنة ويمنع التساقط الناتج عن التكسر. مثبت سريريًا لتحفيز إعادة النمو دون تهيج.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مستخلص مركز من البصل الأحمر مُختار لاحتوائه العالي من الكيرسيتين والكبريت الغذائي.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" الكبريت هو \\\"المهندس\\\" للشعر؛ ضروري لتكوين الروابط الثنائية الكبريتيدية التي تمنح الشعرة القوة. يمدّ هذا المستخلص المصفوفة الحيوية للشعر بكبريت متاح بيولوجيًا، محوّلًا الخصل الهشة إلى ألياف مرنة ويمنع التساقط الناتج عن التكسر. مثبت سريريًا لتحفيز إعادة النمو دون تهيج.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -3636,7 +3636,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"ابتكار في الهندسة الجزيئية مصمّم لإيقاف ضمور البصيلة.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يعمل بتآزر عبر تثبيط 5α‑reductase (محفّز الترقق) وتحفيز تخليق بروتينات التثبيت (Collagen VII وLaminin). النتيجة بصيلة أكبر وأقل التهابا مثبتة بقوة بالجلد، مما يمنع التساقط المبكر للشعر.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"ابتكار في الهندسة الجزيئية مصمّم لإيقاف ضمور البصيلة.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يعمل بتآزر عبر تثبيط 5α‑reductase (محفّز الترقق) وتحفيز تخليق بروتينات التثبيت (Collagen VII وLaminin). النتيجة بصيلة أكبر وأقل التهابا مثبتة بقوة بالجلد، مما يمنع التساقط المبكر للشعر.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -3718,7 +3718,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"\\\"محفز الأيض\\\" لبصيلة الشعر. يربط هذا المركب فيتامين H (البيوتين) بالماتريكاين GHK لتزويد الجذر بطاقة خلوية مباشرة.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يزيد تخليق جزيئات الالتصاق ويحسّن استهلاك الأوكسجين في البصلة، ما يضمن نموًا أسرع وبقاء أطول في مرحلة النمو (anagen).\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"\\\"محفز الأيض\\\" لبصيلة الشعر. يربط هذا المركب فيتامين H (البيوتين) بالماتريكاين GHK لتزويد الجذر بطاقة خلوية مباشرة.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يزيد تخليق جزيئات الالتصاق ويحسّن استهلاك الأوكسجين في البصلة، ما يضمن نموًا أسرع وبقاء أطول في مرحلة النمو (anagen).\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -3800,7 +3800,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"ليس صبغة—علم تجديدي. يعيد هذا الببتيد المحاكي البيولوجي تفعيل \\\"ذاكرة\\\" الخلايا الصبغية.\"}]},{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يحمي البصيلة من الإجهاد التأكسدي (السبب الرئيسي للشيب) ويحَفّز تعبير جينات تصنيع الميلانين، مما يدفع البصلة تدريجيًا لاستئناف إنتاج صبغتها الطبيعية.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"ليس صبغة—علم تجديدي. يعيد هذا الببتيد المحاكي البيولوجي تفعيل \\\"ذاكرة\\\" الخلايا الصبغية.\"}]}, {\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يحمي البصيلة من الإجهاد التأكسدي (السبب الرئيسي للشيب) ويحَفّز تعبير جينات تصنيع الميلانين، مما يدفع البصلة تدريجيًا لاستئناف إنتاج صبغتها الطبيعية.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -3862,7 +3862,7 @@
         "fields": [
           {
             "key": "name",
-            "value": "Rosemary Extract",
+            "value": "مستخلص إكليل الجبل",
             "type": "single_line_text_field"
           },
           {
@@ -3882,7 +3882,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مقطر بالبخار من محاصيل المتوسط للحفاظ على حمض الكارنوسيك.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يعمل كموسّع وعائي محيطي قوي، فاتحًا الشعيرات الدقيقة الضيقة في فروة الرأس. هذا يملأ البصيلة بالأوكسجين والمغذيات الحيوية، معيدًا مرحلة النمو ومقاومًا للترقّق الهرموني بفعالية تقارن بعلاجات موضعية.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مقطر بالبخار من محاصيل المتوسط للحفاظ على حمض الكارنوسيك.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يعمل كموسّع وعائي محيطي قوي، فاتحًا الشعيرات الدقيقة الضيقة في فروة الرأس. هذا يملأ البصيلة بالأوكسجين والمغذيات الحيوية، معيدًا مرحلة النمو ومقاومًا للترقّق الهرموني بفعالية تقارن بعلاجات موضعية.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -3944,7 +3944,7 @@
         "fields": [
           {
             "key": "name",
-            "value": "Black Garlic (ABG10+®)",
+            "value": "الثوم الأسود (ABG10+®)",
             "type": "single_line_text_field"
           },
           {
@@ -3964,7 +3964,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"يخضع لتخمير مراقب (تفاعل مايارد) لمدة شهر، محوّلاً الأليسين غير المستقر إلى S‑Allyl‑Cysteine (SAC).\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يقضي بقوة على أنواع الأوكسجين التفاعلية (ROS) التي تهدّم كولاجين فروة الرأس، محافظًا على شباب البصيلة ومحسّنًا الدورة الدقيقة لفروة الرأس.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"يخضع لتخمير مراقب (تفاعل مايارد) لمدة شهر، محوّلاً الأليسين غير المستقر إلى S‑Allyl‑Cysteine (SAC).\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يقضي بقوة على أنواع الأوكسجين التفاعلية (ROS) التي تهدّم كولاجين فروة الرأس، محافظًا على شباب البصيلة ومحسّنًا الدورة الدقيقة لفروة الرأس.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4046,7 +4046,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"شحوم مستخرجة بالبيوفرمنتيشن، متماثلة ستيريوكيميائياً مع شحوم الجلد والشعر البشرية.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" في الشعر التالف، ترتفع الطبقات القشرية وتفقد التماسك. يملأ Ceramide NP الفراغات بين الخلايا، معيدًا القدرة الطاردة للماء، واللمعان المرآتي، والمتانة الشدّية فورًا.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"شحوم مستخرجة بالبيوفرمنتيشن، متماثلة ستيريوكيميائياً مع شحوم الجلد والشعر البشرية.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" في الشعر التالف، ترتفع الطبقات القشرية وتفقد التماسك. يملأ Ceramide NP الفراغات بين الخلايا، معيدًا القدرة الطاردة للماء، واللمعان المرآتي، والمتانة الشدّية فورًا.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4108,7 +4108,7 @@
         "fields": [
           {
             "key": "name",
-            "value": "Sage Extract",
+            "value": "مستخلص الميرمية",
             "type": "single_line_text_field"
           },
           {
@@ -4128,7 +4128,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نقوع من البوليفينولات والتانينات لفروات غير متوازنة.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" خصائصه القابضة تنظّم نشاط الغدد الدهنية دون تجفيف. في الوقت نفسه، يقلّل Ursolic Acid الالتهاب المحيطي بالبصيلة ويحمي الميلانين من الأكسدة، مساهماً في الحفاظ على لون أغمق وحيوي.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نقوع من البوليفينولات والتانينات لفروات غير متوازنة.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" خصائصه القابضة تنظّم نشاط الغدد الدهنية دون تجفيف. في الوقت نفسه، يقلّل Ursolic Acid الالتهاب المحيطي بالبصيلة ويحمي الميلانين من الأكسدة، مساهماً في الحفاظ على لون أغمق وحيوي.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4210,7 +4210,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"تتأكسد الفيتامينات الحرة قبل النفاذ. نظام التوصيل العميق لدينا (DDS) يُغلّف الفيتامينات في حويصلات نانوليبيد.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" تلتحم هذه الحويصلات مع أغشية الخلايا، مطلِقةً مضادات الأكسدة النقية مباشرة إلى بصيلة الشعر لتحفيز الكولاجين (فيتامين C) وتسريع تجديد الخلايا (فيتامين A).\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"تتأكسد الفيتامينات الحرة قبل النفاذ. نظام التوصيل العميق لدينا (DDS) يُغلّف الفيتامينات في حويصلات نانوليبيد.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" تلتحم هذه الحويصلات مع أغشية الخلايا، مطلِقةً مضادات الأكسدة النقية مباشرة إلى بصيلة الشعر لتحفيز الكولاجين (فيتامين C) وتسريع تجديد الخلايا (فيتامين A).\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4272,7 +4272,7 @@
         "fields": [
           {
             "key": "name",
-            "value": "Date Extract",
+            "value": "مستخلص التمر",
             "type": "single_line_text_field"
           },
           {
@@ -4292,7 +4292,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"غني بالسكريات المتعددة، المغنيسيوم والزنك، يعمل هذا المستخلص كطعام بنيوي فائق.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يشكّل فيلمًا منفذًا هيدرغروبيًا على خيط الشعر (تكنولوجيا قفل الرطوبة). هذا يحبِس الترطيب داخل القشرة مطوِّراً المرونة ويمنع الأطراف المتقصفة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"غني بالسكريات المتعددة، المغنيسيوم والزنك، يعمل هذا المستخلص كطعام بنيوي فائق.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يشكّل فيلمًا منفذًا هيدرغروبيًا على خيط الشعر (تكنولوجيا قفل الرطوبة). هذا يحبِس الترطيب داخل القشرة مطوِّراً المرونة ويمنع الأطراف المتقصفة.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4354,7 +4354,7 @@
         "fields": [
           {
             "key": "name",
-            "value": "Strawberry Extract",
+            "value": "مستخلص الفراولة",
             "type": "single_line_text_field"
           },
           {
@@ -4374,7 +4374,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مصدر قوي للأحماض ألفا هيدروكسي (AHAs) وفيتامين C الطبيعي.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يوفر تقشيرًا إنزيميًا لطيفًا يذيب ترسّب المعادن وبقايا المنتجات التي تغمق اللمعان. سكّرها الطبيعية تجذب الرطوبة المحيطة إلى الألياف.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مصدر قوي للأحماض ألفا هيدروكسي (AHAs) وفيتامين C الطبيعي.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يوفر تقشيرًا إنزيميًا لطيفًا يذيب ترسّب المعادن وبقايا المنتجات التي تغمق اللمعان. سكّرها الطبيعية تجذب الرطوبة المحيطة إلى الألياف.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4456,7 +4456,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"نسخة مطابقة تمامًا لنظام الترطيب الطبيعي في بشرتك.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" هذا المركّب من الأحماض الأمينية والعوامل الماصة للماء (Sodium PCA، Urea) لديه انجذاب قوي للماء. يخترق الكيراتين ويحتفظ بالرطوبة البيئية، معيدًا الطراوة للشعر الصلب والهش.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"نسخة مطابقة تمامًا لنظام الترطيب الطبيعي في بشرتك.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" هذا المركّب من الأحماض الأمينية والعوامل الماصة للماء (Sodium PCA، Urea) لديه انجذاب قوي للماء. يخترق الكيراتين ويحتفظ بالرطوبة البيئية، معيدًا الطراوة للشعر الصلب والهش.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4538,7 +4538,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"فحم مُعالَج لزيادة المساحة السطحية (3000 م²/غ).\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يعمل بالامتزاز الفيزيائي، لا الامتصاص. يجذب شحنات السموم والمعادن الثقيلة والزهم المؤكسد—مطهراً المسام ويضيف حجمًا إلى الجذر دون تجريد الحاجز الدهني.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"فحم مُعالَج لزيادة المساحة السطحية (3000 م²/غ).\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يعمل بالامتزاز الفيزيائي، لا الامتصاص. يجذب شحنات السموم والمعادن الثقيلة والزهم المؤكسد—مطهراً المسام ويضيف حجمًا إلى الجذر دون تجريد الحاجز الدهني.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4620,7 +4620,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"حمض بيتا‑هيدروكسي (BHA) فريد لذوبانيته في الزيوت.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يخترق الزهم داخل البصيلة الدهنية. هناك يذيب \\\"الغراء\\\" الذي يربط الخلايا الميتة، مزيلاً القشور الملتصقة، مفتحاً الجذر، وممنعاً الالتهاب الميكروي.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"حمض بيتا‑هيدروكسي (BHA) فريد لذوبانيته في الزيوت.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يخترق الزهم داخل البصيلة الدهنية. هناك يذيب \\\"الغراء\\\" الذي يربط الخلايا الميتة، مزيلاً القشور الملتصقة، مفتحاً الجذر، وممنعاً الالتهاب الميكروي.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4702,7 +4702,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"محفّز دائري محمّل بالزنجبيلولات.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يولّد حرارة خفيفة توسع الشعيرات تحت الجلد، مضمونةً وصول المغذيات لكل بصيلة. كما يملك خصائص مضادة للالتهاب قوية تحمي فروة الرأس.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"محفّز دائري محمّل بالزنجبيلولات.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يولّد حرارة خفيفة توسع الشعيرات تحت الجلد، مضمونةً وصول المغذيات لكل بصيلة. كما يملك خصائص مضادة للالتهاب قوية تحمي فروة الرأس.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4784,7 +4784,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مُستخرج من صبارات تتكيّف في ظروف قاسية.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" غني ببروتينات الصدمات الحرارية (HSP)، يمنع إطلاق علامات الالتهاب العصبي، مهدئًا الحكة والشّد فورًا مع احتفاظ بالماء لمدة 72 ساعة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مُستخرج من صبارات تتكيّف في ظروف قاسية.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" غني ببروتينات الصدمات الحرارية (HSP)، يمنع إطلاق علامات الالتهاب العصبي، مهدئًا الحكة والشّد فورًا مع احتفاظ بالماء لمدة 72 ساعة.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4866,7 +4866,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"\\\"تراب الغسيل\\\" الأثري من الأطلس، غني بالسيليكون والمغنيسيوم.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" ينظف عبر التبادل الأيوني. يمتص الشوائب ويقدّم معادن مقوّية إلى فروة الرأس، تاركًا الشعر مفكوكًا، ذا حجم ولمعان أطول.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"\\\"تراب الغسيل\\\" الأثري من الأطلس، غني بالسيليكون والمغنيسيوم.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" ينظف عبر التبادل الأيوني. يمتص الشوائب ويقدّم معادن مقوّية إلى فروة الرأس، تاركًا الشعر مفكوكًا، ذا حجم ولمعان أطول.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -4948,7 +4948,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"غني بحمض الأوليك الأحادي غير المشبع وفيتامينات A، D وE.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" بنيوته الجزئية الصغيرة يخترق الطبقة القشرية ويصل إلى القشرة (على عكس الزيوت التي تبقى على السطح)، مستعيدًا المرونة والقوة من الداخل.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"غني بحمض الأوليك الأحادي غير المشبع وفيتامينات A، D وE.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" بنيوته الجزئية الصغيرة يخترق الطبقة القشرية ويصل إلى القشرة (على عكس الزيوت التي تبقى على السطح)، مستعيدًا المرونة والقوة من الداخل.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5030,7 +5030,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"بِوليمر بحري مستخرج من مياه باردة.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يشكّل مصفوفة واقية غير مانعة على خيط الشعر (الكاراجينانات). هذه \\\"الطبقة الثانية\\\" تطرد جسيمات الملوثات الدقيقة وتحتفظ بالماء، وتعمل كبديل نباتي للسيليكون.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"بِوليمر بحري مستخرج من مياه باردة.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يشكّل مصفوفة واقية غير مانعة على خيط الشعر (الكاراجينانات). هذه \\\"الطبقة الثانية\\\" تطرد جسيمات الملوثات الدقيقة وتحتفظ بالماء، وتعمل كبديل نباتي للسيليكون.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5112,7 +5112,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مادة فعّالة نقية مصممة لاستعادة التوازن في الفروة.\"}]},{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يتحكم في تكاثر الفطر \"},{\"type\":\"text\",\"value\":\"Malassezia\",\"italic\":true},{\"type\":\"text\",\"value\":\" ويقلّل تحلل شحوم الغدد الدهنية، مقلّلاً الحكة فورًا ومخففًا القشور الزيتية أو الجافة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مادة فعّالة نقية مصممة لاستعادة التوازن في الفروة.\"}]}, {\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يتحكم في تكاثر الفطر \"}, {\"type\": \"text\", \"value\": \"Malassezia\", \"italic\": true}, {\"type\": \"text\", \"value\": \" ويقلّل تحلل شحوم الغدد الدهنية، مقلّلاً الحكة فورًا ومخففًا القشور الزيتية أو الجافة.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5194,7 +5194,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مستخرج من تنوّع الأحياء في غويانا الفرنسية.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يؤثر على الخلايا الكيراتينية ليقوّي وصلات الخلايا، مما يجعل فروة الرأس أكثر مقاومة للمهيجات الخارجية. يقلّل الاحمرار ويحسّن الراحة مرئيًا.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مستخرج من تنوّع الأحياء في غويانا الفرنسية.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يؤثر على الخلايا الكيراتينية ليقوّي وصلات الخلايا، مما يجعل فروة الرأس أكثر مقاومة للمهيجات الخارجية. يقلّل الاحمرار ويحسّن الراحة مرئيًا.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5276,7 +5276,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مصدر مركز للبروتينات، الببتيدات وفيتامينات مجموعة B.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يزيد إنتاج ATP (طاقة الخلايا) في البصيلة الجلدية، موردًا الآلية الأيضية اللازمة لإنتاج شعر قوي وكثيف.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مصدر مركز للبروتينات، الببتيدات وفيتامينات مجموعة B.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يزيد إنتاج ATP (طاقة الخلايا) في البصيلة الجلدية، موردًا الآلية الأيضية اللازمة لإنتاج شعر قوي وكثيف.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5358,7 +5358,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مستخرج بأخلاق من نيوزيلندا، هذا الكيراتين مطابق للبروتين الذي يشكّل 90% من شعرك.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" غني بالسيستين، يرتبط بالروابط الثنائية الكبريتيدية المكسورة في الشعر التالف. يعمل كـ\\\"أسمنت بيولوجي\\\"، مستعيدًا النزاهة الميكانيكية للشعر المتعرض للأكسدة أو الحرارة المفرطة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مستخرج بأخلاق من نيوزيلندا، هذا الكيراتين مطابق للبروتين الذي يشكّل 90% من شعرك.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" غني بالسيستين، يرتبط بالروابط الثنائية الكبريتيدية المكسورة في الشعر التالف. يعمل كـ\\\"أسمنت بيولوجي\\\"، مستعيدًا النزاهة الميكانيكية للشعر المتعرض للأكسدة أو الحرارة المفرطة.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5440,7 +5440,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"زبدة غنية بالأحماض الدهنية وفيتامينات A وE.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" توفّر مرونة دهنية مكثفة تنعم الطبقات الخشنة فورًا. كسورها غير القابلة للصابون تحمي من الأشعة فوق البنفسجية والحرارة الناتجة عن أدوات التصفيف.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"زبدة غنية بالأحماض الدهنية وفيتامينات A وE.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" توفّر مرونة دهنية مكثفة تنعم الطبقات الخشنة فورًا. كسورها غير القابلة للصابون تحمي من الأشعة فوق البنفسجية والحرارة الناتجة عن أدوات التصفيف.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5522,7 +5522,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"بديل أخف للشي، مستخرج من بذرة المانجو.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يخترق بسرعة دون بقايا دهنية. يسد الطبقة القشرية ليمنع فقدان الرطوبة ويقدّم مضادات أكسدة تحمي اللون.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"بديل أخف للشي، مستخرج من بذرة المانجو.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يخترق بسرعة دون بقايا دهنية. يسد الطبقة القشرية ليمنع فقدان الرطوبة ويقدّم مضادات أكسدة تحمي اللون.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5604,7 +5604,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"ذهب سائل من وادي المتوسط، غني بحمض الأوليك والسكووالين النباتي.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" تركيبته تشبه زيوتك الطبيعية. يخترق ليف الشعر، معوّضًا الشحوم المفقودة بالغسل المفرط ويُنعّم الطبقات القشرية لمنع اللمعان المرآتي.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"ذهب سائل من وادي المتوسط، غني بحمض الأوليك والسكووالين النباتي.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" تركيبته تشبه زيوتك الطبيعية. يخترق ليف الشعر، معوّضًا الشحوم المفقودة بالغسل المفرط ويُنعّم الطبقات القشرية لمنع اللمعان المرآتي.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5686,7 +5686,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"ناتج عن صناعة النبيذ المتوسطية، هذا الزيت خفيف جدًا وغني بالأوليغومر بروانثوسيانيدينات (OPC).\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" OPCs تثبط تفكك الكولاجين والإيلاستين في فروة الرأس. كما ينظّم محتوى حمض اللينوليك العالي إنتاج الزهم دون سد المسام.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"ناتج عن صناعة النبيذ المتوسطية، هذا الزيت خفيف جدًا وغني بالأوليغومر بروانثوسيانيدينات (OPC).\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" OPCs تثبط تفكك الكولاجين والإيلاستين في فروة الرأس. كما ينظّم محتوى حمض اللينوليك العالي إنتاج الزهم دون سد المسام.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5768,7 +5768,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مقدمة لفيتامين B5 يتحول إلى حمض البانتوثنيك عند ملامسة الجلد.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يخترق الطبقة القشرية ويحتفظ بالماء داخل الساق (تأثير الإسفنجة)، مولّدًا انتفاخًا طفيفًا للألياف ليضيف حجمًا ومرونة، مانعًا التكسر الناتج عن الصلابة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مقدمة لفيتامين B5 يتحول إلى حمض البانتوثنيك عند ملامسة الجلد.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يخترق الطبقة القشرية ويحتفظ بالماء داخل الساق (تأثير الإسفنجة)، مولّدًا انتفاخًا طفيفًا للألياف ليضيف حجمًا ومرونة، مانعًا التكسر الناتج عن الصلابة.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5850,7 +5850,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"شكل قابل للذوبان في الماء من فيتامين B3 ضروري لأيض الطاقة.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يزيد إنتاج ATP في خلايا البصيلة—الوقود اللازم لتخليق البروتين (الشعر). كما يحسّن وظيفة حاجز فروة الرأس، مقللاً الالتهاب ويعزّز إنتاج السيراميدات الطبيعية.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"شكل قابل للذوبان في الماء من فيتامين B3 ضروري لأيض الطاقة.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يزيد إنتاج ATP في خلايا البصيلة—الوقود اللازم لتخليق البروتين (الشعر). كما يحسّن وظيفة حاجز فروة الرأس، مقللاً الالتهاب ويعزّز إنتاج السيراميدات الطبيعية.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -5932,7 +5932,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"زيت أيورفيدي مُقدَّر لقدراته على الاختراق.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" غني بحمض اللينوليك والأولييك، يخترق إلى ما وراء السطح لتغذية القشرة. يحتوي على السيسامول والسيسامين—مضادات أكسدة طبيعية تعمل كفلتر بيولوجي للأشعة فوق البنفسجية، محمية بروتينات الشعر من التلف الضوئي.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"زيت أيورفيدي مُقدَّر لقدراته على الاختراق.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" غني بحمض اللينوليك والأولييك، يخترق إلى ما وراء السطح لتغذية القشرة. يحتوي على السيسامول والسيسامين—مضادات أكسدة طبيعية تعمل كفلتر بيولوجي للأشعة فوق البنفسجية، محمية بروتينات الشعر من التلف الضوئي.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -6014,7 +6014,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مُعصَـر على البارد من لبّ أشجار الأرغان (المغرب) للحفاظ على محتوى توكوفيرول (فيت E) والسكووالين.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" تركيبته الدهنية الفريدة تخترق الطبقة القشرية وتسد الرطوبة دون بقايا. تعيد حاجز الشحم الطبيعي للشعر (طبقة F)، محافظًة عليه من التأكسد البيئي والحرارة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مُعصَـر على البارد من لبّ أشجار الأرغان (المغرب) للحفاظ على محتوى توكوفيرول (فيت E) والسكووالين.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" تركيبته الدهنية الفريدة تخترق الطبقة القشرية وتسد الرطوبة دون بقايا. تعيد حاجز الشحم الطبيعي للشعر (طبقة F)، محافظًة عليه من التأكسد البيئي والحرارة.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -6096,7 +6096,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مستخلص Glycine max غني بالإيزوفلافونات والغليكوبروتينات.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" يعمل كمضاد أكسدة ومحفّز أيضي قوي. الإيزوفلافونات تحمي البصيلة من التأثيرات الأندروجينية، بينما تحسّن الغليكوبروتينات التواصل الخلوي في البصلة الجلدية، مدعمة دورة نمو مستدامة.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مستخلص Glycine max غني بالإيزوفلافونات والغليكوبروتينات.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" يعمل كمضاد أكسدة ومحفّز أيضي قوي. الإيزوفلافونات تحمي البصيلة من التأثيرات الأندروجينية، بينما تحسّن الغليكوبروتينات التواصل الخلوي في البصلة الجلدية، مدعمة دورة نمو مستدامة.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -6178,7 +6178,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"كولاجين بحري مُعالَج إنزيميًا إلى وزن جزيئي مثالي للاختراق.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" كببتيدات مهدرجة، صغيرة بما يكفي لعبور الطبقة القشرية إلى القشرة، حيث ترتبط بالكيراتين التالف. هذا \\\"يملأ\\\" البنية الداخلية للشعر، مقدمًا حجمًا حقيقيًا محسوسًا من الداخل.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"كولاجين بحري مُعالَج إنزيميًا إلى وزن جزيئي مثالي للاختراق.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" كببتيدات مهدرجة، صغيرة بما يكفي لعبور الطبقة القشرية إلى القشرة، حيث ترتبط بالكيراتين التالف. هذا \\\"يملأ\\\" البنية الداخلية للشعر، مقدمًا حجمًا حقيقيًا محسوسًا من الداخل.\"}]}]}",
             "type": "rich_text_field"
           },
           {
@@ -6260,7 +6260,7 @@
           },
           {
             "key": "description",
-            "value": "{\"type\":\"root\",\"children\":[{\"type\":\"paragraph\",\"children\":[{\"type\":\"text\",\"value\":\"مركّب محاكٍ حيويًا مصمّم لتكرار ملف الأحماض الأمينية للكولاجين الحيواني باستخدام بروتينات صويا، قمح، كينوا وأرز مهدرجة.\"},{\"type\":\"text\",\"value\":\"The Mechanism:\",\"bold\":true},{\"type\":\"text\",\"value\":\" تشكل هذه البروتينات منخفضة ومتوسطة الوزن الجزئي غشاءً لاسطحيًا ماصًا على الخيط. هذه \\\"الطبقة الثانية\\\" تحتفظ بالرطوبة الداخلية وتُنعّم الطبقة القشرية، معيدة المرونة فورًا وإحساسًا حريريًا.\"}]}]}",
+            "value": "{\"type\": \"root\", \"children\": [{\"type\": \"paragraph\", \"children\": [{\"type\": \"text\", \"value\": \"مركّب محاكٍ حيويًا مصمّم لتكرار ملف الأحماض الأمينية للكولاجين الحيواني باستخدام بروتينات صويا، قمح، كينوا وأرز مهدرجة.\"}, {\"type\": \"text\", \"value\": \"The Mechanism:\", \"bold\": true}, {\"type\": \"text\", \"value\": \" تشكل هذه البروتينات منخفضة ومتوسطة الوزن الجزئي غشاءً لاسطحيًا ماصًا على الخيط. هذه \\\"الطبقة الثانية\\\" تحتفظ بالرطوبة الداخلية وتُنعّم الطبقة القشرية، معيدة المرونة فورًا وإحساسًا حريريًا.\"}]}]}",
             "type": "rich_text_field"
           },
           {

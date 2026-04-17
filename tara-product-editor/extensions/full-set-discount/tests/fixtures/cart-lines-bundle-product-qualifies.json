@@ -1,0 +1,74 @@
+{
+  "payload": {
+    "export": "cart_lines_discounts_generate_run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "lines": [
+          {
+            "id": "gid://shopify/CartLine/1",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/3001",
+              "product": {
+                "handle": "hair-stimulation-system"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/2",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/4001",
+              "product": {
+                "handle": "volumizing-shampoo"
+              }
+            }
+          }
+        ]
+      },
+      "discount": {
+        "discountClasses": ["PRODUCT"],
+        "configuration": {
+          "jsonValue": {
+            "mode": "bundle_product",
+            "discountPercent": 30,
+            "requiredVariantIds": ["gid://shopify/ProductVariant/3001"],
+            "bundleHandle": "hair-stimulation-system",
+            "maxSets": 1
+          }
+        }
+      }
+    },
+    "output": {
+      "operations": [
+        {
+          "productDiscountsAdd": {
+            "selectionStrategy": "ALL",
+            "candidates": [
+              {
+                "targets": [
+                  {
+                    "cartLine": {
+                      "id": "gid://shopify/CartLine/1",
+                      "quantity": 1
+                    }
+                  }
+                ],
+                "message": "Consultation full set",
+                "value": {
+                  "percentage": {
+                    "value": "30.0"
+                  }
+                },
+                "associatedDiscountCode": null
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

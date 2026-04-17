@@ -118,12 +118,21 @@ def ensure_definition(source, dest, mo_type, dry_run=False):
         "type": mo_type,
         "name": source_def["name"],
         "access": {"storefront": "PUBLIC_READ"},
-        "capabilities": {
-            "publishable": {"enabled": True},
-        },
         "displayNameKey": display_key,
         "fieldDefinitions": field_defs,
     }
+    capabilities = source_def.get("capabilities") or {}
+    normalized_caps = {}
+    for cap_key, cap_value in capabilities.items():
+        if not cap_value:
+            continue
+        item = {"enabled": bool(cap_value.get("enabled"))}
+        data = cap_value.get("data") or {}
+        if item["enabled"] and data:
+            item["data"] = {k: v for k, v in data.items() if v}
+        normalized_caps[cap_key] = item
+    if normalized_caps:
+        definition_input["capabilities"] = normalized_caps
 
     try:
         result = dest.create_metaobject_definition(definition_input)

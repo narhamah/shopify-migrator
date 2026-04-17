@@ -18,6 +18,10 @@ cp .env.example .env
 # Edit .env with your credentials
 ```
 
+For a USA or other English-only destination, use `DEST_NAME` to scope runtime files and run the build with `--lang en`.
+
+See [USA_DESTINATION_SETUP.md](./USA_DESTINATION_SETUP.md).
+
 ## Required Shopify Admin API Scopes
 
 **Spain store (source — read only):**

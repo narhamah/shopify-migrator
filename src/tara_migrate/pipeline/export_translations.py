@@ -45,6 +45,12 @@ RESOURCE_TYPES = [
     "METAOBJECT",
 ]
 
+TRANSLATABLE_METAFIELD_TYPES = {
+    "single_line_text_field",
+    "multi_line_text_field",
+    "rich_text_field",
+}
+
 # Shopify GID prefix → resource type label for progress keys
 GID_PREFIX_MAP = {
     "Product": "prod",
@@ -166,6 +172,93 @@ def export_resource_type(client, resource_type, locale, dry_run=False):
     return progress_entries, resource_items
 
 
+def _export_product_metafields(client, locale, resource_items, progress_entries):
+    items_by_handle = {item.get("handle", ""): item for item in resource_items}
+    translated_fields = 0
+    translated_products = 0
+
+    for product in client.get_products():
+        handle = product.get("handle", "")
+        item = items_by_handle.get(handle)
+        if not item:
+            continue
+
+        metafields_out = []
+        for mf in client.get_metafields("products", product["id"]):
+            mf_type = mf.get("type", "")
+            if mf_type not in TRANSLATABLE_METAFIELD_TYPES:
+                continue
+            if mf.get("namespace") == "global":
+                continue
+            gid = mf.get("admin_graphql_api_id") or f"gid://shopify/Metafield/{mf['id']}"
+            translatable = client.get_translatable_resource_with_translations(gid, locale)
+            translations = translatable.get("translations", []) if translatable else []
+            value = next((entry.get("value") for entry in translations if entry.get("key") == "value" and entry.get("value")), "")
+            if not value:
+                continue
+
+            translated_fields += 1
+            progress_entries[f"prod.{handle}.{mf['namespace']}.{mf['key']}"] = value
+            metafields_out.append({
+                "id": gid,
+                "namespace": mf["namespace"],
+                "key": mf["key"],
+                "type": mf_type,
+                "value": value,
+                "en_value": mf.get("value", ""),
+            })
+
+        if metafields_out:
+            item["metafields"] = metafields_out
+            translated_products += 1
+
+    print(f"  PRODUCT metafields: {translated_products} products, {translated_fields} translated fields")
+
+
+def _export_article_metafields(client, locale, resource_items, progress_entries):
+    items_by_handle = {item.get("handle", ""): item for item in resource_items}
+    translated_fields = 0
+    translated_articles = 0
+
+    for blog in client.get_blogs():
+        for article in client.get_articles(blog["id"]):
+            handle = article.get("handle", "")
+            item = items_by_handle.get(handle)
+            if not item:
+                continue
+
+            metafields_out = []
+            for mf in client.get_metafields("articles", article["id"]):
+                mf_type = mf.get("type", "")
+                if mf_type not in TRANSLATABLE_METAFIELD_TYPES:
+                    continue
+                if mf.get("namespace") == "global":
+                    continue
+                gid = mf.get("admin_graphql_api_id") or f"gid://shopify/Metafield/{mf['id']}"
+                translatable = client.get_translatable_resource_with_translations(gid, locale)
+                translations = translatable.get("translations", []) if translatable else []
+                value = next((entry.get("value") for entry in translations if entry.get("key") == "value" and entry.get("value")), "")
+                if not value:
+                    continue
+
+                translated_fields += 1
+                progress_entries[f"art.{handle}.{mf['namespace']}.{mf['key']}"] = value
+                metafields_out.append({
+                    "id": gid,
+                    "namespace": mf["namespace"],
+                    "key": mf["key"],
+                    "type": mf_type,
+                    "value": value,
+                    "en_value": mf.get("value", ""),
+                })
+
+            if metafields_out:
+                item["metafields"] = metafields_out
+                translated_articles += 1
+
+    print(f"  ARTICLE metafields: {translated_articles} articles, {translated_fields} translated fields")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Export translations from a Shopify store")
@@ -212,11 +305,16 @@ def main():
         all_progress.update(progress)
         all_items_by_type[resource_type] = items
 
+    if "PRODUCT" in all_items_by_type:
+        _export_product_metafields(client, args.locale, all_items_by_type["PRODUCT"], all_progress)
+    if "ARTICLE" in all_items_by_type:
+        _export_article_metafields(client, args.locale, all_items_by_type["ARTICLE"], all_progress)
+
     # Save progress file (flat key-value, same format as _translation_progress_ar.json)
     progress_file = os.path.join(output_dir, f"_translation_progress_{args.locale}.json")
     if not args.dry_run:
         save_json(all_progress, progress_file)
-        print(f"\nSaved {len(all_progress)} progress entries → {progress_file}")
+        print(f"\nSaved {len(all_progress)} progress entries -> {progress_file}")
 
     # Save per-type JSON files
     type_to_filename = {
@@ -234,14 +332,14 @@ def main():
         filepath = os.path.join(output_dir, filename)
         if not args.dry_run:
             save_json(items, filepath)
-            print(f"Saved {len(items)} {resource_type} items → {filepath}")
+            print(f"Saved {len(items)} {resource_type} items -> {filepath}")
 
     # Summary
     total_items = sum(len(items) for items in all_items_by_type.values())
     print(f"\n{'='*60}")
     print(f"Export complete: {total_items} resources, {len(all_progress)} translation fields")
     if args.dry_run:
-        print("(DRY RUN — no files written)")
+        print("(DRY RUN - no files written)")
     print(f"{'='*60}")
 
 

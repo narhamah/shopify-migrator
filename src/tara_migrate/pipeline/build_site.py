@@ -187,9 +187,10 @@ def phase_migrate_images(saudi, spain, dry_run=False, **kw):
         phase1_product_images,
         phase2_collection_images,
         phase3_homepage_images,
-        phase4_metaobject_files,
-        phase5_article_files,
-        phase6_verify,
+        phase4_product_metafield_files,
+        phase5_metaobject_files,
+        phase6_article_files,
+        phase7_verify,
     )
 
     id_map = load_json(config.get_id_map_file()) if os.path.exists(config.get_id_map_file()) else {}
@@ -201,9 +202,10 @@ def phase_migrate_images(saudi, spain, dry_run=False, **kw):
         phase1_product_images,
         phase2_collection_images,
         phase3_homepage_images,
-        phase4_metaobject_files,
-        phase5_article_files,
-        phase6_verify,
+        phase4_product_metafield_files,
+        phase5_metaobject_files,
+        phase6_article_files,
+        phase7_verify,
     ]
 
     for img_phase in image_phases:
@@ -239,14 +241,17 @@ def phase_resolve_diffs(dry_run=False, **kw):
 # =========================================================================
 
 @phase(8, "Post-Migration Setup",
-       "Locale, collections, menus, SEO, redirects, inventory, publish, activate",
+       "Locale, collections, menus, SEO, redirects, inventory, publish, handles, theme sync",
        langs=("en", "all"))
 def phase_post_migration(dry_run=False, **kw):
     print("\n" + "=" * 60)
-    print("PHASE 8: Post-Migration Setup (11 sub-steps)")
+    print("PHASE 8: Post-Migration Setup (12 sub-steps)")
     print("=" * 60)
 
     cmd = [sys.executable, "post_migration.py"]
+    lang = kw.get("lang")
+    if lang:
+        cmd.extend(["--lang", lang])
     if dry_run:
         cmd.append("--dry-run")
     subprocess.run(cmd, check=False)
@@ -326,13 +331,13 @@ Examples:
     source_url = config.get_source_shop_url()
     source_token = config.get_source_access_token()
 
-    if not all([dest_url, dest_token, source_url, spain_token]):
+    if not all([dest_url, dest_token, source_url, source_token]):
         print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         sys.exit(1)
 
     from tara_migrate.client import ShopifyClient
     saudi = ShopifyClient(dest_url, dest_token)
-    source = ShopifyClient(source_url, source_token)
+    spain = ShopifyClient(source_url, source_token)
 
     print("=" * 60)
     print(f"BUILD SITE: Saudi Shopify Store ({lang.upper()})")

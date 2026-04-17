@@ -1,0 +1,104 @@
+{
+  "generatedAt": "2026-03-21T00:00:00Z",
+  "store": "sa.taraformula.com",
+  "notes": [
+    "Seeded from live schema discovery run on March 21, 2026.",
+    "The app still performs runtime discovery and stores shop-specific mappings in Prisma."
+  ],
+  "productContentMappings": {
+    "coreFields": [
+      "title",
+      "handle",
+      "descriptionHtml",
+      "vendor",
+      "productType",
+      "tags",
+      "status",
+      "seo.title",
+      "seo.description"
+    ],
+    "metafields": [
+      { "namespace": "custom", "key": "short_description", "label": "Short description", "type": "single_line_text_field", "group": "Hero" },
+      { "namespace": "custom", "key": "tagline", "label": "Tagline", "type": "single_line_text_field", "group": "Hero" },
+      { "namespace": "custom", "key": "size_ml", "label": "Size", "type": "single_line_text_field", "group": "Hero" },
+      { "namespace": "custom", "key": "key_benefits_heading", "label": "Key benefits heading", "type": "single_line_text_field", "group": "Key Benefits" },
+      { "namespace": "custom", "key": "key_benefits_content", "label": "Key benefits content", "type": "rich_text_field", "group": "Key Benefits" },
+      { "namespace": "custom", "key": "clinical_results_heading", "label": "Clinical results heading", "type": "single_line_text_field", "group": "Clinical Results" },
+      { "namespace": "custom", "key": "clinical_results_content", "label": "Clinical results content", "type": "rich_text_field", "group": "Clinical Results" },
+      { "namespace": "custom", "key": "how_to_use_heading", "label": "How to use heading", "type": "single_line_text_field", "group": "How To Use" },
+      { "namespace": "custom", "key": "how_to_use_content", "label": "How to use content", "type": "rich_text_field", "group": "How To Use" },
+      { "namespace": "custom", "key": "whats_inside_heading", "label": "What's inside heading", "type": "single_line_text_field", "group": "What's Inside" },
+      { "namespace": "custom", "key": "whats_inside_content", "label": "What's inside content", "type": "rich_text_field", "group": "What's Inside" },
+      { "namespace": "custom", "key": "fragrance_heading", "label": "Fragrance heading", "type": "single_line_text_field", "group": "Fragrance" },
+      { "namespace": "custom", "key": "fragrance_content", "label": "Fragrance content", "type": "rich_text_field", "group": "Fragrance" },
+      { "namespace": "custom", "key": "free_of_heading", "label": "Free of heading", "type": "single_line_text_field", "group": "Free Of" },
+      { "namespace": "custom", "key": "free_of_content", "label": "Free of content", "type": "rich_text_field", "group": "Free Of" }
+    ]
+  },
+  "translationMappings": {
+    "product": [
+      "title",
+      "body_html",
+      "meta_title",
+      "meta_description",
+      "product_type",
+      "handle"
+    ],
+    "metafieldsUseTranslationsRegisterOnResourceValue": [
+      "custom.short_description",
+      "custom.tagline",
+      "custom.size_ml",
+      "custom.key_benefits_heading",
+      "custom.key_benefits_content",
+      "custom.clinical_results_heading",
+      "custom.clinical_results_content",
+      "custom.how_to_use_heading",
+      "custom.how_to_use_content",
+      "custom.whats_inside_heading",
+      "custom.whats_inside_content",
+      "custom.fragrance_heading",
+      "custom.fragrance_content",
+      "custom.free_of_heading",
+      "custom.free_of_content"
+    ]
+  },
+  "imageMetafieldMappings": {
+    "groups": [
+      {
+        "id": "pdp-gallery",
+        "label": "PDP gallery",
+        "english": [
+          {
+            "storage": "metafield",
+            "namespace": "custom",
+            "key": "pdp_images",
+            "type": "list.file_reference"
+          }
+        ],
+        "arabic": [
+          {
+            "storage": "metafield",
+            "namespace": "custom",
+            "key": "pdp_images_ar",
+            "type": "list.file_reference"
+          }
+        ],
+        "legacy": [
+          {
+            "storage": "translation",
+            "namespace": "custom",
+            "key": "pdp_images",
+            "translationKey": "value",
+            "type": "list.file_reference"
+          },
+          {
+            "storage": "metafield",
+            "namespace": "custom",
+            "key": "arabic_images",
+            "type": "json"
+          }
+        ]
+      }
+    ]
+  }
+}

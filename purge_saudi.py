@@ -5,4 +5,5 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src
 from tara_migrate.tools.purge_saudi import main
 
 if __name__ == "__main__":
+    print("NOTE: `purge_saudi.py` is a legacy alias. Use `purge_destination.py`.")
     main()
