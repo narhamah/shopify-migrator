@@ -2,7 +2,7 @@
 
 client_id = "8c2a6206c234b70e154aa29581063729"
 name = "Migration (receive)"
-application_url = "https://tara-product-editor-production.up.railway.app"
+application_url = "https://shopify.dev/apps/default-app-home"
 embedded = true
 
 [webhooks]
@@ -24,7 +24,5 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://tara-product-editor-production.up.railway.app/auth/callback",
-  "https://tara-product-editor-production.up.railway.app/auth/shopify/callback",
-  "https://tara-product-editor-production.up.railway.app/api/auth/callback",
+  "https://shopify.dev/apps/default-app-home/auth/callback",
 ]
