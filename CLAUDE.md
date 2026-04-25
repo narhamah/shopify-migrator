@@ -20,14 +20,15 @@ src/tara_migrate/          ← Production library (all logic lives here)
   setup/                   ← Schema creation: setup_store, setup_collections, setup_menus, setup_homepage
   fixers/                  ← Incremental fixes: fix_prices, fix_images, fix_metafields, fix_status,
                              fix_redirects, fix_translations (GraphQL translation fixer)
-  tools/                   ← Utilities: scrape_kuwait, purge_saudi, resolve_metaobject_diffs, optimize_images,
+  tools/                   ← Utilities: scrape_kuwait, purge_destination, resolve_metaobject_diffs, optimize_images,
                              review_content (English content review), review_arabic (Arabic translation review),
                              crawl_and_translate (Playwright crawl → match → translate visible theme strings),
                              audit_theme_keys (theme translation key management),
                              enable_ingredient_pages, patch_spanish, remap_redirects,
                              get_flow_ids, get_token, generate_data_dictionary, image_lang_detect,
                              test_checkout (Playwright checkout testing),
-                             purge_arabic, validate_addresses
+                             purge_arabic, validate_addresses,
+                             export_consultation_catalog (consultation product catalog sync for frontend/Worker)
   audit/                   ← Verification: audit_store, compare_stores, compare_stores_offline, compare_data,
                              verify_saudi, audit_translations (GraphQL audit/investigate/upload),
                              audit_site (Playwright visual audit)
@@ -227,7 +228,7 @@ python -m pytest -x                         # Stop on first failure
 - **Framework**: pytest (`pytest.ini` sets `pythonpath = src`)
 - **Fixtures** in `tests/conftest.py`: `make_product()`, `make_collection()`, `make_article()`, `make_metaobject()`, `make_id_map()`, `tmp_data_dir()`
 - **All tests use mocks** — no live API calls
-- **Test files**: test_shopify_client, test_translator, test_import_english, test_import_arabic, test_post_migration, test_setup_store, test_export_source, test_optimize_images, test_verify_fix, test_review_arabic, test_review_content, test_patch_spanish, test_shopify_fields
+- **Test files**: test_shopify_client, test_translator, test_import_english, test_import_arabic, test_post_migration, test_setup_store, test_export_source, test_optimize_images, test_verify_fix, test_review_arabic, test_review_content, test_patch_spanish, test_shopify_fields, test_export_quiz_catalog
 
 ## Dependencies
 
@@ -363,8 +364,6 @@ python crawl_and_translate.py --crawl-only                 # Crawl only, save to
 python crawl_and_translate.py --skip-crawl                 # Reuse saved crawl data
 python crawl_and_translate.py --dry-run                    # Show plan, no uploads
 python crawl_and_translate.py --include-checkout           # Also crawl checkout pages
-python crawl_and_translate.py --checkout-only              # ONLY crawl cart+checkout (no site crawl)
-python crawl_and_translate.py --checkout-only --dry-run    # Preview checkout-only plan
 python crawl_and_translate.py --max-pages 300              # Crawl more pages
 python crawl_and_translate.py --model gpt-5-mini           # Override translation model
 python crawl_and_translate.py --skip-remove                # Don't remove unmatched translations
@@ -394,6 +393,12 @@ python import_collections.py                               # Standalone collecti
 python purge_arabic.py [--dry-run] [--skip-theme] [--type PRODUCT]  # Remove all Arabic translations
 python validate_addresses.py --fetch-cities                # Fetch canonical Saudi city names
 python validate_addresses.py --validate FILE.csv [--fix]   # Validate/fix addresses in CSV
+
+# Consultation catalog export (for consultation frontend + Cloudflare Worker)
+python export_consultation_catalog.py                      # Full export to data/shopify_consultation_catalog.json
+python export_consultation_catalog.py --dry-run            # Fetch + validate, no file written
+python export_consultation_catalog.py --output PATH        # Override output path
+python export_consultation_catalog.py --skip-collections   # Skip collection membership fetch (faster)
 ```
 
 ## Manual Steps (Cannot Be Automated)

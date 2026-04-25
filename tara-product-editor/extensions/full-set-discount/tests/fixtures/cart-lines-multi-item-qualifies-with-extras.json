@@ -1,0 +1,112 @@
+{
+  "payload": {
+    "export": "cart_lines_discounts_generate_run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "lines": [
+          {
+            "id": "gid://shopify/CartLine/1",
+            "quantity": 2,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/1001",
+              "product": {
+                "handle": "volumizing-shampoo"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/2",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/1002",
+              "product": {
+                "handle": "thickening-conditioner"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/3",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/1003",
+              "product": {
+                "handle": "scalp-serum"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/4",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/2001",
+              "product": {
+                "handle": "leave-in-mask"
+              }
+            }
+          }
+        ]
+      },
+      "discount": {
+        "discountClasses": ["PRODUCT"],
+        "configuration": {
+          "jsonValue": {
+            "mode": "multi_item",
+            "discountPercent": 30,
+            "requiredHandles": ["volumizing-shampoo", "thickening-conditioner", "scalp-serum"],
+            "requiredVariantIds": [
+              "gid://shopify/ProductVariant/1001",
+              "gid://shopify/ProductVariant/1002",
+              "gid://shopify/ProductVariant/1003"
+            ],
+            "maxSets": 1
+          }
+        }
+      }
+    },
+    "output": {
+      "operations": [
+        {
+          "productDiscountsAdd": {
+            "selectionStrategy": "ALL",
+            "candidates": [
+              {
+                "targets": [
+                  {
+                    "cartLine": {
+                      "id": "gid://shopify/CartLine/1",
+                      "quantity": 1
+                    }
+                  },
+                  {
+                    "cartLine": {
+                      "id": "gid://shopify/CartLine/2",
+                      "quantity": 1
+                    }
+                  },
+                  {
+                    "cartLine": {
+                      "id": "gid://shopify/CartLine/3",
+                      "quantity": 1
+                    }
+                  }
+                ],
+                "message": "Consultation full set",
+                "value": {
+                  "percentage": {
+                    "value": "30.0"
+                  }
+                },
+                "associatedDiscountCode": null
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

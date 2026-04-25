@@ -1,0 +1,64 @@
+{
+  "payload": {
+    "export": "cart_lines_discounts_generate_run",
+    "target": "cart.lines.discounts.generate.run",
+    "input": {
+      "cart": {
+        "lines": [
+          {
+            "id": "gid://shopify/CartLine/1",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/1001",
+              "product": {
+                "handle": "volumizing-shampoo"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/2",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/1002",
+              "product": {
+                "handle": "thickening-conditioner"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/CartLine/3",
+            "quantity": 1,
+            "merchandise": {
+              "__typename": "ProductVariant",
+              "id": "gid://shopify/ProductVariant/7777",
+              "product": {
+                "handle": "scalp-serum"
+              }
+            }
+          }
+        ]
+      },
+      "discount": {
+        "discountClasses": ["PRODUCT"],
+        "configuration": {
+          "jsonValue": {
+            "mode": "multi_item",
+            "discountPercent": 30,
+            "requiredHandles": ["volumizing-shampoo", "thickening-conditioner", "scalp-serum"],
+            "requiredVariantIds": [
+              "gid://shopify/ProductVariant/1001",
+              "gid://shopify/ProductVariant/1002",
+              "gid://shopify/ProductVariant/1003"
+            ],
+            "maxSets": 1
+          }
+        }
+      }
+    },
+    "output": {
+      "operations": []
+    }
+  }
+}

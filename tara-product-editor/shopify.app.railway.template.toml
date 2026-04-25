@@ -1,0 +1,27 @@
+client_id = "REPLACE_WITH_YOUR_SHOPIFY_CLIENT_ID"
+name = "Tara Product Editor"
+application_url = "https://REPLACE_WITH_YOUR_RAILWAY_DOMAIN"
+embedded = true
+
+[webhooks]
+api_version = "2026-01"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+scopes = "read_files,write_files,read_metaobjects,read_products,write_products,read_translations,write_translations"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://REPLACE_WITH_YOUR_RAILWAY_DOMAIN/auth/callback",
+  "https://REPLACE_WITH_YOUR_RAILWAY_DOMAIN/auth/shopify/callback",
+  "https://REPLACE_WITH_YOUR_RAILWAY_DOMAIN/api/auth/callback",
+]

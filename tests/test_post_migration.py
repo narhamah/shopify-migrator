@@ -51,6 +51,17 @@ class TestStepEnableArabic:
         client.get_locales.assert_not_called()
         client.enable_locale.assert_not_called()
 
+    def test_skips_locale_sync_for_english_only_destination(self, capsys):
+        client = MagicMock()
+
+        step_enable_arabic(client, sync_secondary_locales=False)
+
+        client.get_locales.assert_not_called()
+        client.enable_locale.assert_not_called()
+
+        captured = capsys.readouterr()
+        assert "skipping locale sync" in captured.out.lower()
+
     def test_handles_error(self, capsys):
         client = MagicMock()
         client.get_locales.return_value = [{"locale": "en", "primary": True, "published": True}]
@@ -541,3 +552,29 @@ class TestMain:
         # Should NOT have run other steps
         client.create_collect.assert_not_called()
         client.create_menu.assert_not_called()
+
+    @patch("tara_migrate.pipeline.post_migration.load_dotenv")
+    @patch("tara_migrate.pipeline.post_migration.ShopifyClient")
+    def test_lang_en_skips_locale_sync(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        (tmp_path / "data" / "id_map.json").write_text("{}")
+
+        client = MagicMock()
+        MockClient.return_value = client
+
+        os.environ.update({"DEST_SHOP_URL": "dest-test.myshopify.com", "DEST_ACCESS_TOKEN": "tok"})
+        try:
+            import sys
+            monkeypatch.setattr(
+                sys,
+                "argv",
+                ["tara_migrate.pipeline.post_migration.py", "--lang", "en", "--step", "1"],
+            )
+            main()
+        finally:
+            del os.environ["DEST_SHOP_URL"]
+            del os.environ["DEST_ACCESS_TOKEN"]
+
+        client.get_locales.assert_not_called()
+        client.enable_locale.assert_not_called()

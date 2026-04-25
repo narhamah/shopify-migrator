@@ -1,0 +1,27 @@
+client_id = "7cd8e0fe7b41b6ceabce3ca71c0b85e6"
+name = "Tara Product Editor"
+application_url = "https://tara-product-editor-production.up.railway.app"
+embedded = true
+
+[webhooks]
+api_version = "2026-01"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+scopes = "read_files,write_files,read_metaobjects,write_metaobjects,read_metaobject_definitions,read_products,write_products,read_translations,write_translations"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://tara-product-editor-production.up.railway.app/auth/callback",
+  "https://tara-product-editor-production.up.railway.app/auth/shopify/callback",
+  "https://tara-product-editor-production.up.railway.app/api/auth/callback",
+]

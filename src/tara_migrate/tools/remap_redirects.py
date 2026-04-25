@@ -17,6 +17,18 @@ import os
 from tara_migrate.core import load_json, save_json
 
 
+LEGACY_REDIRECT_TARGET_REMAP = {
+    "/products/sistema-fortalecedor-del-cabello": "/products/hair-strength-system",
+    "/products/tratamiento-revitalizante-para-cuero-cabelludo": "/products/scalp-hair-revival-system",
+    "/products/tratamiento-densificador": "/products/hair-density-system",
+    "/products/tratamiento-voluminizador-anticaida": "/products/hair-stimulation-system",
+    "/products/sistema-regenerativo-age-well": "/products/age-well-system",
+    "/products/sistema-hidratante": "/products/nurture-system",
+    "/products/sistema-bienestar-capilar": "/products/hair-wellness-system",
+    "/collections/black-friday-sets": "/collections/shop-hair",
+}
+
+
 def build_handle_map(spain_dir, english_dir):
     """Build a map of Spanish Shopify URLs → English Shopify URLs.
 
@@ -92,13 +104,58 @@ def build_handle_map(spain_dir, english_dir):
     return handle_map
 
 
-def remap_target(target, handle_map):
+def build_valid_target_set(english_dir):
+    """Build the set of already-valid English storefront targets."""
+    valid = {"/"}
+
+    resource_files = [
+        ("products.json", "products"),
+        ("collections.json", "collections"),
+        ("pages.json", "pages"),
+    ]
+
+    for filename, resource_type in resource_files:
+        path = os.path.join(english_dir, filename)
+        if not os.path.exists(path):
+            continue
+        for item in load_json(path):
+            handle = item.get("handle", "")
+            if handle:
+                valid.add(f"/{resource_type}/{handle}")
+
+    blogs_path = os.path.join(english_dir, "blogs.json")
+    blogs_by_id = {}
+    if os.path.exists(blogs_path):
+        for blog in load_json(blogs_path):
+            handle = blog.get("handle", "")
+            if handle:
+                valid.add(f"/blogs/{handle}")
+                blogs_by_id[str(blog["id"])] = handle
+
+    articles_path = os.path.join(english_dir, "articles.json")
+    if os.path.exists(articles_path):
+        for article in load_json(articles_path):
+            handle = article.get("handle", "")
+            blog_handle = blogs_by_id.get(str(article.get("blog_id", "")), "")
+            if handle and blog_handle:
+                valid.add(f"/blogs/{blog_handle}/{handle}")
+
+    return valid
+
+
+def remap_target(target, handle_map, valid_targets=None):
     """Look up a Spanish Shopify target URL in the handle map.
 
     Returns the English URL if found, or None if no match.
     """
     # Normalize: strip trailing slashes, lowercase
-    normalized = target.rstrip("/")
+    normalized = target.rstrip("/") or "/"
+
+    if normalized in LEGACY_REDIRECT_TARGET_REMAP:
+        return LEGACY_REDIRECT_TARGET_REMAP[normalized]
+
+    if valid_targets and normalized in valid_targets:
+        return normalized
 
     # Direct match
     if normalized in handle_map:
@@ -127,7 +184,9 @@ def main():
 
     # Build the Spanish → English handle map
     handle_map = build_handle_map(spain_dir, english_dir)
+    valid_targets = build_valid_target_set(english_dir)
     print(f"Built handle map with {len(handle_map)} entries")
+    print(f"Found {len(valid_targets)} already-valid English targets")
 
     remapped = []
     unmatched = []
@@ -136,7 +195,7 @@ def main():
         path = redirect.get("path", "")
         target = redirect.get("target", "")
 
-        new_target = remap_target(target, handle_map)
+        new_target = remap_target(target, handle_map, valid_targets)
 
         if new_target:
             remapped.append({

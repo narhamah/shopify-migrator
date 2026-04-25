@@ -18,6 +18,7 @@ Handles:
 
 Usage:
     python post_migration.py                    # Run all steps
+    python post_migration.py --lang en          # English-only destination (skip locale sync)
     python post_migration.py --step 2           # Run only step 2
     python post_migration.py --step 2 --step 3  # Run steps 2 and 3
     python post_migration.py --dry-run          # Show what would be done
@@ -30,6 +31,22 @@ from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, save_json
+
+
+# Legacy redirect targets that no longer exist in the exported source catalog.
+# These still appear in historical Magento -> Shopify redirects and need to be
+# rewritten to the current English storefront routes.
+LEGACY_REDIRECT_TARGET_REMAP = {
+    "/products/sistema-fortalecedor-del-cabello": "/products/hair-strength-system",
+    "/products/tratamiento-revitalizante-para-cuero-cabelludo": "/products/scalp-hair-revival-system",
+    "/products/tratamiento-densificador": "/products/hair-density-system",
+    "/products/tratamiento-voluminizador-anticaida": "/products/hair-stimulation-system",
+    "/products/sistema-regenerativo-age-well": "/products/age-well-system",
+    "/products/sistema-hidratante": "/products/nurture-system",
+    "/products/sistema-bienestar-capilar": "/products/hair-wellness-system",
+    # This collection no longer exists on the live Shopify storefront.
+    "/collections/black-friday-sets": "/collections/shop-hair",
+}
 
 # =============================================
 # Step 1: Enable Arabic locale
@@ -63,6 +80,50 @@ def step_enable_arabic(client, dry_run=False):
 # Step 2: Link products to collections
 # =============================================
 
+def step_enable_arabic(client, dry_run=False, sync_secondary_locales=True):
+    """Mirror non-primary published locales from the source store."""
+    print("\n=== Step 1: Sync Store Locales ===")
+
+    if not sync_secondary_locales:
+        print("  Skipping locale sync for English-only destination")
+        return
+
+    if dry_run:
+        print("  Would sync published secondary locales from the source store")
+        return
+
+    try:
+        source_client = ShopifyClient(config.get_source_shop_url(), config.get_source_access_token())
+        source_locales = source_client.get_locales()
+        desired_locales = [
+            locale["locale"]
+            for locale in source_locales
+            if not locale.get("primary") and locale.get("published")
+        ] or ["ar"]
+    except Exception as e:
+        desired_locales = ["ar"]
+        print(f"  Warning: Could not read source locales; falling back to Arabic only ({e})")
+
+    locales = client.get_locales()
+    locales_by_code = {locale["locale"]: locale for locale in locales}
+    print(f"  Current locales: {list(locales_by_code)}")
+
+    for locale_code in desired_locales:
+        try:
+            locale = locales_by_code.get(locale_code)
+            if not locale:
+                result = client.enable_locale(locale_code)
+                print(f"  Enabled locale: {result}")
+                locales_by_code = {entry["locale"]: entry for entry in client.get_locales()}
+                locale = locales_by_code.get(locale_code)
+            if locale and not locale.get("published"):
+                result = client.update_locale(locale_code, {"published": True})
+                print(f"  Published locale: {result}")
+            elif locale:
+                print(f"  {locale_code} already enabled and published - skipping")
+        except Exception as e:
+            print(f"  Error syncing locale '{locale_code}': {e}")
+
 def step_link_products_to_collections(client, dry_run=False):
     """Create product-collection associations from exported collects."""
     print("\n=== Step 2: Link Products to Collections ===")
@@ -86,6 +147,13 @@ def step_link_products_to_collections(client, dry_run=False):
         print("  Or manually assign products to collections in Shopify admin.")
         return
 
+    source_collections = load_json(os.path.join(config.SOURCE_DIR, "collections.json"), default=[])
+    smart_collection_ids = {
+        str(collection.get("id"))
+        for collection in source_collections
+        if collection.get("rules")
+    }
+
     print(f"  Found {len(collects)} product-collection links to create")
 
     created = 0
@@ -98,6 +166,11 @@ def step_link_products_to_collections(client, dry_run=False):
 
         key = f"{source_product_id}_{source_collection_id}"
         if key in progress:
+            skipped += 1
+            continue
+
+        if source_collection_id in smart_collection_ids:
+            progress[key] = True
             skipped += 1
             continue
 
@@ -143,8 +216,8 @@ def _resolve_menu_item_for_dest(item, dest_client, source_shop_url, dest_shop_ur
     resources by handle on the destination store.
     """
     title = item.get("title", "")
-    url = item.get("url", "")
-    resource_id = item.get("resourceId", "")
+    url = item.get("url") or ""
+    resource_id = item.get("resourceId") or ""
 
     result = {"title": title}
 
@@ -274,10 +347,6 @@ def step_build_navigation(client, dry_run=False):
 
         print(f"\n  Menu: '{title}' ({handle}) — {len(source_items)} items")
 
-        if handle in dest_handles:
-            print(f"    Already exists on destination (id: {dest_handles[handle]['id']})")
-            continue
-
         # Resolve each item
         dest_items = []
         for item in source_items:
@@ -303,8 +372,23 @@ def step_build_navigation(client, dry_run=False):
             continue
 
         if dry_run:
-            print(f"    Would create menu '{title}' with {len(dest_items)} items")
+            action = "update" if handle in dest_handles else "create"
+            print(f"    Would {action} menu '{title}' with {len(dest_items)} items")
             continue
+
+        if handle in dest_handles:
+            try:
+                result = client.update_menu(dest_handles[handle]["id"], title=title, items=dest_items)
+                print(f"    Updated menu '{title}' (id: {result['id']})")
+                continue
+            except Exception as e:
+                print(f"    Error updating menu '{title}': {e}")
+                print("    Falling back to delete + recreate")
+                try:
+                    client.delete_menu(dest_handles[handle]["id"])
+                except Exception as delete_error:
+                    print(f"    Error deleting menu '{title}': {delete_error}")
+                    continue
 
         try:
             result = client.create_menu(title, handle, dest_items)
@@ -597,6 +681,7 @@ def _build_handle_remap():
     """
 
     remap = {}  # "/products/old-handle" → "/products/new-handle"
+    remap.update(LEGACY_REDIRECT_TARGET_REMAP)
 
     # Products
     source_products = load_json(os.path.join(config.SOURCE_DIR, "products.json"))
@@ -679,6 +764,12 @@ def _remap_redirect_target(target, remap):
 
     # Normalize: strip trailing slash for matching
     path_normalized = path.rstrip("/")
+
+    if path_normalized in LEGACY_REDIRECT_TARGET_REMAP:
+        new_path = LEGACY_REDIRECT_TARGET_REMAP[path_normalized]
+        if parsed.scheme:
+            return urllib.parse.urlunparse(parsed._replace(path=new_path))
+        return new_path
 
     # Direct match
     if path_normalized in remap:
@@ -825,11 +916,11 @@ def step_set_inventory(client, default_quantity=100, dry_run=False):
 # =============================================
 
 def step_publish_resources(client, dry_run=False):
-    """Publish all products and collections to all sales channels."""
-    print("\n=== Step 7: Publish Resources to Sales Channels ===")
+    """Mirror source publication state for products and collections."""
+    print("\n=== Step 7: Sync Resource Publications ===")
 
     if dry_run:
-        print("  Would publish all products and collections to all sales channels")
+        print("  Would mirror source publication state for products and collections")
         return
 
     try:
@@ -847,47 +938,62 @@ def step_publish_resources(client, dry_run=False):
     print(f"  Sales channels: {', '.join(pub_names)}")
 
     id_map = load_json(config.get_id_map_file(), default={})
-    progress = load_json(config.get_progress_file("publish_progress.json"), default={})
+    try:
+        source_client = ShopifyClient(config.get_source_shop_url(), config.get_source_access_token())
+        source_products = {str(product["id"]): product for product in source_client.get_products()}
+        source_collections = {str(collection["id"]): collection for collection in source_client.get_collections()}
+        mirror_source_state = True
+    except KeyError:
+        source_products = {}
+        source_collections = {}
+        mirror_source_state = False
+        print("  No source store credentials - publishing mapped resources to all channels")
 
-    # Publish products
-    product_map = id_map.get("products", {})
     published = 0
+    unpublished = 0
+
+    # Products
+    product_map = id_map.get("products", {})
     for source_id, dest_id in product_map.items():
-        key = f"product_{dest_id}"
-        if key in progress:
-            continue
         try:
             gid = f"gid://shopify/Product/{dest_id}"
-            client.publish_resource(gid, pub_ids)
-            published += 1
-            progress[key] = True
+            source_product = source_products.get(str(source_id), {})
+            should_publish = bool(source_product.get("published_at")) if mirror_source_state else True
+            if should_publish:
+                client.publish_resource(gid, pub_ids)
+                published += 1
+            else:
+                client.unpublish_resource(gid, pub_ids)
+                unpublished += 1
         except Exception as e:
             err = str(e)
-            if "already" in err.lower():
-                progress[key] = True
+            if "already" in err.lower() or "not published" in err.lower() or "publication does not exist" in err.lower():
+                pass
             else:
-                print(f"  Error publishing product {dest_id}: {e}")
+                print(f"  Error syncing product publication {dest_id}: {e}")
 
-    # Publish collections
+    # Collections
     collection_map = id_map.get("collections", {})
     for source_id, dest_id in collection_map.items():
-        key = f"collection_{dest_id}"
-        if key in progress:
-            continue
         try:
             gid = f"gid://shopify/Collection/{dest_id}"
-            client.publish_resource(gid, pub_ids)
-            published += 1
-            progress[key] = True
+            source_collection = source_collections.get(str(source_id), {})
+            should_publish = bool(source_collection.get("published_at")) if mirror_source_state else True
+            if should_publish:
+                client.publish_resource(gid, pub_ids)
+                published += 1
+            else:
+                client.unpublish_resource(gid, pub_ids)
+                unpublished += 1
         except Exception as e:
             err = str(e)
-            if "already" in err.lower():
-                progress[key] = True
+            if "already" in err.lower() or "not published" in err.lower() or "publication does not exist" in err.lower():
+                pass
             else:
-                print(f"  Error publishing collection {dest_id}: {e}")
+                print(f"  Error syncing collection publication {dest_id}: {e}")
 
-    save_json(progress, config.get_progress_file("publish_progress.json"))
-    print(f"  Published {published} resources to {len(pub_ids)} channels")
+    save_json({"published": published, "unpublished": unpublished}, config.get_progress_file("publish_progress.json"))
+    print(f"  Published {published} and unpublished {unpublished} resources across {len(pub_ids)} channels")
 
 
 # =============================================
@@ -976,30 +1082,45 @@ def step_migrate_discounts(client, dry_run=False):
 # =============================================
 
 def step_activate_products(client, dry_run=False):
-    """Set all draft products to active status."""
-    print("\n=== Step 9: Activate Products ===")
+    """Mirror source product status on the destination store."""
+    print("\n=== Step 9: Sync Product Status ===")
 
     if dry_run:
-        print("  Would activate all draft products")
+        print("  Would mirror source product status for all mapped products")
         return
 
     id_map = load_json(config.get_id_map_file(), default={})
     product_map = id_map.get("products", {})
-    progress = load_json(config.get_progress_file("activate_progress.json"), default={})
+    try:
+        source_client = ShopifyClient(config.get_source_shop_url(), config.get_source_access_token())
+        source_products = {str(product["id"]): product for product in source_client.get_products()}
+        fallback_status = "draft"
+    except KeyError:
+        source_products = {}
+        fallback_status = "active"
+        print("  No source store credentials - defaulting mapped products to active")
 
-    activated = 0
+    updated = 0
     for source_id, dest_id in product_map.items():
-        if str(dest_id) in progress:
-            continue
         try:
-            client.update_product(dest_id, {"status": "active"})
-            activated += 1
-            progress[str(dest_id)] = True
+            source_product = source_products.get(str(source_id), {})
+            desired_status = source_product.get("status", fallback_status)
+            client.update_product(dest_id, {"status": desired_status})
+            updated += 1
         except Exception as e:
-            print(f"  Error activating product {dest_id}: {e}")
+            # Some stores reject "unlisted" through REST. Fallback to active, which
+            # matches Shopify's GraphQL ACTIVE state and keeps the run moving.
+            if source_products.get(str(source_id), {}).get("status") == "unlisted":
+                try:
+                    client.update_product(dest_id, {"status": "active"})
+                    updated += 1
+                    continue
+                except Exception:
+                    pass
+            print(f"  Error syncing product status {dest_id}: {e}")
 
-    save_json(progress, config.get_progress_file("activate_progress.json"))
-    print(f"  Activated {activated} products")
+    save_json({"updated": updated}, config.get_progress_file("activate_progress.json"))
+    print(f"  Synced status for {updated} products")
 
 
 # =============================================
@@ -1037,7 +1158,7 @@ def step_create_policies(client, dry_run=False):
 # =============================================
 
 def step_update_handles(client, dry_run=False):
-    """Update product/collection/page handles from Spanish to English."""
+    """Update destination handles to match the source export exactly."""
     print("\n=== Step 11: Update Handles (source → destination) ===")
 
     id_map = load_json(config.get_id_map_file(), default={})
@@ -1119,7 +1240,106 @@ def step_update_handles(client, dry_run=False):
     if not dry_run:
         save_json(progress, config.get_progress_file("handle_progress.json"))
 
+    # Pages
+    pages = load_json(os.path.join(config.get_en_dir(), "pages.json"))
+    page_map = id_map.get("pages", {})
+    for page in pages:
+        source_id = str(page["id"])
+        dest_id = page_map.get(source_id)
+        if not dest_id or f"page_{source_id}" in progress:
+            continue
+        new_handle = page.get("handle", "")
+        if not new_handle:
+            continue
+        if dry_run:
+            print(f"  Would update page handle to: {new_handle}")
+        else:
+            try:
+                client._request("PUT", f"pages/{dest_id}.json", json={"page": {"id": dest_id, "handle": new_handle}})
+                updated += 1
+            except Exception as e:
+                print(f"  Error updating page handle {new_handle}: {e}")
+        progress[f"page_{source_id}"] = True
+
+    # Blogs
+    blogs = load_json(os.path.join(config.get_en_dir(), "blogs.json"))
+    blog_map = id_map.get("blogs", {})
+    for blog in blogs:
+        source_id = str(blog["id"])
+        dest_id = blog_map.get(source_id)
+        if not dest_id or f"blog_{source_id}" in progress:
+            continue
+        new_handle = blog.get("handle", "")
+        if not new_handle:
+            continue
+        if dry_run:
+            print(f"  Would update blog handle to: {new_handle}")
+        else:
+            try:
+                client._request("PUT", f"blogs/{dest_id}.json", json={"blog": {"id": dest_id, "handle": new_handle}})
+                updated += 1
+            except Exception as e:
+                print(f"  Error updating blog handle {new_handle}: {e}")
+        progress[f"blog_{source_id}"] = True
+
+    # Articles
+    blogs_by_source = {str(blog["id"]): blog_map.get(str(blog["id"])) for blog in blogs}
+    source_blogs = load_json(os.path.join(config.SOURCE_DIR, "blogs.json"))
+    source_blog_by_id = {str(blog["id"]): blog for blog in source_blogs}
+    articles = load_json(os.path.join(config.get_en_dir(), "articles.json"))
+    article_map = id_map.get("articles", {})
+    for article in articles:
+        source_id = str(article["id"])
+        dest_id = article_map.get(source_id)
+        if not dest_id or f"article_{source_id}" in progress:
+            continue
+        new_handle = article.get("handle", "")
+        if not new_handle:
+            continue
+        source_blog_id = str(article.get("blog_id", ""))
+        dest_blog_id = blogs_by_source.get(source_blog_id)
+        if not dest_blog_id:
+            source_blog = source_blog_by_id.get(source_blog_id, {})
+            dest_blogs = client.get_blogs_by_handle(source_blog.get("handle", "")) if source_blog.get("handle") else []
+            dest_blog_id = dest_blogs[0]["id"] if dest_blogs else None
+        if not dest_blog_id:
+            print(f"  Could not resolve destination blog for article {new_handle}")
+            continue
+        if dry_run:
+            print(f"  Would update article handle to: {new_handle}")
+        else:
+            try:
+                client._request(
+                    "PUT",
+                    f"blogs/{dest_blog_id}/articles/{dest_id}.json",
+                    json={"article": {"id": dest_id, "handle": new_handle}},
+                )
+                updated += 1
+            except Exception as e:
+                print(f"  Error updating article handle {new_handle}: {e}")
+        progress[f"article_{source_id}"] = True
+
+    if not dry_run:
+        save_json(progress, config.get_progress_file("handle_progress.json"))
+
     print(f"  Updated {updated} handles")
+
+
+# =============================================
+# Step 12: Sync theme assets/settings
+# =============================================
+
+def step_sync_theme(client, dry_run=False):
+    """Sync the active source theme asset set to the active destination theme."""
+    print("\n=== Step 12: Sync Theme Assets ===")
+    from tara_migrate.setup.sync_theme import sync_active_theme
+
+    try:
+        source_client = ShopifyClient(config.get_source_shop_url(), config.get_source_access_token())
+    except KeyError:
+        print("  No source store credentials - skipping theme sync")
+        return
+    sync_active_theme(source_client, client, dry_run=dry_run, delete_extras=True)
 
 
 # =============================================
@@ -1130,6 +1350,8 @@ def main():
     parser = argparse.ArgumentParser(description="Post-migration setup for destination store")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done")
     parser.add_argument("--step", type=int, action="append", help="Run specific step(s) only")
+    parser.add_argument("--lang", choices=["en", "ar", "all"], default="all",
+                        help="Destination language mode (default: all)")
     parser.add_argument("--inventory-qty", type=int, default=100, help="Default inventory quantity (default: 100)")
     args = parser.parse_args()
 
@@ -1138,10 +1360,14 @@ def main():
     access_token = config.get_dest_access_token()
     client = ShopifyClient(shop_url, access_token)
 
-    steps = args.step or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps = args.step or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
     if 1 in steps:
-        step_enable_arabic(client, dry_run=args.dry_run)
+        step_enable_arabic(
+            client,
+            dry_run=args.dry_run,
+            sync_secondary_locales=args.lang != "en",
+        )
     if 2 in steps:
         step_link_products_to_collections(client, dry_run=args.dry_run)
     if 3 in steps:
@@ -1162,6 +1388,8 @@ def main():
         step_create_policies(client, dry_run=args.dry_run)
     if 11 in steps:
         step_update_handles(client, dry_run=args.dry_run)
+    if 12 in steps:
+        step_sync_theme(client, dry_run=args.dry_run)
 
     print("\n=== Post-Migration Complete ===")
     print("\nRemaining MANUAL steps:")

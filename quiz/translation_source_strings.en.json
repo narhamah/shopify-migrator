@@ -1,0 +1,135 @@
+{
+  "_meta": {
+    "purpose": "Customer-facing source strings from the Tara consultation worker that need high-quality Arabic translation.",
+    "target_arabic_style": "Modern Standard Arabic, naturally understood in Saudi and the Gulf. Do not use slang or heavy dialect. Do not use stiff institutional Arabic.",
+    "brand_tone": [
+      "expert",
+      "warm",
+      "clear",
+      "premium",
+      "listening-first",
+      "benefit-first"
+    ],
+    "customer_address": "Address the customer in feminine singular where Arabic requires it.",
+    "placeholder_rules": [
+      "Preserve tokens like {fact} and {thread} exactly.",
+      "Keep arrays as arrays.",
+      "Do not translate internal keys or enum values.",
+      "These are customer-facing strings, not internal schema labels."
+    ]
+  },
+  "primary_question": {
+    "text": "What's your primary hair or scalp concern?",
+    "options": [
+      "Hair fall or thinning",
+      "Oily scalp, buildup, or flakes",
+      "Dryness, roughness, or dullness",
+      "Weakness, damage, or breakage",
+      "Ageing hair or loss of vitality"
+    ]
+  },
+  "locale_copy": {
+    "share_placeholder": "Share what you notice most clearly, in your own words.",
+    "share_placeholder_alt": "Share what you notice most, in your own words.",
+    "fallback_question_default": "Tell me the one thing that feels most important about this pattern.",
+    "context_with_thread": "You already shared {fact}; I want to clarify {thread}.",
+    "context_default": "You already shared {fact}; I want to clarify the one detail that would change the recommendation most.",
+    "micro_working_read": "I have a working read, but I still want to test one hinge point before I lock it in.",
+    "micro_first_pattern": "The first pattern is starting to come through, but I want to listen one level deeper.",
+    "micro_last_detail": "I want to test the one remaining detail that would actually change the answer.",
+    "bridge_with_thread": "You mentioned {fact}; I want to understand one more thing before I call the pattern.",
+    "bridge_default": "You mentioned {fact}; I want to understand the one detail that would change the answer most.",
+    "thread_labels": {
+      "thread_onset": "when this started",
+      "thread_root_breakage": "whether this is root shedding or breakage",
+      "thread_scalp_irritation": "whether the scalp is calm or irritated",
+      "thread_wash_pattern": "how the scalp behaves between washes",
+      "thread_fiber_state": "how much the lengths are really involved",
+      "thread_life_shift": "whether a recent life shift could be shaping this",
+      "thread_hormonal": "whether hormones or a life-stage shift are part of this",
+      "thread_nutrition": "whether nutrition changed meaningfully around this",
+      "thread_history": "what you have already tried and what changed"
+    }
+  },
+  "voice_retry_copy": {
+    "question_text": "I couldn't hear enough from that voice note. Please type it here instead, or tap one of the suggestions and extend it.",
+    "question_context": "I do not want to guess and send you down the wrong path from a weak transcript, so typed text is the safest next step.",
+    "placeholder": "Type your concern here, or tap a suggestion and edit it.",
+    "micro_insight": "You can start from a suggestion and make it more specific to you.",
+    "bridge_text": "I did not catch enough to move forward safely, so I want you to type it in your own words."
+  },
+  "voice_retry_suggestions": {
+    "primary_concern": [
+      "More shedding than usual, especially at the front.",
+      "Oily roots and buildup between washes.",
+      "Flakes or itchiness on the scalp.",
+      "Dry, rough, dull lengths.",
+      "Breakage and split ends.",
+      "Hair looks thinner and less dense than before.",
+      "Heat or color damage.",
+      "More shedding after stress or postpartum.",
+      "Sensitive or tender scalp.",
+      "Hair has lost vitality with age."
+    ],
+    "loss_pattern": [
+      "I see mostly full hairs coming from the root.",
+      "I see mostly short broken pieces through the front or lengths.",
+      "It feels like a mix of shedding and breakage.",
+      "I'm not fully sure which one it is yet."
+    ],
+    "onset_timing": [
+      "It started suddenly in the last 2 to 3 months.",
+      "It has been building gradually for more than 6 months.",
+      "It feels somewhere in between those two.",
+      "I'm not sure when it really started."
+    ],
+    "scalp_environment_signals": [
+      "My roots feel heavy and I get buildup quickly.",
+      "I notice itch or visible flakes most often.",
+      "My scalp feels tender or reactive.",
+      "I do not notice a strong scalp symptom."
+    ],
+    "default": [
+      "Shedding and lower density.",
+      "Oily roots and buildup.",
+      "Dryness and roughness.",
+      "Breakage and damaged lengths.",
+      "Scalp irritation or flakes.",
+      "Hair has lost vitality."
+    ]
+  },
+  "canonical_question_fallbacks": {
+    "own_words": "Tell us in your own words what you've been noticing with your hair or scalp.",
+    "scalp_story": "Talk me through how your scalp behaves through a typical week, especially between washes.",
+    "pattern_story": "Describe where you notice the issue most: at the roots, through the lengths, at the ends, or all over.",
+    "fiber_story": "Describe what your lengths and ends feel like after washing, styling, or brushing.",
+    "exposure_story": "What does your hair regularly go through: heat, color, sun, swimming, oils, friction, or covering?",
+    "history_story": "What have you already tried so far, including Tara if relevant, and what actually changed?",
+    "scalp_state": "How would you describe your scalp most days?",
+    "loss_pattern": "Does it feel more like shedding from the root or breakage through the lengths?",
+    "wash_pattern": "How often do you usually wash your hair?",
+    "fiber_condition": "What best describes the hair lengths and ends right now?",
+    "sensitivity": "Which scalp signal shows up most often for you?",
+    "hair_density": "How would you describe your hair density right now?",
+    "age_band": "Which age range are you in?",
+    "heat_frequency": "How often do you use heat styling on your hair?",
+    "chemical_history": "Is your hair colored, bleached, or chemically treated?",
+    "lifestyle_stress": "How would you describe your stress level lately?",
+    "postpartum_status": "Has pregnancy or postpartum been part of the last year for you?",
+    "sun_exposure": "How much sun, beach, or outdoor exposure does your hair usually get?",
+    "swimming_exposure": "Do sea or pool sessions show up regularly for you?",
+    "oil_use": "Do you regularly apply oils to your scalp or lengths?",
+    "split_end_severity": "How noticeable are split ends or tip breakage right now?",
+    "dry_after_wash": "After washing, how does your hair usually feel before any styling products?",
+    "head_covering": "Is your hair usually covered for most of the day?",
+    "uv_protection": "Do you usually protect your hair in strong sun?",
+    "tara_history": "Have you used Tara before?",
+    "tara_product_step": "Which Tara step have you used most?",
+    "tara_result": "How did that Tara experience perform for you?"
+  },
+  "fallback_misc": {
+    "natural_fallback_scalp_irritation": "Do you notice itch, flakes, or is the scalp mostly calm?",
+    "natural_fallback_generic": "Tell me a little more about what feels most consistently off.",
+    "normalize_question_fallback": "Tell me a little more about what you're noticing."
+  }
+}

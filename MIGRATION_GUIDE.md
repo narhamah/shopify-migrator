@@ -9,8 +9,8 @@ Complete pipeline for migrating the TARA luxury scalp-care brand from the Spanis
 ## Quick Start: Clean Full Build
 
 ```bash
-# 1. Wipe Saudi store (data only, keeps definitions)
-python purge_saudi.py --yes
+# 1. Wipe destination store (data only, keeps definitions)
+python purge_destination.py --yes
 
 # 2. Build the full site from scratch
 python build_site.py
@@ -199,11 +199,11 @@ python build_site.py --from <phase_number>
 
 ## Starting Over / Re-importing
 
-### Purge Saudi store data (keeps definitions)
+### Purge destination store data (keeps definitions)
 
 ```bash
-python purge_saudi.py --dry-run   # Preview what would be deleted
-python purge_saudi.py --yes       # Delete all data (keeps definitions)
+python purge_destination.py --dry-run   # Preview what would be deleted
+python purge_destination.py --yes       # Delete all data (keeps definitions)
 ```
 
 Deletes: menus, redirects, price_rules, metaobjects, articles, blogs, pages, collections, products, files, local tracking files.
@@ -213,7 +213,7 @@ Then re-run `python build_site.py` — no need to re-run `setup_store.py`.
 ### Full reset (wipe everything including definitions)
 
 ```bash
-python purge_saudi.py --definitions --yes   # Delete data + metaobject definitions
+python purge_destination.py --definitions --yes   # Delete data + metaobject definitions
 python setup_store.py                       # Re-create definitions
 python build_site.py                        # Re-import everything
 ```
@@ -221,16 +221,16 @@ python build_site.py                        # Re-import everything
 ### Wipe local tracking data
 
 ```bash
-python purge_saudi.py --only local_data   # Delete progress/tracking files only
+python purge_destination.py --only local_data   # Delete progress/tracking files only
 ```
 
 ### Purge specific resources only
 
 ```bash
-python purge_saudi.py --only products,collections    # Just products and collections
-python purge_saudi.py --only metaobjects             # Just metaobject entries
-python purge_saudi.py --only files                   # Just uploaded files
-python purge_saudi.py --only menus,redirects          # Just menus and redirects
+python purge_destination.py --only products,collections    # Just products and collections
+python purge_destination.py --only metaobjects             # Just metaobject entries
+python purge_destination.py --only files                   # Just uploaded files
+python purge_destination.py --only menus,redirects         # Just menus and redirects
 ```
 
 Valid `--only` values: `menus`, `redirects`, `price_rules`, `metaobjects`, `articles`, `blogs`, `pages`, `collections`, `products`, `files`, `local_data`, `metaobject_definitions`
@@ -578,7 +578,7 @@ Image optimization presets (all converted to WebP):
 
 | Script | Purpose |
 |--------|---------|
-| `purge_saudi.py` | Delete Saudi store data (`--yes`) or everything (`--definitions --yes`) |
+| `purge_destination.py` | Delete destination store data (`--yes`) or everything (`--definitions --yes`) |
 | `compare_data.py` | Analyze gaps between Spain export and scraped EN/AR data |
 | `remap_redirects.py` | Build remapped redirects file (`data/remapped_redirects.json`) |
 | `generate_data_dictionary.py` | Generate field-level data dictionary from Spain export |

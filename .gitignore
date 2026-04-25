@@ -1,7 +1,12 @@
 data/
 .env
+*.env
+*-destination.env
+.claude/settings.local.json
 __pycache__/
 *.pyc
 .venv/
 .coverage
 fonts/
+temp/
+tmp/

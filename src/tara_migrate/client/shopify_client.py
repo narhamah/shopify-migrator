@@ -314,6 +314,32 @@ class ShopifyClient:
                 id
                 type
                 name
+                displayNameKey
+                access {
+                  admin
+                  storefront
+                }
+                capabilities {
+                  publishable {
+                    enabled
+                  }
+                  renderable {
+                    enabled
+                    data {
+                      metaTitleKey
+                      metaDescriptionKey
+                    }
+                  }
+                  translatable {
+                    enabled
+                  }
+                  onlineStore {
+                    enabled
+                    data {
+                      urlHandle
+                    }
+                  }
+                }
                 fieldDefinitions {
                   key
                   name
@@ -388,6 +414,35 @@ class ShopifyClient:
                 logger.info("    Definition already exists, continuing...")
                 return None
             raise Exception(f"MetaobjectDefinitionCreate errors: {errors}")
+        return result["metaobjectDefinition"]
+
+    def enable_standard_metaobject_definition(self, metaobject_type: str) -> dict[str, Any]:
+        """Enable a Shopify standard metaobject definition by type."""
+        query = """
+        mutation EnableStandardMetaobjectDefinition($type: String!) {
+          standardMetaobjectDefinitionEnable(type: $type) {
+            metaobjectDefinition {
+              id
+              type
+              name
+              fieldDefinitions {
+                key
+                name
+                type { name }
+                validations { name value }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"type": metaobject_type})
+        result = data["standardMetaobjectDefinitionEnable"]
+        if result["userErrors"]:
+            raise Exception(f"standardMetaobjectDefinitionEnable errors: {result['userErrors']}")
         return result["metaobjectDefinition"]
 
     def update_metaobject_definition(self, definition_id: str, update_data: dict[str, Any]) -> dict[str, Any]:
@@ -501,18 +556,30 @@ class ShopifyClient:
               metafieldDefinitions(ownerType: {owner_type}, first: 250{after_clause}) {{
                 edges {{
                   cursor
-                  node {{
-                    id
-                    namespace
-                    key
-                    name
-                    type {{ name }}
-                    ownerType
+                    node {{
+                      id
+                      namespace
+                      key
+                      name
+                      type {{ name }}
+                      ownerType
+                      capabilities {{
+                        smartCollectionCondition {{
+                          enabled
+                        }}
+                        adminFilterable {{
+                          enabled
+                        }}
+                      }}
+                      validations {{
+                        name
+                        value
+                      }}
+                    }}
                   }}
+                  pageInfo {{ hasNextPage }}
                 }}
-                pageInfo {{ hasNextPage }}
               }}
-            }}
             """
             data = self._graphql(query)
             edges = data["metafieldDefinitions"]["edges"]
@@ -554,6 +621,35 @@ class ShopifyClient:
                 return None
             raise Exception(f"MetafieldDefinitionCreate errors: {errors}")
         return result["createdDefinition"]
+
+    def update_metafield_definition(self, definition: dict[str, Any]) -> dict[str, Any]:
+        """Update a metafield definition via GraphQL.
+
+        Args:
+            definition: dict with id and the fields to update, such as
+                        capabilities, validations, or name
+        """
+        query = """
+        mutation UpdateMetafieldDefinition($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition {
+              id
+              namespace
+              key
+              name
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"definition": definition})
+        result = data["metafieldDefinitionUpdate"]
+        if result["userErrors"]:
+            raise Exception(f"MetafieldDefinitionUpdate errors: {result['userErrors']}")
+        return result["updatedDefinition"]
 
     def set_metafields(self, metafields: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Set metafields on resources via GraphQL metafieldsSet.
@@ -700,8 +796,19 @@ class ShopifyClient:
             filename = os.path.basename(parsed.path) or "file"
             filename = filename.split("?")[0]
 
+        # Shopify's CDN content-negotiates image URLs. When a source path ends
+        # with .webp/.avif, a generic request may receive a JPEG derivative
+        # instead of the original format, which changes the uploaded filename
+        # registration and breaks `shopify://shop_images/...` references.
+        ext = os.path.splitext(filename)[1].lower()
+        headers: dict[str, str] = {}
+        if ext == ".webp":
+            headers["Accept"] = "image/webp,image/apng,image/*,*/*;q=0.8"
+        elif ext == ".avif":
+            headers["Accept"] = "image/avif,image/webp,image/*,*/*;q=0.8"
+
         # Download the file
-        resp = self.session.get(source_url, stream=True)
+        resp = self.session.get(source_url, stream=True, headers=headers)
         resp.raise_for_status()
         content = resp.content
 
@@ -728,6 +835,12 @@ class ShopifyClient:
         """
         import io
         import mimetypes
+
+        # Windows often lacks WebP/AVIF mappings by default, which causes
+        # image uploads to fall back to application/octet-stream and become
+        # GenericFile records instead of MediaImage.
+        mimetypes.add_type("image/webp", ".webp")
+        mimetypes.add_type("image/avif", ".avif")
 
         mime_type, _ = mimetypes.guess_type(filename)
         if not mime_type:
@@ -858,6 +971,32 @@ class ShopifyClient:
         }
         """
         data = self._graphql(query, {"resourceId": resource_gid})
+        return data.get("translatableResource")
+
+    def get_translatable_resource_with_translations(
+        self, resource_gid: str, locale: str
+    ) -> dict[str, Any] | None:
+        """Get translatable content and current translations for a single resource."""
+        query = """
+        query GetTranslatableWithTranslations($resourceId: ID!, $locale: String!) {
+          translatableResource(resourceId: $resourceId) {
+            resourceId
+            translatableContent {
+              key
+              value
+              digest
+              locale
+            }
+            translations(locale: $locale) {
+              key
+              value
+              locale
+              outdated
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"resourceId": resource_gid, "locale": locale})
         return data.get("translatableResource")
 
     # --- REST: Collects (product-collection links) ---
@@ -997,6 +1136,30 @@ class ShopifyClient:
             if any("already" in e.get("message", "").lower() for e in errors):
                 return result.get("shopLocale")
             raise Exception(f"shopLocaleEnable errors: {errors}")
+        return result["shopLocale"]
+
+    def update_locale(self, locale_code: str, shop_locale: dict[str, Any]) -> dict[str, Any]:
+        """Update an enabled locale, for example to publish it."""
+        query = """
+        mutation shopLocaleUpdate($locale: String!, $shopLocale: ShopLocaleInput!) {
+          shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {
+            shopLocale {
+              locale
+              published
+              primary
+              name
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        data = self._graphql(query, {"locale": locale_code, "shopLocale": shop_locale})
+        result = data["shopLocaleUpdate"]
+        if result["userErrors"]:
+            raise Exception(f"shopLocaleUpdate errors: {result['userErrors']}")
         return result["shopLocale"]
 
     def get_locales(self) -> list[dict[str, Any]]:
@@ -1191,8 +1354,10 @@ class ShopifyClient:
 
     def update_menu(self, menu_id: str, title: str | None = None, items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Update a navigation menu's title and/or items."""
+        if title is None or items is None:
+            raise ValueError("update_menu requires both title and items")
         query = """
-        mutation menuUpdate($id: ID!, $title: String, $items: [MenuItemUpdateInput!]) {
+        mutation menuUpdate($id: ID!, $title: String!, $items: [MenuItemUpdateInput!]!) {
           menuUpdate(id: $id, title: $title, items: $items) {
             menu {
               id
@@ -1210,7 +1375,7 @@ class ShopifyClient:
         if title:
             variables["title"] = title
         if items is not None:
-            variables["items"] = items
+            variables["items"] = self._prepare_menu_items(items)
         data = self._graphql(query, variables)
         result = data["menuUpdate"]
         if result["userErrors"]:
@@ -1232,15 +1397,42 @@ class ShopifyClient:
                 return t["id"]
         return None
 
+    def publish_theme(self, theme_id: int | str) -> dict[str, Any]:
+        """Publish a theme as the live/main theme."""
+        resp = self._request("PUT", f"themes/{theme_id}.json", json={
+            "theme": {
+                "id": int(theme_id),
+                "role": "main",
+            }
+        })
+        return resp.json().get("theme", {})
+
     def get_asset(self, theme_id: int | str, key: str) -> dict[str, Any]:
         """Get a single theme asset by key (e.g. 'templates/index.json')."""
         data, _ = self._get_json(f"themes/{theme_id}/assets.json", params={"asset[key]": key})
         return data.get("asset", {})
 
-    def put_asset(self, theme_id: int | str, key: str, value: str) -> dict[str, Any]:
+    def put_asset(
+        self,
+        theme_id: int | str,
+        key: str,
+        value: str | None = None,
+        attachment: str | None = None,
+        src: str | None = None,
+    ) -> dict[str, Any]:
         """Create or update a theme asset."""
+        asset = {"key": key}
+        if value is not None:
+            asset["value"] = value
+        elif attachment is not None:
+            asset["attachment"] = attachment
+        elif src is not None:
+            asset["src"] = src
+        else:
+            raise ValueError("put_asset requires one of value, attachment, or src")
+
         resp = self._request("PUT", f"themes/{theme_id}/assets.json", json={
-            "asset": {"key": key, "value": value}
+            "asset": asset
         })
         return resp.json().get("asset", {})
 
@@ -1248,6 +1440,10 @@ class ShopifyClient:
         """List all asset keys for a theme."""
         data, _ = self._get_json(f"themes/{theme_id}/assets.json")
         return data.get("assets", [])
+
+    def delete_asset(self, theme_id: int | str, key: str) -> None:
+        """Delete a theme asset by key."""
+        self._request("DELETE", f"themes/{theme_id}/assets.json", params={"asset[key]": key})
 
     # --- REST: Smart Collections ---
 
@@ -1322,6 +1518,25 @@ class ShopifyClient:
         result = data["publishablePublish"]
         if result["userErrors"]:
             raise Exception(f"publishablePublish errors: {result['userErrors']}")
+        return result
+
+    def unpublish_resource(self, resource_id: str, publication_ids: list[str]) -> dict[str, Any]:
+        """Unpublish a resource from one or more sales channels."""
+        query = """
+        mutation publishableUnpublish($id: ID!, $input: [PublicationInput!]!) {
+          publishableUnpublish(id: $id, input: $input) {
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        pub_input = [{"publicationId": pid} for pid in publication_ids]
+        data = self._graphql(query, {"id": resource_id, "input": pub_input})
+        result = data["publishableUnpublish"]
+        if result["userErrors"]:
+            raise Exception(f"publishableUnpublish errors: {result['userErrors']}")
         return result
 
     # --- GraphQL: SEO meta tags ---
