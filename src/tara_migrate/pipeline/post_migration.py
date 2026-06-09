@@ -32,7 +32,6 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, save_json
 
-
 # Legacy redirect targets that no longer exist in the exported source catalog.
 # These still appear in historical Magento -> Shopify redirects and need to be
 # rewritten to the current English storefront routes.

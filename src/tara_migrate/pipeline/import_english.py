@@ -25,7 +25,6 @@ from tara_migrate.core import config, load_json, sanitize_rich_text_json, save_j
 from tara_migrate.core.failure_log import FailureLog
 from tara_migrate.core.utils import ascii_slugify as _ascii_slugify
 
-
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):

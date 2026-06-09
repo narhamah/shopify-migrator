@@ -33,13 +33,11 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from tara_migrate.client import ShopifyClient
-
+from tara_migrate.client import ShopifyClient  # noqa: E402
 
 PRODUCTS_QUERY = """
 query Products($pageSize: Int!, $currentPage: Int!) {

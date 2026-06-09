@@ -6,7 +6,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src
 
 from tara_migrate.pipeline.sync_live_translations import sync_live_source_arabic_translations
 
-
 if __name__ == "__main__":
     report = sync_live_source_arabic_translations()
     print(report)

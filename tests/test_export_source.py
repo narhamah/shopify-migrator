@@ -3,9 +3,7 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from tara_migrate.pipeline.export_source import ensure_dir, save_json, main
+from tara_migrate.pipeline.export_source import ensure_dir, main, save_json
 
 
 class TestEnsureDir:

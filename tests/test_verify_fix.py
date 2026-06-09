@@ -2,20 +2,17 @@
 import csv
 import json
 import os
-from unittest.mock import MagicMock, patch, call
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from tara_migrate.translation.verify_fix import (
     FIXABLE_STATUSES,
+    _validate_and_normalize_json,
     clean_csv,
     phase_audit,
     phase_fix,
     phase_verify,
     run_pipeline,
-    _validate_and_normalize_json,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

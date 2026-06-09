@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 
-
 ROOT = Path(__file__).resolve().parents[3]
 DATA_FILE = ROOT / "data" / "homepage_meta_locales.json"
 LEADING_COMMENT_RE = re.compile(r"^/\*.*?\*/\s*", re.S)

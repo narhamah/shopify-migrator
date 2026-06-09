@@ -1,17 +1,14 @@
 """Tests for Phase 2 feature modules: markets, shipping, flows, klaviyo."""
 from unittest.mock import MagicMock
 
-import pytest
-
-from tara_migrate.setup.setup_markets import setup_market
+from tara_migrate.pipeline.migrate_flows import rebuild_patterns
 from tara_migrate.pipeline.migrate_shipping import (
     _extract_zones,
     build_profile_input,
     migrate_shipping,
 )
-from tara_migrate.pipeline.migrate_flows import rebuild_patterns
+from tara_migrate.setup.setup_markets import setup_market
 from tara_migrate.tools.setup_klaviyo import KlaviyoClient, ensure_lists
-
 
 # --- setup_markets ---
 

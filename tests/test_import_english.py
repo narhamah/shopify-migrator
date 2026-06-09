@@ -1,18 +1,20 @@
 """Tests for import_english.py."""
 import json
 import os
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tara_migrate.pipeline.import_english import prepare_product_for_import, main
 from tara_migrate.core import load_json, save_json
-
+from tara_migrate.pipeline.import_english import main, prepare_product_for_import
 from tests.conftest import (
-    make_product, make_collection, make_page, make_blog, make_article,
-    make_metaobject, make_metaobjects_data, make_id_map,
+    make_article,
+    make_blog,
+    make_collection,
+    make_metaobjects_data,
+    make_page,
+    make_product,
 )
-
 
 # ---------------------------------------------------------------------------
 # Utility functions

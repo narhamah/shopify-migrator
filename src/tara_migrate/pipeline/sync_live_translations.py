@@ -16,7 +16,6 @@ from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, sanitize_rich_text_json, save_json
 from tara_migrate.core.graphql_queries import fetch_translatable_resources, upload_translations
 
-
 ARABIC_LOCALE = "ar"
 TRANSLATABLE_METAFIELD_TYPES = {
     "single_line_text_field",

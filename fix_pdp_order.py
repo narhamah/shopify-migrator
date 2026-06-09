@@ -15,7 +15,7 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import config, load_json, save_json
+from tara_migrate.core import config, load_json
 
 # Arabic Magento storefront base (overridable; no longer hardcoded to one store).
 MAGENTO_BASE = os.environ.get("MAGENTO_AR_SITE_URL", "https://taraformula.ae")

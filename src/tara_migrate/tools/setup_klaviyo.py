@@ -16,7 +16,6 @@ import argparse
 import os
 
 import requests
-
 from dotenv import load_dotenv
 
 from tara_migrate.core.logging import get_logger

@@ -1,19 +1,21 @@
 """Tests for setup_store.py."""
-import json
 import os
-from unittest.mock import MagicMock, patch, call
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from tara_migrate.setup.setup_store import (
-    DEFAULT_METAOBJECT_DEFINITIONS as METAOBJECT_DEFINITIONS,
-    DEFAULT_PRODUCT_METAFIELD_DEFINITIONS as PRODUCT_METAFIELD_DEFINITIONS,
     DEFAULT_ARTICLE_METAFIELD_DEFINITIONS as ARTICLE_METAFIELD_DEFINITIONS,
+)
+from tara_migrate.setup.setup_store import (
+    DEFAULT_METAOBJECT_DEFINITIONS as METAOBJECT_DEFINITIONS,
+)
+from tara_migrate.setup.setup_store import (
+    DEFAULT_PRODUCT_METAFIELD_DEFINITIONS as PRODUCT_METAFIELD_DEFINITIONS,
+)
+from tara_migrate.setup.setup_store import (
     _normalize_metafield_definition,
     _normalize_metaobject_field_definition,
     main,
 )
-
 
 # ---------------------------------------------------------------------------
 # Constants sanity checks

@@ -28,13 +28,14 @@ import os
 import re
 import sys
 import time
+from html.parser import HTMLParser
 
 import anthropic
 from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
 from tara_migrate.core import config
-from tara_migrate.core.rich_text import extract_text_nodes, rebuild, is_rich_text_json
+from tara_migrate.core.rich_text import extract_text_nodes, is_rich_text_json, rebuild
 from tara_migrate.tools.patch_spanish import is_spanish
 from tara_migrate.translation.translator import (
     ARTICLE_TRANSLATABLE_METAFIELDS,
@@ -106,8 +107,6 @@ TEXT_METAFIELD_TYPES = {
 # The theme's class/ID selectors (from fetch_theme_selectors()) are ground
 # truth for what belongs. When theme data isn't available, fall back to
 # stripping known Magento class patterns.
-
-from html.parser import HTMLParser
 
 # Void elements that don't have closing tags
 _VOID_ELEMENTS = frozenset({
@@ -1269,7 +1268,7 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                     if cleaned:
                         body = cleaned
                     else:
-                        print(f"    AI clean failed, falling back to regex")
+                        print("    AI clean failed, falling back to regex")
                         body = strip_html_bloat(body, theme_classes, theme_ids)
                 else:
                     body = strip_html_bloat(body, theme_classes, theme_ids)
@@ -1285,13 +1284,13 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                 if openai_client is None:
                     import openai
                     openai_client = openai.OpenAI()
-                print(f"    Translating Spanish -> English...")
+                print("    Translating Spanish -> English...")
                 translated = translate_spanish_to_english(body, openai_client, model=model)
                 if translated:
                     body = translated
                     print(f"    Translated OK ({len(body):,} chars)")
                 else:
-                    print(f"    Translation FAILED — skipping")
+                    print("    Translation FAILED — skipping")
                     failed += 1
                     continue
 
@@ -1319,7 +1318,7 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                     blog_id = item.get("blog_id")
                     client._request("PUT", f"blogs/{blog_id}/articles/{rid}.json",
                                     json={"article": {"id": rid, "body_html": body}})
-                print(f"    Updated on Shopify")
+                print("    Updated on Shopify")
                 fixed += 1
                 time.sleep(0.5)
             except Exception as e:
@@ -1336,7 +1335,7 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                 print(f"    Translating title: {title}")
                 translated = translate_plain_text(title, openai_client, model=model)
                 if not translated:
-                    print(f"    Translation FAILED — skipping")
+                    print("    Translation FAILED — skipping")
                     failed += 1
                     continue
                 print(f"    -> {translated}")
@@ -1346,7 +1345,7 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                         new_handle = _slugify(translated)
                         print(f"    [DRY RUN] Would update handle: {item['handle']} -> {new_handle}")
                     else:
-                        print(f"    [DRY RUN] Would update title")
+                        print("    [DRY RUN] Would update title")
                     fixed += 1
                     continue
 
@@ -1373,7 +1372,7 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                         mo_id = item["id"]  # GID
                         client.update_metaobject(mo_id, [], handle=new_handle)
                         print(f"    Handle: {item['handle']} -> {new_handle}")
-                    print(f"    Updated on Shopify")
+                    print("    Updated on Shopify")
                     fixed += 1
                     time.sleep(0.5)
                 except Exception as e:
@@ -1410,9 +1409,9 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                     translated = translate_plain_text(mf_value, openai_client, model=model)
                 if translated:
                     mf_value = translated
-                    print(f"    Translated OK")
+                    print("    Translated OK")
                 else:
-                    print(f"    Translation FAILED — skipping")
+                    print("    Translation FAILED — skipping")
                     failed += 1
                     continue
 
@@ -1474,9 +1473,9 @@ def apply_fixes(client, findings, dry_run=False, model="gpt-4o-mini", ai_clean=F
                     translated = translate_plain_text(tf_value, openai_client, model=model)
                 if translated:
                     tf_value = translated
-                    print(f"    Translated OK")
+                    print("    Translated OK")
                 else:
-                    print(f"    Translation FAILED — skipping")
+                    print("    Translation FAILED — skipping")
                     failed += 1
                     continue
 
@@ -1650,9 +1649,9 @@ def main():
     print("=" * 60)
     theme_classes, theme_ids = fetch_theme_selectors(client)
     if theme_classes is not None:
-        print(f"  Theme-aware mode: classes not in theme CSS will be stripped automatically")
+        print("  Theme-aware mode: classes not in theme CSS will be stripped automatically")
     else:
-        print(f"  Fingerprint-only mode: only known Magento patterns will be stripped")
+        print("  Fingerprint-only mode: only known Magento patterns will be stripped")
 
     # Fix
     print(f"\n{'='*60}")

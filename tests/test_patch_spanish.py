@@ -2,14 +2,11 @@
 
 import json
 
-import pytest
-
 from tara_migrate.tools.patch_spanish import (
-    is_spanish,
-    find_spanish_fields,
     _extract_text_from_richtext,
+    find_spanish_fields,
+    is_spanish,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # is_spanish — Function Word Detection (_ES_FUNCTION_WORDS)

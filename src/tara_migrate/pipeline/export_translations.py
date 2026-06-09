@@ -24,16 +24,13 @@ Usage:
 """
 
 import argparse
-import json
 import os
-import time
 
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import config, load_json, save_json
+from tara_migrate.core import config, save_json
 from tara_migrate.core.graphql_queries import TRANSLATABLE_RESOURCES_QUERY, paginate_query
-
 
 # Resource types that can carry translations
 RESOURCE_TYPES = [

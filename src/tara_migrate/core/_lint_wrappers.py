@@ -61,7 +61,6 @@ def find_fat_wrappers(root=".", threshold=MAX_WRAPPER_LINES, allowlist=None):
 
 
 def main():
-    import sys
     violations = find_fat_wrappers(".")
     if not violations:
         print("Wrapper lint: OK — all root scripts are thin.")

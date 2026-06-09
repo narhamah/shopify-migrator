@@ -427,7 +427,7 @@ def main():
         client, customers, dry_run=args.dry_run, batch_delay=args.delay
     )
 
-    print(f"\n--- Import Summary ---")
+    print("\n--- Import Summary ---")
     print(f"  Created:  {created}")
     print(f"  Skipped:  {skipped}")
     print(f"  Errors:   {errors}")

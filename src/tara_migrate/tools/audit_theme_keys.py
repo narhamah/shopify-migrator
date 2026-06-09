@@ -22,7 +22,6 @@ import argparse
 import json
 import os
 import re
-import sys
 import time
 from collections import Counter, defaultdict
 from urllib.parse import urlparse
@@ -336,16 +335,16 @@ def print_analysis(categories, reason_counts, fields):
     with_trans = sum(1 for f in fields if f["has_translation"])
 
     print(f"\n{'=' * 70}")
-    print(f"THEME TRANSLATION KEY AUDIT")
+    print("THEME TRANSLATION KEY AUDIT")
     print(f"{'=' * 70}")
     print(f"  Total translatable fields:  {total}")
     print(f"  With Arabic translation:    {with_trans}")
     print(f"  Without translation:        {total - with_trans}")
-    print(f"  Shopify limit:              ~3,400")
+    print("  Shopify limit:              ~3,400")
     print(f"  Over limit by:              ~{max(0, total - 3400)}")
 
     print(f"\n{'─' * 70}")
-    print(f"CLASSIFICATION")
+    print("CLASSIFICATION")
     print(f"{'─' * 70}")
     for cat in ["useful", "shopify_platform", "theme_locale", "junk", "review"]:
         items = categories.get(cat, [])
@@ -365,15 +364,15 @@ def print_analysis(categories, reason_counts, fields):
     print(f"\n  Need API slots:             {need_api} "
           f"(useful + shopify_platform)")
     print(f"  Removable (locale + junk):  {removable}")
-    print(f"  Shopify limit:              ~3,400")
+    print("  Shopify limit:              ~3,400")
     if need_api <= 3400:
-        print(f"  --> UNDER the limit!")
+        print("  --> UNDER the limit!")
     else:
         over = need_api - 3400
         print(f"  --> {over} OVER the limit. Run --remove-junk first.")
 
     print(f"\n{'─' * 70}")
-    print(f"BREAKDOWN BY REASON")
+    print("BREAKDOWN BY REASON")
     print(f"{'─' * 70}")
     for reason, count in reason_counts.most_common():
         print(f"  {count:>5}  {reason}")
@@ -390,7 +389,7 @@ def print_analysis(categories, reason_counts, fields):
         print(f"\n{'─' * 70}")
         print(f"SHOPIFY PLATFORM KEYS ({len(platform)} total, "
               f"{plat_with_t} translated, {len(platform) - plat_with_t} missing)")
-        print(f"  These need --translate (checkout, accounts, etc.)")
+        print("  These need --translate (checkout, accounts, etc.)")
         print(f"{'─' * 70}")
         for prefix, count in sorted(by_prefix.items(), key=lambda x: -x[1]):
             print(f"  {count:>5}  {prefix}.*")
@@ -402,8 +401,8 @@ def print_analysis(categories, reason_counts, fields):
         print(f"\n{'─' * 70}")
         print(f"THEME LOCALE KEYS ({len(locale_keys)} total, "
               f"{loc_with_t} with API translations)")
-        print(f"  Covered by ar.json (--populate-locale). "
-              f"API translations are redundant.")
+        print("  Covered by ar.json (--populate-locale). "
+              "API translations are redundant.")
         print(f"{'─' * 70}")
 
     # Show junk keys that HAVE translations (removal candidates)
@@ -490,7 +489,7 @@ def analyze_duplicates(fields):
     wasted_keys = sum(len(flds) - 1 for _, flds in sorted_dupes)
 
     print(f"\n{'=' * 70}")
-    print(f"DUPLICATE ANALYSIS (section.* keys only)")
+    print("DUPLICATE ANALYSIS (section.* keys only)")
     print(f"{'=' * 70}")
     print(f"  Total section keys:         {total_section}")
     print(f"  Unique English values:      {unique_values}")
@@ -502,7 +501,7 @@ def analyze_duplicates(fields):
 
     if sorted_dupes:
         print(f"\n{'─' * 70}")
-        print(f"TOP DUPLICATED STRINGS")
+        print("TOP DUPLICATED STRINGS")
         print(f"{'─' * 70}")
         for val, flds in sorted_dupes[:25]:
             val_preview = val[:55] if len(val) <= 55 else val[:52] + "..."
@@ -546,7 +545,7 @@ def analyze_sections(fields):
     sorted_templates = sorted(by_template.items(), key=lambda x: -len(x[1]))
 
     print(f"\n{'=' * 70}")
-    print(f"SECTION KEYS BY TEMPLATE")
+    print("SECTION KEYS BY TEMPLATE")
     print(f"{'=' * 70}")
     print(f"  Total section.* keys: {len(section_fields)}")
     print(f"  Across {len(by_template)} templates")
@@ -567,7 +566,7 @@ def analyze_sections(fields):
 
     # Identify templates with the most "useful" (translatable text) keys
     print(f"\n{'─' * 70}")
-    print(f"TEMPLATES WITH MOST TRANSLATABLE TEXT (candidates to move to metaobjects)")
+    print("TEMPLATES WITH MOST TRANSLATABLE TEXT (candidates to move to metaobjects)")
     print(f"{'─' * 70}")
     template_useful = []
     for template, flds in sorted_templates:
@@ -630,10 +629,10 @@ def dedup_translations(client, fields, dry_run=False, locale=LOCALE):
         return 0, 0
 
     print(f"\n{'=' * 70}")
-    print(f"DEDUP TRANSLATIONS" + (" (DRY RUN)" if dry_run else ""))
+    print("DEDUP TRANSLATIONS" + (" (DRY RUN)" if dry_run else ""))
     print(f"{'=' * 70}")
     print(f"  Duplicate Arabic translations: {len(to_remove)}")
-    print(f"  (keeping 1 per unique English string, removing extras)")
+    print("  (keeping 1 per unique English string, removing extras)")
 
     if dry_run:
         # Show top examples
@@ -641,10 +640,10 @@ def dedup_translations(client, fields, dry_run=False, locale=LOCALE):
         for f in to_remove:
             val = (f["english"] or "")[:50]
             examples[val] += 1
-        print(f"\n  Sample strings being deduplicated:")
+        print("\n  Sample strings being deduplicated:")
         for val, count in sorted(examples.items(), key=lambda x: -x[1])[:15]:
             print(f"    {count + 1:>3}x → keep 1, remove {count}: {val!r}")
-        print(f"\n  (Dry run — no changes made)")
+        print("\n  (Dry run — no changes made)")
         return 0, 0
 
     removed, errors = remove_translations(client, to_remove, dry_run=False,
@@ -680,7 +679,7 @@ def clean_locale_file(client, dry_run=False):
 
     # Fetch ar.json
     print(f"\n{'=' * 70}")
-    print(f"CLEAN LOCALE FILE (ar.json)" + (" (DRY RUN)" if dry_run else ""))
+    print("CLEAN LOCALE FILE (ar.json)" + (" (DRY RUN)" if dry_run else ""))
     print(f"{'=' * 70}")
 
     try:
@@ -805,7 +804,7 @@ def clean_locale_file(client, dry_run=False):
     print(f"  Keys remaining after: {len(ar_flat) - len(to_remove_keys)}")
 
     if dry_run:
-        print(f"\n  (Dry run — no changes made)")
+        print("\n  (Dry run — no changes made)")
         return
 
     # Rebuild locale dict without junk keys
@@ -883,7 +882,7 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
         return 0, 0, 0
 
     print(f"\n{'=' * 70}")
-    print(f"TRANSLATE THEME KEYS" + (" (DRY RUN)" if dry_run else ""))
+    print("TRANSLATE THEME KEYS" + (" (DRY RUN)" if dry_run else ""))
     print(f"{'=' * 70}")
     print(f"  Keys needing Arabic translation: {len(to_translate)}")
 
@@ -897,7 +896,7 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
         print(f"    {prefix}: {count}")
 
     if dry_run:
-        print(f"\n  Sample keys to translate:")
+        print("\n  Sample keys to translate:")
         for f in to_translate[:20]:
             en = f["english"][:60]
             print(f"    [{f['key'][:50]}]")
@@ -1001,14 +1000,14 @@ def translate_theme_keys(client, fields, model="gpt-5-nano", dry_run=False,
         if not hit_limit and total_uploaded % 100 < 10:
             print(f"    ... uploaded {total_uploaded} so far")
 
-    print(f"\n  RESULTS:")
+    print("\n  RESULTS:")
     print(f"    Translated: {len(t_map)}")
     print(f"    Uploaded:   {total_uploaded}")
     if total_errors:
         print(f"    Errors:     {total_errors}")
     if hit_limit:
-        print(f"    WARNING: Hit Shopify's ~3,400 key limit!")
-        print(f"    Run --remove-junk first to free up slots, then --translate again.")
+        print("    WARNING: Hit Shopify's ~3,400 key limit!")
+        print("    Run --remove-junk first to free up slots, then --translate again.")
 
     return len(t_map), total_uploaded, total_errors
 
@@ -1040,7 +1039,7 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
         return
 
     print(f"\n{'=' * 70}")
-    print(f"POPULATE LOCALE FILE (ar.json)" + (" (DRY RUN)" if dry_run else ""))
+    print("POPULATE LOCALE FILE (ar.json)" + (" (DRY RUN)" if dry_run else ""))
     print(f"{'=' * 70}")
 
     # Fetch en.default.json
@@ -1089,7 +1088,7 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
         missing[key] = str(en_val)
 
     if force:
-        print(f"  FORCE MODE: Re-translating ALL keys (overwriting existing Arabic)")
+        print("  FORCE MODE: Re-translating ALL keys (overwriting existing Arabic)")
     print(f"  Already translated:             {already_translated}")
     print(f"  To translate:                   {len(missing)}")
 
@@ -1126,12 +1125,12 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
         parts = key.split(".")
         prefix = parts[0] if parts else "unknown"
         by_prefix[prefix] += 1
-    print(f"\n  Keys by namespace:")
+    print("\n  Keys by namespace:")
     for prefix, count in by_prefix.most_common():
         print(f"    {prefix}: {count}")
 
     if dry_run:
-        print(f"\n  Sample keys to translate:")
+        print("\n  Sample keys to translate:")
         for i, (key, val) in enumerate(to_translate.items()):
             if i >= 25:
                 print(f"    ... and {len(to_translate) - 25} more")
@@ -1244,7 +1243,7 @@ def populate_locale(client, model="gpt-5-nano", reasoning="minimal",
 
     # Summary
     final_flat = flatten(merged)
-    print(f"\n  RESULTS:")
+    print("\n  RESULTS:")
     print(f"    English keys:        {len(en_flat)}")
     print(f"    Arabic keys before:  {len(ar_flat)}")
     print(f"    Arabic keys after:   {len(final_flat)}")
@@ -1272,7 +1271,7 @@ def populate_schema(client, model="gpt-5-nano", reasoning="minimal",
         return
 
     print(f"\n{'=' * 70}")
-    print(f"POPULATE SCHEMA FILE (ar.schema.json)"
+    print("POPULATE SCHEMA FILE (ar.schema.json)"
           + (" (DRY RUN)" if dry_run else ""))
     print(f"{'=' * 70}")
 
@@ -1322,7 +1321,7 @@ def populate_schema(client, model="gpt-5-nano", reasoning="minimal",
         missing[key] = str(en_val)
 
     if force:
-        print(f"  FORCE MODE: Re-translating ALL schema keys")
+        print("  FORCE MODE: Re-translating ALL schema keys")
     print(f"  Already translated:  {already_translated}")
     print(f"  To translate:        {len(missing)}")
 
@@ -1359,12 +1358,12 @@ def populate_schema(client, model="gpt-5-nano", reasoning="minimal",
         parts = key.split(".")
         prefix = parts[0] if parts else "unknown"
         by_prefix[prefix] += 1
-    print(f"\n  Keys by namespace:")
+    print("\n  Keys by namespace:")
     for prefix, count in by_prefix.most_common():
         print(f"    {prefix}: {count}")
 
     if dry_run:
-        print(f"\n  Sample keys to translate:")
+        print("\n  Sample keys to translate:")
         for i, (key, val) in enumerate(to_translate.items()):
             if i >= 25:
                 print(f"    ... and {len(to_translate) - 25} more")
@@ -1465,7 +1464,7 @@ def populate_schema(client, model="gpt-5-nano", reasoning="minimal",
 
     # Summary
     final_flat = flatten(merged)
-    print(f"\n  RESULTS:")
+    print("\n  RESULTS:")
     print(f"    English schema keys:  {len(en_flat)}")
     print(f"    Arabic keys before:   {len(ar_flat)}")
     print(f"    Arabic keys after:    {len(final_flat)}")
@@ -1818,11 +1817,13 @@ def build_lookup_table(base_url="https://sa.taraformula.com",
 
     # Import crawl helpers from sibling module
     from tara_migrate.tools.crawl_and_translate import (
-        EXTRACT_ALL_TEXT_JS, EXPAND_INTERACTIVE_JS, EXTRACT_LINKS_JS,
+        EXPAND_INTERACTIVE_JS,
+        EXTRACT_ALL_TEXT_JS,
+        EXTRACT_LINKS_JS,
     )
 
     print(f"\n{'=' * 70}")
-    print(f"BUILD SITE LOOKUP TABLE")
+    print("BUILD SITE LOOKUP TABLE")
     print(f"{'=' * 70}")
     print(f"  Base URL:   {base_url}")
     print(f"  Max pages:  {max_pages}")
@@ -1992,7 +1993,7 @@ def verify_keys_against_lookup(fields, lookup_file="data/site_lookup.json",
 
     site_texts = lookup_data.get("texts", {})
     print(f"\n{'=' * 70}")
-    print(f"VERIFY KEYS AGAINST SITE LOOKUP")
+    print("VERIFY KEYS AGAINST SITE LOOKUP")
     print(f"{'=' * 70}")
     print(f"  Lookup: {lookup_file}")
     print(f"  Site texts:  {len(site_texts)}")
@@ -2038,7 +2039,7 @@ def verify_keys_against_lookup(fields, lookup_file="data/site_lookup.json",
         })
 
     # Print summary
-    print(f"\n  RESULTS:")
+    print("\n  RESULTS:")
     for verdict in ["visible", "not_visible", "non_text", "empty"]:
         count = stats.get(verdict, 0)
         pct = 100 * count / len(fields) if fields else 0
@@ -2057,7 +2058,7 @@ def verify_keys_against_lookup(fields, lookup_file="data/site_lookup.json",
         for r in visible:
             prefix = r["key"].split(".")[0]
             by_prefix[prefix] += 1
-        print(f"\n  VISIBLE keys by namespace:")
+        print("\n  VISIBLE keys by namespace:")
         for prefix, count in by_prefix.most_common():
             print(f"    {prefix}: {count}")
 
@@ -2067,7 +2068,7 @@ def verify_keys_against_lookup(fields, lookup_file="data/site_lookup.json",
                  and r["has_translation"]]
     if removable:
         print(f"\n  Keys with translations that are NOT visible: {len(removable)}")
-        print(f"  (These could be removed to free API slots)")
+        print("  (These could be removed to free API slots)")
 
     # Save full results
     os.makedirs(os.path.dirname(output) or "data", exist_ok=True)
@@ -2080,7 +2081,7 @@ def verify_keys_against_lookup(fields, lookup_file="data/site_lookup.json",
             "fields": results,
         }, f, indent=2, ensure_ascii=False)
     print(f"\n  Full report: {output}")
-    print(f"  Review this file to confirm verdicts before taking action.")
+    print("  Review this file to confirm verdicts before taking action.")
 
 
 def _normalize_for_lookup(text):
@@ -2334,7 +2335,7 @@ def main():
     if args.verify_keys:
         if not os.path.exists(args.lookup_file):
             print(f"ERROR: Lookup file not found: {args.lookup_file}")
-            print(f"  Run --build-lookup first to crawl the site.")
+            print("  Run --build-lookup first to crawl the site.")
             return
         verify_keys_against_lookup(fields, lookup_file=args.lookup_file)
         return
@@ -2395,7 +2396,7 @@ def main():
         useful_count = registered - len(to_remove)
 
         print(f"\n{'=' * 70}")
-        print(f"REMOVE JUNK + SYSTEM TRANSLATIONS"
+        print("REMOVE JUNK + SYSTEM TRANSLATIONS"
               + (" (DRY RUN)" if args.dry_run else ""))
         print(f"{'=' * 70}")
         print(f"  Total registered:    {registered}")
@@ -2410,7 +2411,7 @@ def main():
             print(f"    {cat}: {count}")
 
         if args.dry_run:
-            print(f"\n  (Dry run — no changes made)")
+            print("\n  (Dry run — no changes made)")
             return
 
         removed, errors = remove_translations(client, to_remove, dry_run=False)

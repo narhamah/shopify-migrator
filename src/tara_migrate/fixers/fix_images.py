@@ -30,9 +30,8 @@ import time
 import requests as http_requests
 from dotenv import load_dotenv
 
-from tara_migrate.core import AR_DIR, EN_DIR, REQUEST_DELAY, load_json, save_json
+from tara_migrate.core import AR_DIR, EN_DIR, REQUEST_DELAY, config, load_json, save_json
 from tara_migrate.core import MAGENTO_HEADERS as HEADERS
-from tara_migrate.core import config
 
 
 def magento_gql(session, site_url, query, store_code, retries=3):

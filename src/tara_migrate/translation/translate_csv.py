@@ -20,33 +20,31 @@ Usage (library):
 
 import argparse
 import csv
-import hashlib
 import json
 import os
 import re
 import sys
 import time
 
+from tara_migrate.core import config
 from tara_migrate.core.csv_utils import (
     ARABIC_LOCALE,
     CSV_TYPE_TO_GID,
-    NEEDS_PARENT_RESOLUTION,
     SKIP_TYPES,
     is_keep_as_is,
     is_non_translatable,
 )
 from tara_migrate.core.language import has_arabic
 from tara_migrate.core.rich_text import (
+    extract_text,
     extract_text_nodes,
     is_rich_text_json,
-    extract_text,
     rebuild,
     sanitize,
     validate_structure,
 )
 from tara_migrate.translation.engine import load_developer_prompt
 from tara_migrate.translation.toon import DELIM, from_toon, to_toon
-from tara_migrate.core import config
 
 try:
     import tiktoken
@@ -985,7 +983,7 @@ def _translate_batch_responses_api(client, model, fields, developer_prompt,
                 print(f"    Retrying in {wait:.0f}s...")
                 time.sleep(wait)
 
-    print(f"    FAILED after 4 attempts")
+    print("    FAILED after 4 attempts")
     return {}, 0
 
 
@@ -1931,7 +1929,7 @@ def translate_csv(
     skip = cats["skip"]
     fix_bad = cats["fix_bad"]
 
-    print(f"\nBreakdown:")
+    print("\nBreakdown:")
     print(f"  From original CSV (already done):  {len(from_csv)}")
     print(f"  From previous run (resuming):      {len(from_previous)}")
     print(f"  Keep as-is (URLs/images/config):   {len(keep_as_is)}")
@@ -2004,7 +2002,7 @@ def translate_csv(
         print("\nFields by type:")
         for t, c in by_type.most_common():
             print(f"  {t}: {c}")
-        print(f"\nSample fields:")
+        print("\nSample fields:")
         for idx in to_translate[:20]:
             r = rows[idx]
             existing = r.get("Translated content", "").strip()

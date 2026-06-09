@@ -33,7 +33,7 @@ def compare_definitions(spain, saudi):
           field_diffs: dict of {type: {missing_fields: [...], type_mismatches: [...]}}
           matching: list of types that match perfectly
     """
-    source_defs = source.get_metaobject_definitions()
+    source_defs = spain.get_metaobject_definitions()
     saudi_defs = saudi.get_metaobject_definitions()
 
     spain_by_type = {d["type"]: d for d in source_defs}
@@ -104,7 +104,7 @@ def compare_entries(spain, saudi, mo_type, id_map):
           unmapped: list of {id, handle} in Spain with no mapping
           orphaned_in_saudi: list of handles in Saudi not matching any Spain entry
     """
-    spain_entries = source.get_metaobjects(mo_type)
+    spain_entries = spain.get_metaobjects(mo_type)
     saudi_entries = saudi.get_metaobjects(mo_type)
 
     spain_by_handle = {e["handle"]: e for e in spain_entries}
@@ -604,11 +604,11 @@ def main():
     dest_url = config.get_dest_shop_url()
     dest_token = config.get_dest_access_token()
 
-    if not all([source_url, source_token, dest_url, saudi_token]):
+    if not all([source_url, source_token, dest_url, dest_token]):
         print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         return
 
-    source = ShopifyClient(source_url, source_token)
+    spain = ShopifyClient(source_url, source_token)
     saudi = ShopifyClient(dest_url, dest_token)
 
     id_map = load_json("data/id_map.json") if os.path.exists("data/id_map.json") else {}

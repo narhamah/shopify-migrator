@@ -15,7 +15,7 @@ import time
 from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import config, load_json, save_json
+from tara_migrate.core import config, load_json
 
 # Arabic Magento storefront base (overridable; no longer hardcoded to one store).
 MAGENTO_BASE = os.environ.get("MAGENTO_AR_SITE_URL", "https://taraformula.ae")
@@ -176,7 +176,7 @@ def main():
                 print(f"    WARNING: still missing AR {fname}")
 
         if not en_gids:
-            print(f"    ERROR: No EN GIDs resolved — skipping")
+            print("    ERROR: No EN GIDs resolved — skipping")
             error_count += 1
             continue
 
@@ -209,7 +209,7 @@ def main():
                         break
 
                 if not digest:
-                    print(f"    WARNING: No digest — skipping AR translation")
+                    print("    WARNING: No digest — skipping AR translation")
                 else:
                     client.register_translations(mf_gid, "ar", [{
                         "locale": "ar",
@@ -222,7 +222,7 @@ def main():
                 print(f"    ERROR registering AR: {e}")
                 error_count += 1
         else:
-            print(f"    No AR images (neutral-only product)")
+            print("    No AR images (neutral-only product)")
 
         fix_count += 1
         time.sleep(0.3)

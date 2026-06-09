@@ -214,7 +214,7 @@ def main():
                     print(f"    AR missing: {mf['fname']}")
 
     save_json(results, "data/pdp_audit_results.json")
-    print(f"\nSaved to data/pdp_audit_results.json")
+    print("\nSaved to data/pdp_audit_results.json")
 
 
 if __name__ == "__main__":

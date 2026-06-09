@@ -15,7 +15,6 @@ Usage:
 """
 
 import argparse
-import os
 import time
 
 from dotenv import load_dotenv
@@ -191,7 +190,7 @@ def main():
     dest_url = config.get_dest_shop_url()
     dest_token = config.get_dest_access_token()
 
-    if not dest_url or not saudi_token:
+    if not dest_url or not dest_token:
         print("ERROR: Set DEST_SHOP_URL and DEST_ACCESS_TOKEN in .env")
         return
 
@@ -200,7 +199,7 @@ def main():
     print("=" * 60)
     print("ENABLE INGREDIENT PAGES")
     print("=" * 60)
-    print(f"  Store: {saudi_url}")
+    print(f"  Store: {dest_url}")
     print(f"  Mode: {'DRY RUN' if args.dry_run else 'LIVE'}")
 
     enable_renderable(saudi, args.dry_run)

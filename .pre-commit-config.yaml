@@ -10,7 +10,7 @@ repos:
 
       - id: thin-wrappers
         name: Root scripts must be thin wrappers
-        entry: python -m tara_migrate.core._lint_wrappers
+        entry: python scripts/lint_wrappers.py
         language: system
         pass_filenames: false
         always_run: true

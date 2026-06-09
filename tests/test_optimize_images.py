@@ -1,10 +1,9 @@
 """Tests for optimize_images.py."""
 import io
 
-import pytest
 from PIL import Image
 
-from tara_migrate.tools.optimize_images import optimize_image, download_and_optimize, _guess_mime
+from tara_migrate.tools.optimize_images import _guess_mime, download_and_optimize, optimize_image
 
 
 def _make_image_bytes(fmt="PNG", size=(100, 100), mode="RGB"):

@@ -16,7 +16,6 @@ from pathlib import Path
 
 from tara_migrate.client.shopify_client import ShopifyClient
 
-
 PAYLOAD_PATH = Path("data/uae/policies_bilingual_gpt41.json")
 
 

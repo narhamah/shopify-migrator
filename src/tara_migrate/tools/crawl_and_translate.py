@@ -26,13 +26,11 @@ from dotenv import load_dotenv
 
 from tara_migrate.client.shopify_client import ShopifyClient
 from tara_migrate.core import config
-from tara_migrate.core.language import is_arabic_visible_text
 from tara_migrate.tools.audit_theme_keys import (
-    fetch_theme_keys,
     analyze_keys,
     classify_key,
+    fetch_theme_keys,
     remove_translations,
-    REMOVE_TRANSLATIONS_MUTATION,
 )
 
 LOCALE = "ar"
@@ -374,7 +372,7 @@ def crawl_arabic_site(page, base_url, locale_prefix="/ar", max_pages=200,
             if len(page_english) > 5:
                 print(f"      ... and {len(page_english) - 5} more")
         else:
-            print(f"    All text appears Arabic ✓")
+            print("    All text appears Arabic ✓")
 
         all_english_texts.extend(page_english)
 
@@ -386,7 +384,7 @@ def crawl_arabic_site(page, base_url, locale_prefix="/ar", max_pages=200,
 
     # If checkout requested, try to reach checkout
     if include_checkout:
-        print(f"\n  Attempting checkout crawl...")
+        print("\n  Attempting checkout crawl...")
         # First visit a product page and add to cart
         product_pages = [url for url in visited if '/products/' in url]
         if product_pages:
@@ -507,7 +505,7 @@ def crawl_checkout_only(page, base_url):
                 if len(page_english) > 8:
                     print(f"      ... and {len(page_english) - 8} more")
             else:
-                print(f"    All text appears Arabic ✓")
+                print("    All text appears Arabic ✓")
 
             all_english_texts.extend(page_english)
             visited.add(url)
@@ -516,7 +514,7 @@ def crawl_checkout_only(page, base_url):
             print(f"    ERROR: {e}")
 
     # Step 1: Visit a product page and add to cart so checkout is reachable
-    print(f"\n  Adding a product to cart...")
+    print("\n  Adding a product to cart...")
     collections_url = f"{base_url.rstrip('/')}/ar/collections/all"
     try:
         page.goto(collections_url, wait_until="networkidle", timeout=20000)
@@ -531,12 +529,12 @@ def crawl_checkout_only(page, base_url):
             time.sleep(1)
             added = page.evaluate(ADD_TO_CART_JS)
             if added:
-                print(f"    Added to cart ✓")
+                print("    Added to cart ✓")
                 time.sleep(2)
             else:
-                print(f"    Could not add to cart (may still work with empty cart)")
+                print("    Could not add to cart (may still work with empty cart)")
         else:
-            print(f"    No product found (proceeding with empty cart)")
+            print("    No product found (proceeding with empty cart)")
     except Exception as e:
         print(f"    Product/cart setup error: {e} (proceeding anyway)")
 
@@ -674,7 +672,7 @@ def translate_and_upload(client, matched_keys, model="gpt-5-nano",
         to_translate.append(f)
 
     print(f"\n{'=' * 70}")
-    print(f"TRANSLATION PLAN" + (" (DRY RUN)" if dry_run else ""))
+    print("TRANSLATION PLAN" + (" (DRY RUN)" if dry_run else ""))
     print(f"{'=' * 70}")
     print(f"  Matched keys:                {len(matched_keys)}")
     print(f"  Already have Arabic:         {already_translated}")
@@ -685,7 +683,7 @@ def translate_and_upload(client, matched_keys, model="gpt-5-nano",
         return 0, 0, 0
 
     # Show sample
-    print(f"\n  Sample keys to translate:")
+    print("\n  Sample keys to translate:")
     for f in to_translate[:15]:
         en = f["english"][:60]
         print(f"    {f['key'][:50]}")
@@ -775,9 +773,9 @@ def translate_and_upload(client, matched_keys, model="gpt-5-nano",
                         msg = ue["message"]
                         print(f"    ERROR: {msg}")
                         if "Too many translation keys" in msg:
-                            print(f"\n    HIT SHOPIFY KEY LIMIT!")
-                            print(f"    Run: python audit_theme_keys.py --remove-junk")
-                            print(f"    Then re-run this script.")
+                            print("\n    HIT SHOPIFY KEY LIMIT!")
+                            print("    Run: python audit_theme_keys.py --remove-junk")
+                            print("    Then re-run this script.")
                             return len(t_map), total_uploaded, total_errors
                     total_errors += len(batch)
                 else:
@@ -829,7 +827,7 @@ def remove_unmatched_translations(client, theme_fields, matched_keys,
         return 0
 
     print(f"\n{'=' * 70}")
-    print(f"REMOVE UNMATCHED TRANSLATIONS" + (" (DRY RUN)" if dry_run else ""))
+    print("REMOVE UNMATCHED TRANSLATIONS" + (" (DRY RUN)" if dry_run else ""))
     print(f"{'=' * 70}")
     print(f"  Translations to remove (not visible on site): {len(to_remove)}")
 
@@ -967,7 +965,7 @@ def main():
             json.dump(crawl_data, f, ensure_ascii=False, indent=2)
 
         print(f"\n{'─' * 70}")
-        print(f"  CRAWL COMPLETE")
+        print("  CRAWL COMPLETE")
         print(f"  Pages visited:      {len(visited)}")
         print(f"  English strings:    {len(scraped)}")
         print(f"  Saved to:           {crawl_file}")
@@ -976,13 +974,13 @@ def main():
             # Show unique texts summary
             unique = set(t["text"] for t in scraped)
             print(f"  Unique strings:     {len(unique)}")
-            print(f"\n  Sample English strings found:")
+            print("\n  Sample English strings found:")
             for text in sorted(unique)[:30]:
                 print(f"    {text[:100]}")
             return
 
     # ── Step 2: Fetch theme keys ──────────────────────────────────────────
-    print(f"\n  STEP 2: Fetching theme translation keys from Shopify")
+    print("\n  STEP 2: Fetching theme translation keys from Shopify")
 
     if os.path.exists(keys_file) and args.skip_crawl:
         # Reuse cached keys if also skipping crawl
@@ -1010,19 +1008,19 @@ def main():
     print(f"  Junk:                   {len(categories['junk'])}")
 
     # ── Step 3: Match ─────────────────────────────────────────────────────
-    print(f"\n  STEP 3: Matching scraped strings to theme keys")
+    print("\n  STEP 3: Matching scraped strings to theme keys")
 
     matched_keys, unmatched_texts = match_scraped_to_keys(scraped, theme_fields)
 
     print(f"\n{'─' * 70}")
-    print(f"  MATCH RESULTS")
+    print("  MATCH RESULTS")
     print(f"{'─' * 70}")
     print(f"  Scraped English strings:  {len(scraped)}")
     print(f"  Matched to theme keys:    {len(matched_keys)}")
     print(f"  Unmatched (not in theme): {len(unmatched_texts)}")
 
     if unmatched_texts:
-        print(f"\n  Unmatched strings (may be from product/collection content, not theme):")
+        print("\n  Unmatched strings (may be from product/collection content, not theme):")
         for item in unmatched_texts[:20]:
             print(f"    [{item.get('tag', '?'):10s}] {item['text'][:80]}")
             print(f"      URL: {item.get('path', '?')}")
@@ -1030,7 +1028,7 @@ def main():
             print(f"    ... and {len(unmatched_texts) - 20} more")
 
     if matched_keys:
-        print(f"\n  Matched theme keys sample:")
+        print("\n  Matched theme keys sample:")
         for f in matched_keys[:10]:
             has_ar = "✓ AR" if f.get("has_translation") else "NO AR"
             print(f"    [{has_ar:>5}] {f['key'][:50]}")
@@ -1065,7 +1063,7 @@ def main():
                                        dry_run=args.dry_run)
 
     # ── Step 5: Translate matched keys ────────────────────────────────────
-    print(f"\n  STEP 4: Translating matched keys")
+    print("\n  STEP 4: Translating matched keys")
 
     translated, uploaded, errors = translate_and_upload(
         client, matched_keys, model=args.model, dry_run=args.dry_run,
@@ -1073,7 +1071,7 @@ def main():
 
     # ── Summary ───────────────────────────────────────────────────────────
     print(f"\n{'=' * 70}")
-    print(f"PIPELINE COMPLETE" + (" (DRY RUN)" if args.dry_run else ""))
+    print("PIPELINE COMPLETE" + (" (DRY RUN)" if args.dry_run else ""))
     print(f"{'=' * 70}")
     print(f"  Pages crawled:            {crawl_data.get('pages_visited', '?')}")
     print(f"  English strings found:    {len(scraped)}")
@@ -1083,7 +1081,7 @@ def main():
     if errors:
         print(f"  Errors:                   {errors}")
     print(f"\n  Unmatched strings: {len(unmatched_texts)}")
-    print(f"  (These may be product/collection content — use review_arabic.py for those)")
+    print("  (These may be product/collection content — use review_arabic.py for those)")
 
 
 if __name__ == "__main__":

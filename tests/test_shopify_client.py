@@ -1,13 +1,10 @@
 """Tests for shopify_client.py — ShopifyClient class."""
-import io
-import json
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
-from tara_migrate.client import ShopifyClient, API_VERSION
-
+from tara_migrate.client import API_VERSION, ShopifyClient
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -1093,7 +1090,7 @@ class TestPublications:
 # Cost-based throttling, auth errors, and scope verification (hardening)
 # ---------------------------------------------------------------------------
 
-from tara_migrate.client import GraphQLThrottled, GraphQLAuthError  # noqa: E402
+from tara_migrate.client import GraphQLAuthError, GraphQLThrottled  # noqa: E402
 
 
 class TestGraphQLThrottling:

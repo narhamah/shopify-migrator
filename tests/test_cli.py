@@ -2,8 +2,6 @@
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tara_migrate import cli
 from tara_migrate.core._lint_wrappers import find_fat_wrappers
 

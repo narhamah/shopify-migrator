@@ -27,9 +27,12 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import load_json, sanitize_rich_text_json, save_json
 from tara_migrate.core.config import (
-    AR_DIR, EN_DIR, ID_MAP_FILE,
-    get_ar_dir, get_en_dir, get_id_map_file, get_progress_file,
-    get_dest_access_token, get_dest_shop_url,
+    get_ar_dir,
+    get_dest_access_token,
+    get_dest_shop_url,
+    get_en_dir,
+    get_id_map_file,
+    get_progress_file,
 )
 from tara_migrate.core.graphql_queries import (
     FETCH_PRODUCTS_QUERY,

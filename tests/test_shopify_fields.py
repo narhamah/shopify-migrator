@@ -1,15 +1,12 @@
 """Tests for shopify_fields — field/value classification for translation pipelines."""
 
-import pytest
 
 from tara_migrate.core.shopify_fields import (
-    SKIP_FIELD_PATTERNS,
     TEXT_METAFIELD_TYPES,
     TRANSLATABLE_RESOURCE_TYPES,
     is_skippable_field,
     is_skippable_value,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SKIP_FIELD_PATTERNS — is_skippable_field()

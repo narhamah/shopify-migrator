@@ -7,7 +7,6 @@ import re
 
 import requests
 
-
 HEADERS = {"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
 BASE = "https://taraformula.ae"
 EDITOR = "https://tara-product-editor-production.up.railway.app"

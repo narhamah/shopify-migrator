@@ -1,9 +1,7 @@
 """Shared fixtures for the shopify-migrator test suite."""
-import json
 import os
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Test isolation

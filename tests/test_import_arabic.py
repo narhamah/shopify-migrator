@@ -3,8 +3,7 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
+from tara_migrate.core import load_json, save_json
 from tara_migrate.pipeline.import_arabic import (
     ARABIC_LOCALE,
     _is_untranslated,
@@ -18,12 +17,13 @@ from tara_migrate.pipeline.import_arabic import (
     build_translation_inputs,
     main,
 )
-from tara_migrate.core import load_json, save_json
 from tests.conftest import (
-    make_product, make_collection, make_page, make_article,
-    make_blog, make_id_map, make_metaobjects_data,
+    make_article,
+    make_collection,
+    make_id_map,
+    make_page,
+    make_product,
 )
-
 
 # ---------------------------------------------------------------------------
 # Utility functions

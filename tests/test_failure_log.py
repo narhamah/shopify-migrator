@@ -1,5 +1,4 @@
 """Tests for core.failure_log."""
-import json
 
 from tara_migrate.core.failure_log import FailureLog
 

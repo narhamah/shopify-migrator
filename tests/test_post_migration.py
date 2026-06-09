@@ -1,23 +1,21 @@
 """Tests for post_migration.py."""
 import json
 import os
-from unittest.mock import MagicMock, patch, call
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from tara_migrate.pipeline.post_migration import (
-    step_go_live,
-    step_sync_locales,
-    step_link_products_to_collections,
-    step_build_navigation,
-    step_set_seo_tags,
-    step_create_redirects,
-    step_set_inventory,
-    step_publish_resources,
-    step_migrate_discounts,
-    step_activate_products,
-    step_create_policies,
     main,
+    step_activate_products,
+    step_build_navigation,
+    step_create_policies,
+    step_create_redirects,
+    step_go_live,
+    step_link_products_to_collections,
+    step_migrate_discounts,
+    step_publish_resources,
+    step_set_inventory,
+    step_set_seo_tags,
+    step_sync_locales,
 )
 
 
@@ -28,6 +26,7 @@ def test_no_duplicate_locale_step_definition():
     second, making the first dead code and changing step 1's behaviour.
     """
     import ast
+
     import tara_migrate.pipeline.post_migration as pm
 
     tree = ast.parse(open(pm.__file__, encoding="utf-8").read())
