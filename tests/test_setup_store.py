@@ -6,10 +6,11 @@ from unittest.mock import MagicMock, patch, call
 import pytest
 
 from tara_migrate.setup.setup_store import (
-    METAOBJECT_DEFINITIONS,
-    PRODUCT_METAFIELD_DEFINITIONS,
-    ARTICLE_METAFIELD_DEFINITIONS,
-    resolve_metaobject_definition_ids,
+    DEFAULT_METAOBJECT_DEFINITIONS as METAOBJECT_DEFINITIONS,
+    DEFAULT_PRODUCT_METAFIELD_DEFINITIONS as PRODUCT_METAFIELD_DEFINITIONS,
+    DEFAULT_ARTICLE_METAFIELD_DEFINITIONS as ARTICLE_METAFIELD_DEFINITIONS,
+    _normalize_metafield_definition,
+    _normalize_metaobject_field_definition,
     main,
 )
 
@@ -54,38 +55,59 @@ class TestDefinitionConstants:
 
 
 # ---------------------------------------------------------------------------
-# resolve_metaobject_definition_ids
+# RESOLVE: placeholder resolution (via the normalize helpers)
 # ---------------------------------------------------------------------------
 
 class TestResolveMetaobjectDefinitionIds:
-    def test_resolves_placeholders(self):
-        definitions = [
-            {"key": "benefits", "validations": [{"name": "metaobject_definition_id", "value": "RESOLVE:benefit"}]},
-        ]
-        existing = {"benefit": {"id": "gid://123"}}
-        resolve_metaobject_definition_ids(definitions, existing)
-        assert definitions[0]["validations"][0]["value"] == "gid://123"
+    """The standalone resolver was refactored into the normalize helpers.
 
-    def test_unresolvable_placeholder(self, capsys):
-        definitions = [
-            {"key": "x", "validations": [{"name": "metaobject_definition_id", "value": "RESOLVE:unknown"}]},
-        ]
-        resolve_metaobject_definition_ids(definitions, {})
-        assert definitions[0]["validations"][0]["value"] == ""
-        captured = capsys.readouterr()
-        assert "WARNING" in captured.out
+    RESOLVE:<type> placeholders are rewritten to the destination metaobject
+    definition GID; references whose target type is missing from the
+    destination are dropped (not blanked) so Shopify never receives a
+    dangling validation.
+    """
+
+    def _field(self, value):
+        return {
+            "key": "benefits",
+            "type": "list.metaobject_reference",
+            "validations": [{"name": "metaobject_definition_id", "value": value}],
+        }
+
+    def test_resolves_placeholder_to_dest_gid(self):
+        dest = {"benefit": {"id": "gid://123"}}
+        out = _normalize_metaobject_field_definition(self._field("RESOLVE:benefit"), {}, dest)
+        assert out["validations"][0]["value"] == "gid://123"
+
+    def test_unresolvable_placeholder_is_dropped(self):
+        out = _normalize_metaobject_field_definition(self._field("RESOLVE:unknown"), {}, {})
+        # The dangling validation is dropped entirely, so no validations remain.
+        assert "validations" not in out
+
+    def test_metafield_resolves_placeholder(self):
+        definition = {
+            "name": "Ingredient refs",
+            "namespace": "custom",
+            "key": "ingredient_refs",
+            "type": "list.metaobject_reference",
+            "validations": [{"name": "metaobject_definition_id", "value": "RESOLVE:ingredient"}],
+        }
+        dest = {"ingredient": {"id": "gid://mo/9"}}
+        out = _normalize_metafield_definition(definition, "PRODUCT", {}, dest)
+        assert out["validations"][0]["value"] == "gid://mo/9"
 
     def test_non_resolve_value_unchanged(self):
-        definitions = [
-            {"key": "x", "validations": [{"name": "min", "value": "1"}]},
-        ]
-        resolve_metaobject_definition_ids(definitions, {})
-        assert definitions[0]["validations"][0]["value"] == "1"
+        field = {
+            "key": "x",
+            "type": "number_integer",
+            "validations": [{"name": "min", "value": "1"}],
+        }
+        out = _normalize_metaobject_field_definition(field, {}, {})
+        assert out["validations"][0]["value"] == "1"
 
     def test_no_validations(self):
-        definitions = [{"key": "x"}]
-        resolve_metaobject_definition_ids(definitions, {})
-        assert "validations" not in definitions[0]
+        out = _normalize_metaobject_field_definition({"key": "x", "type": "single_line_text_field"}, {}, {})
+        assert "validations" not in out
 
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@ to exactly match the Magento source of truth in order and quantity.
 """
 
 import json
+import os
 import re
 import sys
 import time
@@ -16,7 +17,8 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, save_json
 
-MAGENTO_BASE = "https://taraformula.ae"
+# Arabic Magento storefront base (overridable; no longer hardcoded to one store).
+MAGENTO_BASE = os.environ.get("MAGENTO_AR_SITE_URL", "https://taraformula.ae")
 
 PRODUCT_MF_QUERY = """
 query($id: ID!) {

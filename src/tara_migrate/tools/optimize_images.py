@@ -214,7 +214,24 @@ def download_and_optimize(url, quality=None, max_dimension=None, preset=None):
 
 
 def _guess_mime(filename):
-    """Guess MIME type from filename."""
+    """Guess MIME type from filename.
+
+    Uses an explicit map for image types first because the OS mimetypes
+    registry is unreliable across platforms (e.g. Windows often lacks .webp),
+    then falls back to the stdlib guess.
+    """
     import mimetypes
+    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    explicit = {
+        "webp": "image/webp",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "png": "image/png",
+        "gif": "image/gif",
+        "svg": "image/svg+xml",
+        "avif": "image/avif",
+    }
+    if ext in explicit:
+        return explicit[ext]
     mime, _ = mimetypes.guess_type(filename)
     return mime or "application/octet-stream"

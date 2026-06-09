@@ -269,8 +269,8 @@ def update_shopify_images(en_images, ar_images, dry_run=False):
             for img in current_images:
                 try:
                     client._request("DELETE", f"products/{dest_id}/images/{img['id']}.json")
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"    Warning: could not delete old image {img.get('id')} on {dest_id}: {e}")
 
             # Add new English images from Magento
             for i, img in enumerate(new_images):

@@ -2214,6 +2214,9 @@ def main():
                         help="Show browser window during crawl")
     parser.add_argument("--lookup-file", default="data/site_lookup.json",
                         help="Path to site lookup table JSON")
+    parser.add_argument("--theme-id", type=int, default=None,
+                        help="Target a specific theme id (default: the published main theme). "
+                             "Use to translate an unpublished launch theme.")
     args = parser.parse_args()
 
     # --build-lookup doesn't need Shopify credentials
@@ -2231,6 +2234,11 @@ def main():
         config.get_dest_shop_url(),
         config.get_dest_access_token(),
     )
+
+    # Target a specific (e.g. unpublished launch) theme instead of the published main.
+    if args.theme_id:
+        client.get_main_theme_id = lambda tid=args.theme_id: tid
+        print(f"Targeting theme id {args.theme_id} (overriding main theme)")
 
     # Clean ar.json locale file
     if args.clean_locale:

@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Import/collection check (no syntax or import errors)
+        run: python -m pytest --collect-only -q
+        env:
+          PYTHONPATH: src
+
+      - name: Wrapper lint (no new fat root scripts)
+        run: python -m tara_migrate.core._lint_wrappers
+        env:
+          PYTHONPATH: src
+
+      - name: Secret scan (tracked files)
+        run: git ls-files '*.py' '*.env*' '*.toml' '*.md' | xargs python scripts/check_secrets.py
+
+      - name: Run tests (excluding live acceptance gate)
+        run: python -m pytest -m "not acceptance" -q --cov=tara_migrate --cov-report=term-missing
+        env:
+          PYTHONPATH: src

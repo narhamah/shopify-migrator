@@ -25,10 +25,34 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
+from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config
+from tara_migrate.core.config import ConfigError
+from tara_migrate.core.logging import add_run_log_file, get_logger
+from tara_migrate.core.preflight import PreflightError, run_preflight
+from tara_migrate.core.run_manifest import RunManifest, hash_paths, hash_values
+
+logger = get_logger(__name__)
+
+
+class PhaseError(Exception):
+    """Raised when a build phase (including a subprocess phase) fails."""
+
+
+def run_subprocess(cmd, name):
+    """Run a subprocess phase, failing loudly on a non-zero exit code.
+
+    Replaces the old ``subprocess.run(cmd, check=False)`` calls that discarded
+    exit codes and let a crashed phase masquerade as success.
+    """
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        raise PhaseError(f"{name} failed with exit code {result.returncode}")
+
 
 # Phase registry: number → (name, function, description, langs)
 # langs: which --lang values include this phase ("en", "ar", "all")
@@ -79,35 +103,31 @@ def phase_fix_prices(dry_run=False, **kw):
     print("PHASE 2: Fix Magento Prices")
     print("=" * 60)
 
-    try:
-        from tara_migrate.core import AR_DIR, EN_DIR, save_json
-        from tara_migrate.fixers.fix_prices import fetch_magento_prices, update_product_files, update_shopify_products
+    from tara_migrate.core import AR_DIR, EN_DIR, save_json
+    from tara_migrate.fixers.fix_prices import fetch_magento_prices, update_product_files, update_shopify_products
 
-        site_url = config.get_magento_site_url()
-        store_code = config.get_magento_store_code()
-        prices = fetch_magento_prices(site_url, store_code)
-        if not prices:
-            print("  WARNING: No prices fetched from Magento")
-            return
+    site_url = config.get_magento_site_url()
+    store_code = config.get_magento_store_code()
+    prices = fetch_magento_prices(site_url, store_code)
+    if not prices:
+        # Nothing to do is not a failure, but surface it loudly.
+        print("  WARNING: No prices fetched from Magento — skipping price update")
+        return
 
-        save_json(prices, config.get_progress_file("magento_prices.json"))
-        print(f"  Fetched SAR prices for {len(prices)} SKUs")
+    save_json(prices, config.get_progress_file("magento_prices.json"))
+    print(f"  Fetched prices for {len(prices)} SKUs")
 
-        dirs = [EN_DIR]
-        if os.path.exists(os.path.join(AR_DIR, "products.json")):
-            dirs.append(AR_DIR)
-        updated = update_product_files(prices, dirs)
-        print(f"  Updated {updated} prices in local data files")
+    dirs = [EN_DIR]
+    if os.path.exists(os.path.join(AR_DIR, "products.json")):
+        dirs.append(AR_DIR)
+    updated = update_product_files(prices, dirs)
+    print(f"  Updated {updated} prices in local data files")
 
-        if not dry_run:
-            shopify_updated = update_shopify_products(prices)
-            print(f"  Updated {shopify_updated} prices on Shopify")
-        else:
-            print("  DRY RUN: would update Shopify product prices")
-
-    except Exception as e:
-        print(f"  ERROR: {e}")
-        print("  Continuing with remaining phases...")
+    if not dry_run:
+        shopify_updated = update_shopify_products(prices)
+        print(f"  Updated {shopify_updated} prices on Shopify")
+    else:
+        print("  DRY RUN: would update Shopify product prices")
 
 
 # =========================================================================
@@ -125,7 +145,7 @@ def phase_import_english(dry_run=False, **kw):
     cmd = [sys.executable, "import_english.py"]
     if dry_run:
         cmd.append("--dry-run")
-    subprocess.run(cmd, check=False)
+    run_subprocess(cmd, "Import English")
 
 
 # =========================================================================
@@ -167,7 +187,7 @@ def phase_import_arabic(dry_run=False, **kw):
     cmd = [sys.executable, "import_arabic.py"]
     if dry_run:
         cmd.append("--dry-run")
-    subprocess.run(cmd, check=False)
+    run_subprocess(cmd, "Import Arabic")
 
 
 # =========================================================================
@@ -208,14 +228,18 @@ def phase_migrate_images(saudi, spain, dry_run=False, **kw):
         phase7_verify,
     ]
 
+    failures = []
     for img_phase in image_phases:
         try:
             img_phase(spain, saudi, id_map, file_map, dry_run=dry_run)
         except Exception as e:
-            print(f"  ERROR in {img_phase.__name__}: {e}")
-            print("  Continuing with next image phase...")
+            logger.error("  ERROR in %s: %s", img_phase.__name__, e)
+            failures.append(f"{img_phase.__name__}: {e}")
 
+    # Persist partial progress regardless, then fail the phase if any sub-phase broke.
     save_json(file_map, FILE_MAP_FILE)
+    if failures:
+        raise PhaseError("image sub-phases failed: " + "; ".join(failures))
 
 
 # =========================================================================
@@ -233,7 +257,7 @@ def phase_resolve_diffs(dry_run=False, **kw):
     cmd = [sys.executable, "resolve_metaobject_diffs.py"]
     if dry_run:
         cmd.append("--inspect")
-    subprocess.run(cmd, check=False)
+    run_subprocess(cmd, "Resolve Metaobject Diffs")
 
 
 # =========================================================================
@@ -254,7 +278,7 @@ def phase_post_migration(dry_run=False, **kw):
         cmd.extend(["--lang", lang])
     if dry_run:
         cmd.append("--dry-run")
-    subprocess.run(cmd, check=False)
+    run_subprocess(cmd, "Post-Migration Setup")
 
 
 # =========================================================================
@@ -290,6 +314,9 @@ Examples:
   python build_site.py --phase 6             # Just migrate images
   python build_site.py --skip 2              # Skip price fix
 """)
+    parser.add_argument("--config", type=str, default=None,
+                        help="Path to a declarative destination TOML "
+                             "(destinations/<name>.toml). Sets SOURCE/DEST/MAGENTO/DEST_NAME.")
     parser.add_argument("--lang", choices=["en", "ar", "all"], default="all",
                         help="Language to build: en, ar, or all (default: all)")
     parser.add_argument("--dry-run", action="store_true",
@@ -300,7 +327,26 @@ Examples:
                         help="Skip specific phases (e.g., '1,7')")
     parser.add_argument("--from", type=int, default=None, dest="from_phase",
                         help="Start from this phase number (inclusive)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Skip phases already marked completed in the run manifest "
+                             "(only when config + source export are unchanged)")
+    parser.add_argument("--keep-going", action="store_true",
+                        help="Continue to later phases even if one fails "
+                             "(default: stop on the first failure)")
+    parser.add_argument("--skip-preflight", action="store_true",
+                        help="Skip config/scope/connectivity validation (not recommended)")
     args = parser.parse_args()
+
+    # A declarative destination file populates the env the pipeline reads.
+    if args.config:
+        from tara_migrate.core.config_schema import apply_to_env, load_destination_config
+        try:
+            cfg = load_destination_config(args.config)
+            apply_to_env(cfg)
+            print(f"Loaded destination config: {cfg.name} ({args.config})")
+        except Exception as e:
+            print(f"ERROR: could not load --config {args.config}: {e}")
+            sys.exit(1)
 
     lang = args.lang
 
@@ -325,53 +371,123 @@ Examples:
             print(f"ERROR: Unknown phase {p}. Valid phases: {list(PHASES.keys())}")
             sys.exit(1)
 
+    # ---- Preflight: validate config, tokens, scopes, connectivity ----
+    require_magento = 2 in phases_to_run
+    if not args.skip_preflight:
+        try:
+            result = run_preflight(
+                require_magento=require_magento,
+                check_connectivity=not args.dry_run,
+                check_scopes=not args.dry_run,
+            )
+            print(result.summary())
+            for w in result.warnings:
+                logger.warning("Preflight warning: %s", w)
+        except (ConfigError, PreflightError) as e:
+            print("\nPREFLIGHT FAILED:\n" + str(e))
+            sys.exit(1)
+    else:
+        # Even with preflight skipped, we cannot run without connection config.
+        missing = config.missing_required(require_magento=require_magento)
+        if missing:
+            print("ERROR: Missing required configuration:\n  - " + "\n  - ".join(missing))
+            sys.exit(1)
+
     # Connect to stores
-    dest_url = config.get_dest_shop_url()
-    dest_token = config.get_dest_access_token()
-    source_url = config.get_source_shop_url()
-    source_token = config.get_source_access_token()
+    saudi = ShopifyClient(config.get_dest_shop_url(), config.get_dest_access_token())
+    spain = ShopifyClient(config.get_source_shop_url(), config.get_source_access_token())
 
-    if not all([dest_url, dest_token, source_url, source_token]):
-        print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
-        sys.exit(1)
-
-    from tara_migrate.client import ShopifyClient
-    saudi = ShopifyClient(dest_url, dest_token)
-    spain = ShopifyClient(source_url, source_token)
+    # ---- Run manifest (truthful status + resume) ----
+    dest_name = config.get_dest_name() or "default"
+    manifest = None
+    manifest_path = config.get_progress_file("run_manifest.json")
+    if not args.dry_run:
+        config_hash = hash_values([
+            config.get_dest_shop_url(), config.get_source_shop_url(),
+            config.get_magento_store_code(), dest_name, lang,
+        ])
+        source_hash = hash_paths([config.SOURCE_DIR])
+        manifest = RunManifest.load_or_create(
+            manifest_path, destination=dest_name,
+            config_hash=config_hash, source_export_hash=source_hash)
+        build_id = datetime.now(timezone.utc).replace(microsecond=0).isoformat() + "-" + dest_name
+        manifest.begin_run(build_id)
+        add_run_log_file(config.get_progress_file("logs/build.log"))
 
     print("=" * 60)
-    print(f"BUILD SITE: Saudi Shopify Store ({lang.upper()})")
+    print(f"BUILD SITE: {dest_name} ({lang.upper()})")
     print("=" * 60)
     print(f"  Language: {lang}")
     print(f"  Mode:     {'DRY RUN' if args.dry_run else 'LIVE'}")
+    print(f"  Resume:   {'on' if args.resume else 'off'}    Fail-fast: {'off' if args.keep_going else 'on'}")
     print(f"  Phases:   {phases_to_run}")
     for p in phases_to_run:
         name, _, desc, _ = PHASES[p]
-        print(f"    {p}. {name} — {desc}")
+        print(f"    {p}. {name} - {desc}")
     print()
 
     start_time = time.time()
+    failed_phases = []
 
     for phase_num in phases_to_run:
         name, func, desc, _ = PHASES[phase_num]
+        phase_key = f"phase_{phase_num}"
+
+        if args.resume and manifest and manifest.is_completed(phase_key):
+            print(f"\n  Phase {phase_num} ({name}) already completed - skipping (--resume)")
+            continue
+
         phase_start = time.time()
+        if manifest:
+            manifest.start_phase(phase_key)
 
         try:
-            func(saudi=saudi, spain=spain, dry_run=args.dry_run, lang=lang)
+            result = func(saudi=saudi, spain=spain, dry_run=args.dry_run, lang=lang)
+            counts = result if isinstance(result, dict) else None
+            if manifest:
+                manifest.complete_phase(phase_key, counts=counts)
+            elapsed = time.time() - phase_start
+            print(f"\n  Phase {phase_num} completed in {elapsed:.0f}s")
         except KeyboardInterrupt:
+            if manifest:
+                manifest.fail_phase(phase_key, "interrupted", checkpoint={"resumable": True})
             print(f"\n  Interrupted during phase {phase_num} ({name})")
-            print(f"  Re-run with --lang {lang} --from {phase_num} to resume")
-            sys.exit(1)
+            print("  Re-run with --resume to continue")
+            sys.exit(130)
         except Exception as e:
+            if manifest:
+                manifest.fail_phase(phase_key, e)
+            failed_phases.append((phase_num, name, e))
             print(f"\n  ERROR in phase {phase_num} ({name}): {e}")
-            print(f"  Continuing... (re-run with --phase {phase_num} to retry)")
-
-        elapsed = time.time() - phase_start
-        print(f"\n  Phase {phase_num} completed in {elapsed:.0f}s")
+            if not args.keep_going:
+                print("  Stopping (fail-fast). Fix the issue and re-run with --resume.")
+                break
+            print("  --keep-going set: continuing (downstream phases may be incomplete)")
 
     total = time.time() - start_time
+    if manifest:
+        # Fold the guided manual-step checklist (written by post-migration) into the manifest.
+        ms_path = config.get_progress_file("manual_steps.json")
+        if os.path.exists(ms_path):
+            from tara_migrate.core import load_json
+            manifest.set_manual_steps(load_json(ms_path, default=[]))
+        status = manifest.end_run()
+    else:
+        status = "failed" if failed_phases else "completed"
+
     print(f"\n{'=' * 60}")
-    print(f"BUILD COMPLETE — {lang.upper()} ({total:.0f}s)")
+    if status == "failed" or failed_phases:
+        print(f"BUILD FAILED - {dest_name} ({lang.upper()}, {total:.0f}s)")
+        for num, nm, err in failed_phases:
+            print(f"  - phase {num} {nm}: {err}")
+        if manifest:
+            print(f"  Manifest: {manifest_path}")
+        print(f"{'=' * 60}")
+        sys.exit(1)
+
+    print(f"BUILD COMPLETE - {dest_name} ({lang.upper()}, {total:.0f}s)")
+    if manifest:
+        print(f"  Manifest: {manifest_path}")
     print(f"{'=' * 60}")
 
 

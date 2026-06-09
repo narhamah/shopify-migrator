@@ -523,8 +523,14 @@ class TestTranslatableResourceTypes:
     def test_contains_article(self):
         assert "ARTICLE" in TRANSLATABLE_RESOURCE_TYPES
 
-    def test_exactly_eight_types(self):
-        assert len(TRANSLATABLE_RESOURCE_TYPES) == 8
+    def test_includes_notification_templates(self):
+        assert "EMAIL_TEMPLATE" in TRANSLATABLE_RESOURCE_TYPES
+        assert "PACKING_SLIP_TEMPLATE" in TRANSLATABLE_RESOURCE_TYPES
+
+    def test_core_resource_types_present(self):
+        for t in ("PRODUCT", "COLLECTION", "METAFIELD", "METAOBJECT",
+                  "ONLINE_STORE_THEME", "PAGE", "BLOG", "ARTICLE"):
+            assert t in TRANSLATABLE_RESOURCE_TYPES
 
     def test_is_list(self):
         assert isinstance(TRANSLATABLE_RESOURCE_TYPES, list)

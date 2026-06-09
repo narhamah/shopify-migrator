@@ -7,6 +7,7 @@ AR metafield = AR+neutral images in Magento position order.
 """
 
 import json
+import os
 import re
 import sys
 import time
@@ -15,6 +16,9 @@ from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, save_json
+
+# Arabic Magento storefront base (overridable; no longer hardcoded to one store).
+MAGENTO_BASE = os.environ.get("MAGENTO_AR_SITE_URL", "https://taraformula.ae")
 
 PRODUCT_MF_QUERY = """
 query($id: ID!) {
@@ -193,7 +197,7 @@ def main():
                 norm = normalize_fname(fname)
                 src_url = m["url"]
                 if not src_url.startswith("http"):
-                    src_url = "https://taraformula.ae" + src_url
+                    src_url = MAGENTO_BASE + src_url
                 try:
                     gid = client.upload_file_from_url(src_url, filename=norm, alt=m.get("label", ""))
                     if gid:

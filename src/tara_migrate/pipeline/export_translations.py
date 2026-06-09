@@ -43,6 +43,10 @@ RESOURCE_TYPES = [
     "ARTICLE",
     "BLOG",
     "METAOBJECT",
+    # Notification templates — translated by resourceId so Arabic order/shipping
+    # emails and packing slips are migrated automatically.
+    "EMAIL_TEMPLATE",
+    "PACKING_SLIP_TEMPLATE",
 ]
 
 TRANSLATABLE_METAFIELD_TYPES = {

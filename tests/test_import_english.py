@@ -239,7 +239,14 @@ class TestMainExistingResources:
 
         mc = MagicMock()
         MockClient.return_value = mc
-        mc.get_metaobject_definitions.return_value = []
+        # Destination already has the metaobject definitions, so entries get
+        # mapped (not skipped) and Phase 6 has references to remap.
+        mc.get_metaobject_definitions.return_value = [
+            {"type": "benefit", "id": "gid://shopify/MetaobjectDefinition/1"},
+            {"type": "faq_entry", "id": "gid://shopify/MetaobjectDefinition/2"},
+            {"type": "blog_author", "id": "gid://shopify/MetaobjectDefinition/3"},
+            {"type": "ingredient", "id": "gid://shopify/MetaobjectDefinition/4"},
+        ]
         mc.get_products_by_handle.return_value = [{"id": 9001}]
         mc.get_collections_by_handle.return_value = [{"id": 9002}]
         mc.get_pages_by_handle.return_value = [{"id": 9003}]
@@ -258,8 +265,39 @@ class TestMainExistingResources:
             del os.environ["DEST_ACCESS_TOKEN"]
 
         # Phase 6 should call update_metaobject for ingredient→benefit remapping
-        # and set_metafields for product→ingredient and article→author remapping
+        # and/or set_metafields for product→ingredient and article→author remapping
         assert mc.update_metaobject.called or mc.set_metafields.called
+
+    @patch("tara_migrate.pipeline.import_english.load_dotenv")
+    @patch("tara_migrate.pipeline.import_english.ShopifyClient")
+    @patch("sys.argv", ["tara_migrate.pipeline.import_english.py"])
+    def test_item_failure_exits_nonzero_and_logs(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
+        """A failed product create must record a failure and exit non-zero."""
+        monkeypatch.chdir(tmp_path)
+        _setup_english_data(tmp_path)
+
+        mc = MagicMock()
+        MockClient.return_value = mc
+        mc.get_metaobject_definitions.return_value = []
+        mc.get_products_by_handle.return_value = []
+        mc.create_product.side_effect = Exception("422 invalid product")
+        mc.get_collections_by_handle.return_value = []
+        mc.create_custom_collection.return_value = {"id": 9002}
+        mc.get_pages_by_handle.return_value = []
+        mc.create_page.return_value = {"id": 9003}
+        mc.get_blogs_by_handle.return_value = []
+        mc.create_blog.return_value = {"id": 9004}
+        mc.create_article.return_value = {"id": 9005}
+        mc.get_metaobjects_by_handle.return_value = None
+        mc.create_metaobject.return_value = {"id": "gid://shopify/Metaobject/500", "handle": "h"}
+
+        os.environ["DEST_SHOP_URL"] = "dest-test.myshopify.com"
+        os.environ["DEST_ACCESS_TOKEN"] = "tok"
+        with pytest.raises(SystemExit) as ei:
+            main()
+        assert ei.value.code == 1
+        log = json.loads((tmp_path / "data" / "phase_errors_import_english.json").read_text(encoding="utf-8"))
+        assert any(e["type"] == "product" for e in log)
 
     @patch("tara_migrate.pipeline.import_english.load_dotenv")
     @patch("tara_migrate.pipeline.import_english.ShopifyClient")

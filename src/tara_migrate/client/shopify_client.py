@@ -1,3 +1,6 @@
+import json
+import os
+import random
 import time
 from typing import Any
 
@@ -7,7 +10,84 @@ from tara_migrate.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-API_VERSION = "2024-10"
+# API version is pinned but overridable via env so a destination can be migrated
+# against a newer Shopify release without a code change.
+API_VERSION = os.environ.get("SHOPIFY_API_VERSION", "2024-10")
+
+# How many times to retry a cost-throttled GraphQL call before giving up.
+MAX_THROTTLE_RETRIES = 12
+# GraphQL extension codes that mean "back off and retry" vs "permission problem".
+_THROTTLE_CODES = {"THROTTLED"}
+_AUTH_CODES = {"ACCESS_DENIED", "UNAUTHORIZED"}
+
+
+# ---------------------------------------------------------------------------
+# Typed exception hierarchy
+# ---------------------------------------------------------------------------
+# These all subclass Exception so existing `except Exception` / pytest.raises(Exception)
+# callers keep working, while new code can catch the specific failure mode.
+
+class ShopifyError(Exception):
+    """Base class for all ShopifyClient errors."""
+
+
+class GraphQLThrottled(ShopifyError):
+    """Raised when a GraphQL call stays cost-throttled after MAX_THROTTLE_RETRIES."""
+
+
+class GraphQLUserError(ShopifyError):
+    """Raised for top-level GraphQL query/schema errors (not mutation userErrors)."""
+
+
+class GraphQLAuthError(ShopifyError):
+    """Raised when the access token lacks scope / is denied."""
+
+
+def _error_codes(errors: list[dict[str, Any]] | None) -> set[str]:
+    """Collect the `extensions.code` values from a GraphQL errors array."""
+    codes = set()
+    for err in errors or []:
+        code = (err.get("extensions") or {}).get("code")
+        if code:
+            codes.add(code)
+    return codes
+
+
+def _is_throttled(errors: list[dict[str, Any]] | None) -> bool:
+    return bool(_error_codes(errors) & _THROTTLE_CODES)
+
+
+def _is_auth_error(errors: list[dict[str, Any]] | None) -> bool:
+    if _error_codes(errors) & _AUTH_CODES:
+        return True
+    # Some access-denied errors arrive without an extensions.code.
+    for err in errors or []:
+        msg = (err.get("message") or "").lower()
+        if "access denied" in msg or "not approved" in msg or "requires merchant approval" in msg:
+            return True
+    return False
+
+
+def _throttle_wait_seconds(body: dict[str, Any]) -> float:
+    """Compute backoff from Shopify's leaky-bucket cost in extensions.cost.
+
+    Shopify returns the bucket state on the *same* HTTP-200 response that
+    carries the THROTTLED error: extensions.cost.throttleStatus = {
+    maximumAvailable, currentlyAvailable, restoreRate }. We wait long enough
+    for the bucket to refill to cover the requested cost.
+    """
+    try:
+        cost = body["extensions"]["cost"]
+        status = cost["throttleStatus"]
+        available = float(status["currentlyAvailable"])
+        restore = float(status["restoreRate"])
+        requested = float(cost.get("requestedQueryCost") or 0)
+        deficit = max(requested - available, 0.0)
+        if restore > 0 and deficit > 0:
+            return max(1.0, deficit / restore)
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        pass
+    return 2.0
 
 
 class ShopifyClient:
@@ -25,6 +105,11 @@ class ShopifyClient:
 
     # --- Low-level helpers ---
 
+    @staticmethod
+    def _sleep(seconds: float) -> None:
+        """Sleep with +/-10% jitter to avoid thundering-herd retry alignment."""
+        time.sleep(max(0.0, seconds) * random.uniform(0.9, 1.1))
+
     def _request_raw(self, method: str, url: str, **kwargs: Any) -> requests.Response:
         """Send request to any URL with rate-limit and connection error retry."""
         conn_attempts = 0
@@ -37,14 +122,14 @@ class ShopifyClient:
                     wait = 2 ** conn_attempts
                     logger.warning("  Connection error (attempt %d/4), retrying in %ds: %s",
                                    conn_attempts, wait, e)
-                    time.sleep(wait)
+                    self._sleep(wait)
                     continue
                 raise
             conn_attempts = 0  # reset on successful connection
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", 2))
                 logger.warning("  Rate limited. Retrying after %ss...", retry_after)
-                time.sleep(retry_after)
+                self._sleep(retry_after)
                 continue
             if resp.status_code == 422:
                 # Include Shopify's validation errors in the exception
@@ -87,38 +172,84 @@ class ShopifyClient:
         return all_items
 
     def _graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Execute a GraphQL query/mutation with rate-limit and connection error handling."""
-        payload = {"query": query}
+        """Execute a GraphQL query/mutation.
+
+        Handles three distinct throttling/error modes:
+          * HTTP 429 (rare for GraphQL) — honour Retry-After.
+          * Cost-based THROTTLED — returned on HTTP 200 with the error code in
+            ``errors[].extensions.code`` and the leaky-bucket state in
+            ``extensions.cost``. Back off and retry up to MAX_THROTTLE_RETRIES.
+          * Auth/permission errors — raised immediately as GraphQLAuthError.
+        Other top-level errors raise GraphQLUserError (message preserved as
+        "GraphQL errors: ..." for backwards compatibility).
+        """
+        payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = variables
-        max_retries = 4
-        for attempt in range(max_retries):
+
+        conn_attempts = 0
+        throttle_attempts = 0
+        while True:
             try:
                 resp = self.session.post(self.graphql_url, json=payload)
             except (ConnectionError, OSError) as e:
-                if attempt < max_retries - 1:
-                    wait = 2 ** (attempt + 1)
-                    logger.warning("  Connection error (attempt %d/%d), retrying in %ds: %s",
-                                   attempt + 1, max_retries, wait, e)
-                    time.sleep(wait)
+                conn_attempts += 1
+                if conn_attempts < 4:
+                    wait = 2 ** conn_attempts
+                    logger.warning("  Connection error (attempt %d/4), retrying in %ds: %s",
+                                   conn_attempts, wait, e)
+                    self._sleep(wait)
                     continue
                 raise
+            conn_attempts = 0
+
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", 2))
                 logger.warning("  Rate limited (GraphQL). Retrying after %ss...", retry_after)
-                time.sleep(retry_after)
+                self._sleep(retry_after)
                 continue
+
             resp.raise_for_status()
-            data = resp.json()
-            if data.get("errors"):
-                raise Exception(f"GraphQL errors: {data['errors']}")
-            return data.get("data", {})
+            body = resp.json()
+            errors = body.get("errors")
+            if errors:
+                if _is_throttled(errors):
+                    throttle_attempts += 1
+                    if throttle_attempts > MAX_THROTTLE_RETRIES:
+                        raise GraphQLThrottled(
+                            f"GraphQL still throttled after {MAX_THROTTLE_RETRIES} retries: {errors}"
+                        )
+                    wait = _throttle_wait_seconds(body)
+                    logger.warning("  GraphQL THROTTLED (retry %d/%d), backing off %.1fs...",
+                                   throttle_attempts, MAX_THROTTLE_RETRIES, wait)
+                    self._sleep(wait)
+                    continue
+                if _is_auth_error(errors):
+                    raise GraphQLAuthError(f"GraphQL access denied: {errors}")
+                raise GraphQLUserError(f"GraphQL errors: {errors}")
+            return body.get("data", {})
 
     # --- REST: Read methods ---
 
     def get_shop(self) -> dict[str, Any]:
         data, _ = self._get_json("shop.json")
         return data.get("shop", {})
+
+    def get_access_scopes(self) -> list[str]:
+        """Return the access-scope handles granted to this token.
+
+        Uses the free `currentAppInstallation.accessScopes` query so a preflight
+        can verify write permissions before any mutation runs.
+        """
+        query = "{ currentAppInstallation { accessScopes { handle } } }"
+        data = self._graphql(query)
+        installation = data.get("currentAppInstallation") or {}
+        return [s["handle"] for s in installation.get("accessScopes", []) if s.get("handle")]
+
+    def verify_token_scopes(self, required: list[str]) -> list[str]:
+        """Return the subset of *required* scopes the token is missing (empty == OK)."""
+        granted = set(self.get_access_scopes())
+        return [scope for scope in required if scope not in granted]
 
     def get_products(self) -> list[dict[str, Any]]:
         return self._paginate("products.json", "products")
@@ -1563,3 +1694,304 @@ class ShopifyClient:
         if metafields:
             return self.set_metafields(metafields)
         return []
+
+    # ======================================================================
+    # Markets (Shopify Markets API — Admin GraphQL 2024-10)
+    # ======================================================================
+
+    def get_markets(self) -> list[dict[str, Any]]:
+        """List markets with web presence + base currency (read-only)."""
+        query = """
+        {
+          markets(first: 50) {
+            edges { node {
+              id name handle enabled primary
+              webPresence { id rootUrls { locale url } }
+              currencySettings { baseCurrency { currencyCode } }
+            } }
+          }
+        }
+        """
+        data = self._graphql(query)
+        return [e["node"] for e in data.get("markets", {}).get("edges", [])]
+
+    def create_market(self, name: str, country_codes: list[str], enabled: bool = True) -> dict[str, Any]:
+        """Create a market covering the given ISO country codes (e.g. ['KW'])."""
+        mutation = """
+        mutation marketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name handle }
+            userErrors { field message }
+          }
+        }
+        """
+        variables = {"input": {
+            "name": name,
+            "enabled": enabled,
+            "regions": [{"countryCode": c} for c in country_codes],
+        }}
+        data = self._graphql(mutation, variables)
+        result = data["marketCreate"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"marketCreate errors: {result['userErrors']}")
+        return result["market"]
+
+    def market_add_regions(self, market_id: str, country_codes: list[str]) -> dict[str, Any]:
+        """Add country regions to an existing market."""
+        mutation = """
+        mutation marketRegionsCreate($marketId: ID!, $regions: [MarketRegionCreateInput!]!) {
+          marketRegionsCreate(marketId: $marketId, regions: $regions) {
+            market { id }
+            userErrors { field message }
+          }
+        }
+        """
+        variables = {"marketId": market_id, "regions": [{"countryCode": c} for c in country_codes]}
+        data = self._graphql(mutation, variables)
+        result = data["marketRegionsCreate"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"marketRegionsCreate errors: {result['userErrors']}")
+        return result["market"]
+
+    def market_update_currency(self, market_id: str, base_currency: str) -> dict[str, Any]:
+        """Set a market's base presentment currency (e.g. 'KWD')."""
+        mutation = """
+        mutation marketCurrencySettingsUpdate($marketId: ID!, $input: MarketCurrencySettingsUpdateInput!) {
+          marketCurrencySettingsUpdate(marketId: $marketId, input: $input) {
+            market { id }
+            userErrors { field message }
+          }
+        }
+        """
+        variables = {"marketId": market_id, "input": {"baseCurrency": base_currency}}
+        data = self._graphql(mutation, variables)
+        result = data["marketCurrencySettingsUpdate"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"marketCurrencySettingsUpdate errors: {result['userErrors']}")
+        return result["market"]
+
+    def market_create_web_presence(self, market_id: str, default_locale: str,
+                                   alternate_locales: list[str] | None = None,
+                                   subfolder_suffix: str | None = None,
+                                   domain_id: str | None = None) -> dict[str, Any]:
+        """Create a web presence for a market (subfolder strategy needs no DNS)."""
+        web_presence: dict[str, Any] = {
+            "defaultLocale": default_locale,
+            "alternateLocales": alternate_locales or [],
+        }
+        if subfolder_suffix:
+            web_presence["subfolderSuffix"] = subfolder_suffix
+        if domain_id:
+            web_presence["domainId"] = domain_id
+        mutation = """
+        mutation marketWebPresenceCreate($marketId: ID!, $webPresence: MarketWebPresenceCreateInput!) {
+          marketWebPresenceCreate(marketId: $marketId, webPresence: $webPresence) {
+            market { id webPresence { id rootUrls { locale url } } }
+            userErrors { field message }
+          }
+        }
+        """
+        data = self._graphql(mutation, {"marketId": market_id, "webPresence": web_presence})
+        result = data["marketWebPresenceCreate"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"marketWebPresenceCreate errors: {result['userErrors']}")
+        return result["market"]
+
+    # ======================================================================
+    # Delivery / shipping (Admin GraphQL 2024-10)
+    # ======================================================================
+
+    def get_delivery_profiles(self) -> list[dict[str, Any]]:
+        """Read delivery profiles with zones + method definitions (rates)."""
+        query = """
+        {
+          deliveryProfiles(first: 25) {
+            edges { node {
+              id name default
+              profileLocationGroups {
+                locationGroup { id }
+                locationGroupZones(first: 50) {
+                  edges { node {
+                    zone { id name countries { code { countryCode } } }
+                    methodDefinitions(first: 25) {
+                      edges { node {
+                        id name active
+                        rateProvider {
+                          __typename
+                          ... on DeliveryRateDefinition { price { amount currencyCode } }
+                        }
+                      } }
+                    }
+                  } }
+                }
+              }
+            } }
+          }
+        }
+        """
+        data = self._graphql(query)
+        return [e["node"] for e in data.get("deliveryProfiles", {}).get("edges", [])]
+
+    def update_delivery_profile(self, profile_id: str, profile_input: dict[str, Any]) -> dict[str, Any]:
+        """Thin pass-through for deliveryProfileUpdate (caller builds the input).
+
+        DeliveryProfileInput is deeply nested (locationGroupsToUpdate /
+        zonesToCreate / methodDefinitionsToCreate); migrate_shipping.py builds it.
+        """
+        mutation = """
+        mutation deliveryProfileUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile { id name }
+            userErrors { field message }
+          }
+        }
+        """
+        data = self._graphql(mutation, {"id": profile_id, "profile": profile_input})
+        result = data["deliveryProfileUpdate"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"deliveryProfileUpdate errors: {result['userErrors']}")
+        return result["profile"]
+
+    # ======================================================================
+    # Domains / payments / webhooks / tax probe (go-live verification)
+    # ======================================================================
+
+    def get_domains(self) -> list[dict[str, Any]]:
+        """List storefront domains with SSL status (read-only; connect is UI-only)."""
+        query = "{ shop { domains { host url sslEnabled } primaryDomain { host url } } }"
+        data = self._graphql(query)
+        shop = data.get("shop", {}) or {}
+        return shop.get("domains", [])
+
+    def get_payment_gateways(self) -> list[dict[str, Any]]:
+        """List configured payment gateways (REST; provisioning is merchant-only)."""
+        data, _ = self._get_json("payment_gateways.json")
+        return data.get("payment_gateways", [])
+
+    def create_webhook_subscription(self, topic: str, callback_url: str,
+                                    fmt: str = "JSON") -> dict[str, Any]:
+        """Create a webhook subscription for a topic you own."""
+        mutation = """
+        mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $sub: WebhookSubscriptionInput!) {
+          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $sub) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+        """
+        variables = {"topic": topic, "sub": {"callbackUrl": callback_url, "format": fmt}}
+        data = self._graphql(mutation, variables)
+        result = data["webhookSubscriptionCreate"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"webhookSubscriptionCreate errors: {result['userErrors']}")
+        return result["webhookSubscription"]
+
+    def calculate_draft_order_tax(self, variant_id: str, country_code: str,
+                                  quantity: int = 1) -> dict[str, Any]:
+        """Probe tax config via draftOrderCalculate (read-only; for VAT verification).
+
+        Returns the calculated tax lines so a preflight/go-live check can confirm
+        the destination charges the expected VAT rate for a country.
+        """
+        mutation = """
+        mutation draftOrderCalculate($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder {
+              totalTaxSet { shopMoney { amount currencyCode } }
+              taxLines { title rate priceSet { shopMoney { amount } } }
+            }
+            userErrors { field message }
+          }
+        }
+        """
+        variables = {"input": {
+            "lineItems": [{"variantId": variant_id, "quantity": quantity}],
+            "shippingAddress": {"countryCode": country_code},
+        }}
+        data = self._graphql(mutation, variables)
+        result = data["draftOrderCalculate"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"draftOrderCalculate errors: {result['userErrors']}")
+        return result["calculatedDraftOrder"]
+
+    # ======================================================================
+    # Bulk Operations API (scalable export / import)
+    # ======================================================================
+
+    def get_current_bulk_operation(self) -> dict[str, Any]:
+        """Return the current bulk operation status (or {} if none)."""
+        data = self._graphql("""
+        { currentBulkOperation { id status errorCode objectCount url partialDataUrl } }
+        """)
+        return data.get("currentBulkOperation") or {}
+
+    def run_bulk_query(self, query: str, poll_interval: float = 2.0,
+                       max_wait: float = 600.0) -> list[dict[str, Any]]:
+        """Run a bulk query, poll to COMPLETED, download + parse the JSONL result.
+
+        Returns a list of objects (one per JSONL line). Use for large exports
+        that would otherwise exhaust the per-request GraphQL cost budget.
+        """
+        start = self._run_bulk_operation("bulkOperationRunQuery", "query", query)
+        url = self._await_bulk_completion(poll_interval, max_wait)
+        return self._download_jsonl(url) if url else []
+
+    def run_bulk_mutation(self, mutation: str, staged_upload_path: str,
+                          poll_interval: float = 2.0, max_wait: float = 600.0) -> list[dict[str, Any]]:
+        """Run a bulk mutation from an already-staged JSONL upload path.
+
+        ``staged_upload_path`` is the key returned by stagedUploadsCreate after
+        the JSONL of variables is uploaded. Returns parsed result lines.
+        """
+        mutation_field = """
+        mutation bulkRun($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status }
+            userErrors { field message }
+          }
+        }
+        """
+        data = self._graphql(mutation_field, {"mutation": mutation, "path": staged_upload_path})
+        result = data["bulkOperationRunMutation"]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"bulkOperationRunMutation errors: {result['userErrors']}")
+        url = self._await_bulk_completion(poll_interval, max_wait)
+        return self._download_jsonl(url) if url else []
+
+    def _run_bulk_operation(self, mutation_name: str, arg_name: str, body: str) -> dict[str, Any]:
+        mutation = f"""
+        mutation bulkRun(${arg_name}: String!) {{
+          {mutation_name}({arg_name}: ${arg_name}) {{
+            bulkOperation {{ id status }}
+            userErrors {{ field message }}
+          }}
+        }}
+        """
+        data = self._graphql(mutation, {arg_name: body})
+        result = data[mutation_name]
+        if result["userErrors"]:
+            raise GraphQLUserError(f"{mutation_name} errors: {result['userErrors']}")
+        return result["bulkOperation"]
+
+    def _await_bulk_completion(self, poll_interval: float, max_wait: float) -> str | None:
+        waited = 0.0
+        while waited <= max_wait:
+            op = self.get_current_bulk_operation()
+            status = op.get("status")
+            if status == "COMPLETED":
+                return op.get("url")
+            if status in ("FAILED", "CANCELED", "EXPIRED"):
+                raise GraphQLUserError(f"Bulk operation {status}: {op.get('errorCode')}")
+            self._sleep(poll_interval)
+            waited += poll_interval
+        raise GraphQLThrottled(f"Bulk operation did not complete within {max_wait}s")
+
+    def _download_jsonl(self, url: str) -> list[dict[str, Any]]:
+        resp = self.session.get(url)
+        resp.raise_for_status()
+        items = []
+        for line in resp.text.splitlines():
+            line = line.strip()
+            if line:
+                items.append(json.loads(line))
+        return items

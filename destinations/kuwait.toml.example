@@ -1,0 +1,39 @@
+# Declarative configuration for one destination store.
+# Copy to destinations/kuwait.toml and edit. Secrets are NEVER stored here —
+# only the NAME of the environment variable that holds each token.
+#
+# Usage:
+#   python build_site.py --config destinations/kuwait.toml
+#
+name = "kuwait"
+
+[source]
+shop_url         = "tara-saudi.myshopify.com"
+access_token_env = "SOURCE_ACCESS_TOKEN"      # read from this env var at runtime
+
+[dest]
+shop_url         = "977mp2-qa.myshopify.com"
+access_token_env = "DEST_ACCESS_TOKEN"
+required_scopes  = [
+  "write_products", "write_content", "write_metaobjects",
+  "write_translations", "write_publications", "write_inventory",
+]
+
+[magento]
+site_url   = "https://taraformula.com"
+store_code = "kw-en"
+
+[market]
+countries        = ["KW"]
+currency         = "KWD"
+vat_rate         = 0.05
+exchange_rate    = 4.13
+locales          = ["en", "ar"]
+default_locale   = "en"
+url_strategy     = "subfolder"   # subfolder = zero DNS work; or "domain"
+subfolder_suffix = "kw"
+
+[apps]
+klaviyo = true
+reviews = "judgeme"
+loyalty = "smile"

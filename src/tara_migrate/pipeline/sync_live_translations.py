@@ -145,10 +145,17 @@ def _resource_gid_pairs(id_map):
     return pairs_by_type
 
 
+def _valid_theme_id(value):
+    """A usable, serializable theme id is a non-empty int or string."""
+    return isinstance(value, (int, str)) and str(value).strip() != ""
+
+
 def _theme_gid_pairs(source_client, dest_client):
     source_theme_id = source_client.get_main_theme_id()
     dest_theme_id = dest_client.get_main_theme_id()
-    if not source_theme_id or not dest_theme_id:
+    # Guard against missing themes or non-serializable lookups; only proceed
+    # when both ids are real scalars (keeps the run report JSON-serializable).
+    if not _valid_theme_id(source_theme_id) or not _valid_theme_id(dest_theme_id):
         return []
     return [(
         f"gid://shopify/OnlineStoreTheme/{source_theme_id}",

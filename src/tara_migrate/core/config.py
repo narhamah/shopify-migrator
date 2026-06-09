@@ -10,6 +10,19 @@ stores without id_map / progress-file collisions.
 import os
 
 
+class ConfigError(KeyError):
+    """Raised when required migration configuration is missing or invalid.
+
+    Subclasses KeyError for backwards compatibility: existing code that does
+    ``except KeyError`` around an optional config getter (treating "not set" as
+    a fallback signal) keeps working. ``__str__`` is overridden so the message
+    prints cleanly instead of KeyError's repr-with-quotes.
+    """
+
+    def __str__(self):
+        return self.args[0] if self.args else ""
+
+
 def _env(name, *fallback_names, default=None):
     """Read env var with optional fallback names for backwards compat."""
     val = os.environ.get(name)
@@ -21,7 +34,16 @@ def _env(name, *fallback_names, default=None):
             return val
     if default is not None:
         return default
-    raise KeyError(name)
+    hint = f" (legacy alias: {', '.join(fallback_names)})" if fallback_names else ""
+    raise ConfigError(
+        f"Required environment variable {name} is not set{hint}. "
+        "Set it in your .env / destination env file."
+    )
+
+
+def _present(name, *fallback_names):
+    """True if *name* or any fallback alias is set to a non-empty value."""
+    return bool(os.environ.get(name) or any(os.environ.get(fb) for fb in fallback_names))
 
 
 # Store connection env var names (generic)
@@ -126,6 +148,38 @@ EN_DIR = "data/english"
 AR_DIR = "data/arabic"
 ID_MAP_FILE = "data/id_map.json"
 FILE_MAP_FILE = "data/file_map.json"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuration validation (used by preflight)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def missing_required(require_magento=False):
+    """Return a list of human-readable descriptions of missing required vars.
+
+    Empty list means all required connection config is present. This never
+    raises so a preflight can report *all* problems at once.
+    """
+    problems = []
+    if not _present(SOURCE_SHOP_URL_ENV, _LEGACY_SOURCE[0]):
+        problems.append("SOURCE_SHOP_URL - source store domain (e.g. tara-saudi.myshopify.com)")
+    if not _present(SOURCE_ACCESS_TOKEN_ENV, _LEGACY_SOURCE[1]):
+        problems.append("SOURCE_ACCESS_TOKEN - source Admin API token (shpat_...)")
+    if not _present(DEST_SHOP_URL_ENV, _LEGACY_DEST[0]):
+        problems.append("DEST_SHOP_URL - destination store domain (e.g. 977mp2-qa.myshopify.com)")
+    if not _present(DEST_ACCESS_TOKEN_ENV, _LEGACY_DEST[1]):
+        problems.append("DEST_ACCESS_TOKEN - destination Admin API token (shpat_...)")
+    if require_magento:
+        if not _present(MAGENTO_SITE_URL_ENV):
+            problems.append("MAGENTO_SITE_URL - Magento base URL for prices/images")
+        if not _present(MAGENTO_STORE_CODE_ENV):
+            problems.append("MAGENTO_STORE_CODE - Magento store code (e.g. kw-en, sa-en)")
+    return problems
+
+
+def magento_is_explicit():
+    """True if both Magento vars are explicitly set (i.e. not silent defaults)."""
+    return _present(MAGENTO_SITE_URL_ENV) and _present(MAGENTO_STORE_CODE_ENV)
+
 
 # Backwards compat aliases
 SPAIN_DIR = SOURCE_DIR
