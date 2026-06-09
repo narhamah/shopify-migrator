@@ -13,6 +13,9 @@
 > The sections below are the historical go-live runbook and remain useful for audits,
 > rollback, and future country launches. Treat pre-launch blockers in §1/§2 as resolved
 > for UAE unless a fresh audit proves otherwise.
+>
+> Re-run the live check with:
+> `python scripts/launch_acceptance_uae.py`
 
 ---
 
