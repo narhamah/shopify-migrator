@@ -1,15 +1,12 @@
 """Tests for shopify_fields — field/value classification for translation pipelines."""
 
-import pytest
 
 from tara_migrate.core.shopify_fields import (
-    SKIP_FIELD_PATTERNS,
     TEXT_METAFIELD_TYPES,
     TRANSLATABLE_RESOURCE_TYPES,
     is_skippable_field,
     is_skippable_value,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SKIP_FIELD_PATTERNS — is_skippable_field()
@@ -523,8 +520,14 @@ class TestTranslatableResourceTypes:
     def test_contains_article(self):
         assert "ARTICLE" in TRANSLATABLE_RESOURCE_TYPES
 
-    def test_exactly_eight_types(self):
-        assert len(TRANSLATABLE_RESOURCE_TYPES) == 8
+    def test_includes_notification_templates(self):
+        assert "EMAIL_TEMPLATE" in TRANSLATABLE_RESOURCE_TYPES
+        assert "PACKING_SLIP_TEMPLATE" in TRANSLATABLE_RESOURCE_TYPES
+
+    def test_core_resource_types_present(self):
+        for t in ("PRODUCT", "COLLECTION", "METAFIELD", "METAOBJECT",
+                  "ONLINE_STORE_THEME", "PAGE", "BLOG", "ARTICLE"):
+            assert t in TRANSLATABLE_RESOURCE_TYPES
 
     def test_is_list(self):
         assert isinstance(TRANSLATABLE_RESOURCE_TYPES, list)

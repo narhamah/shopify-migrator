@@ -31,7 +31,6 @@ from dotenv import load_dotenv
 
 from tara_migrate.core.language import is_arabic_visible_text
 
-
 # ---------------------------------------------------------------------------
 # Text extraction (runs in browser via Playwright)
 # ---------------------------------------------------------------------------
@@ -215,7 +214,7 @@ def crawl_site(base_url, locale_prefix, page, max_pages=100,
             if len(page_issues) > 5:
                 print(f"      ... and {len(page_issues) - 5} more")
         else:
-            print(f"    All text appears translated")
+            print("    All text appears translated")
 
         all_issues.extend(page_issues)
 
@@ -341,7 +340,7 @@ def main():
 
     # Summary
     print(f"\n{'=' * 70}")
-    print(f"  VISUAL AUDIT COMPLETE")
+    print("  VISUAL AUDIT COMPLETE")
     print(f"  Pages visited: {len(visited)}")
     print(f"  Untranslated texts found: {len(issues)}")
     print(f"{'=' * 70}")

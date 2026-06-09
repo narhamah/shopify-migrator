@@ -1,21 +1,19 @@
 """Tests for review_content — HTML bloat stripping, Spanish detection, SEO fields, and full-coverage audit."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from tara_migrate.tools.review_content import (
-    has_html_bloat,
-    strip_html_bloat,
-    parse_and_clean_html,
-    has_spanish_content,
-    has_spanish_text,
-    extract_visible_text,
-    extract_text_from_rich_text_json,
-    audit_content,
     _extract_text_for_check,
     _fetch_product_seo_fields,
+    audit_content,
+    extract_text_from_rich_text_json,
+    extract_visible_text,
+    has_html_bloat,
+    has_spanish_content,
+    has_spanish_text,
+    parse_and_clean_html,
+    strip_html_bloat,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HTML Bloat Detection

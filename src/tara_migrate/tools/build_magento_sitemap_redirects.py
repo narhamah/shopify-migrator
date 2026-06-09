@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, save_json
 
-
 DEFAULT_EN_SITEMAP_URL = "https://taraformula.com.kw/media/sitemap/sitemap_kw_en.xml"
 DEFAULT_AR_SITEMAP_URL = "https://taraformula.com.kw/media/sitemap/sitemap_kw_ar.xml"
 VERIFY_BASE_URL = "https://taraformula.com.kw"

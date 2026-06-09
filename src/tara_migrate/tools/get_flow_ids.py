@@ -8,7 +8,6 @@ Prints:
 Run this against the SAUDI store.
 """
 
-import os
 
 from dotenv import load_dotenv
 

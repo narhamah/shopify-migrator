@@ -17,7 +17,6 @@ Usage:
 """
 
 import argparse
-import os
 import time
 
 import requests as http_requests

@@ -1,7 +1,27 @@
 """Shared fixtures for the shopify-migrator test suite."""
-import json
+import os
 
 import pytest
+
+# ---------------------------------------------------------------------------
+# Test isolation
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _isolate_environment():
+    """Snapshot and restore os.environ around every test.
+
+    Several tests (and the production config getters' KeyError fallbacks) are
+    sensitive to store/Magento env vars. Without this, a test that sets e.g.
+    SOURCE_SHOP_URL via raw os.environ leaks into later tests and makes the
+    full-suite result order-dependent. This guarantees per-test isolation.
+    """
+    saved = dict(os.environ)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 # ---------------------------------------------------------------------------

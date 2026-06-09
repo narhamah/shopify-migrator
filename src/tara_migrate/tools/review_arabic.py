@@ -40,22 +40,20 @@ from dotenv import load_dotenv
 
 from tara_migrate.audit.audit_translations import classify_translation
 from tara_migrate.client.shopify_client import ShopifyClient
+from tara_migrate.core import config
 from tara_migrate.core.graphql_queries import (
     TRANSLATABLE_RESOURCES_QUERY,
     fetch_translatable_resources,
     upload_translations,
 )
 from tara_migrate.core.language import (
-    count_chars,
-    has_significant_english,
     replace_range_names_ar,
 )
 from tara_migrate.core.rich_text import extract_text, is_rich_text_json
 from tara_migrate.core.shopify_fields import TRANSLATABLE_RESOURCE_TYPES
 from tara_migrate.tools.patch_spanish import is_spanish
-from tara_migrate.tools.review_content import has_html_bloat, strip_html_bloat, _ai_is_spanish
+from tara_migrate.tools.review_content import _ai_is_spanish, has_html_bloat, strip_html_bloat
 from tara_migrate.translation.engine import TranslationEngine, load_developer_prompt
-from tara_migrate.core import config
 
 LOCALE = "ar"
 
@@ -449,8 +447,8 @@ def run_audit(client, resource_types, haiku_client, haiku_model, skip_semantic=F
     if stats.get("source_spanish", 0) > 0:
         print(f"\n  WARNING: {stats['source_spanish']} fields have Spanish as the "
               f"English source!")
-        print(f"  → Run 'python review_content.py' first to fix the English source.")
-        print(f"  → review_arabic.py will translate them directly to Arabic for now.")
+        print("  → Run 'python review_content.py' first to fix the English source.")
+        print("  → review_arabic.py will translate them directly to Arabic for now.")
 
     # Step 3b: Semantic correspondence check on OK fields
     if not skip_semantic and stats["ok"] > 0:
@@ -502,7 +500,7 @@ def run_audit(client, resource_types, haiku_client, haiku_model, skip_semantic=F
     problems = [f for f in classified if f["status"] not in ("OK", "SKIP")]
 
     print(f"\n{'=' * 60}")
-    print(f"AUDIT SUMMARY")
+    print("AUDIT SUMMARY")
     print("=" * 60)
     print(f"  Total translatable fields: {stats['total']}")
     print(f"  OK:                        {stats['ok']}")
@@ -550,7 +548,7 @@ def run_fix(client, engine, problems, locale=LOCALE, dry_run=False):
     retranslate = [p for p in problems if p["status"] in _RETRANSLATE]
 
     print(f"\n{'=' * 60}")
-    print(f"FIX PHASE" + (" (DRY RUN)" if dry_run else ""))
+    print("FIX PHASE" + (" (DRY RUN)" if dry_run else ""))
     print("=" * 60)
     print(f"  HTML bloat strip only: {len(bloat_only)}")
     print(f"  Re-translate EN→AR:   {len(retranslate)}")
@@ -1047,12 +1045,12 @@ def main():
             remaining = {}
             for p in verify_problems:
                 remaining[p["status"]] = remaining.get(p["status"], 0) + 1
-            print(f"\n  Remaining problems:")
+            print("\n  Remaining problems:")
             for s, c in sorted(remaining.items()):
                 print(f"    {s}: {c}")
-            print(f"\n  Re-run to fix remaining issues.")
+            print("\n  Re-run to fix remaining issues.")
         else:
-            print(f"\n  All Arabic translations verified clean!")
+            print("\n  All Arabic translations verified clean!")
         print("=" * 60)
     else:
         print("\nNo uploads made, skipping verification.")

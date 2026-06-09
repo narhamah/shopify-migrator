@@ -1,13 +1,10 @@
 """Tests for shopify_client.py — ShopifyClient class."""
-import io
-import json
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
-from tara_migrate.client import ShopifyClient, API_VERSION
-
+from tara_migrate.client import API_VERSION, ShopifyClient
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -1087,3 +1084,186 @@ class TestPublications:
         })
         with pytest.raises(Exception, match="publishablePublish"):
             self.c.publish_resource("gid://bad", [])
+
+
+# ---------------------------------------------------------------------------
+# Cost-based throttling, auth errors, and scope verification (hardening)
+# ---------------------------------------------------------------------------
+
+from tara_migrate.client import GraphQLAuthError, GraphQLThrottled  # noqa: E402
+
+
+class TestGraphQLThrottling:
+    def _throttled_resp(self, available=5, restore=100, requested=100):
+        r = MagicMock()
+        r.status_code = 200
+        r.json.return_value = {
+            "errors": [{"message": "Throttled", "extensions": {"code": "THROTTLED"}}],
+            "extensions": {"cost": {
+                "requestedQueryCost": requested,
+                "throttleStatus": {
+                    "maximumAvailable": 1000,
+                    "currentlyAvailable": available,
+                    "restoreRate": restore,
+                },
+            }},
+        }
+        return r
+
+    def test_throttled_then_succeeds(self):
+        c = ShopifyClient("shop.myshopify.com", "tok")
+        ok = MagicMock()
+        ok.status_code = 200
+        ok.json.return_value = {"data": {"ok": True}}
+        c.session.post = MagicMock(side_effect=[self._throttled_resp(), ok])
+        c._sleep = MagicMock()  # don't actually wait
+        assert c._graphql("{ ok }") == {"ok": True}
+        assert c._sleep.called  # backed off before retry
+
+    def test_throttled_gives_up(self):
+        c = ShopifyClient("shop.myshopify.com", "tok")
+        c.session.post = MagicMock(return_value=self._throttled_resp())
+        c._sleep = MagicMock()
+        with pytest.raises(GraphQLThrottled):
+            c._graphql("{ ok }")
+
+    def test_auth_error_raises(self):
+        c = ShopifyClient("shop.myshopify.com", "tok")
+        r = MagicMock()
+        r.status_code = 200
+        r.json.return_value = {"errors": [{"message": "Access denied", "extensions": {"code": "ACCESS_DENIED"}}]}
+        c.session.post = MagicMock(return_value=r)
+        with pytest.raises(GraphQLAuthError):
+            c._graphql("{ x }")
+
+
+class TestAccessScopes:
+    def test_get_access_scopes(self):
+        c = ShopifyClient("shop.myshopify.com", "tok")
+        c._graphql = MagicMock(return_value={
+            "currentAppInstallation": {"accessScopes": [
+                {"handle": "write_products"}, {"handle": "read_orders"},
+            ]}
+        })
+        assert c.get_access_scopes() == ["write_products", "read_orders"]
+
+    def test_verify_token_scopes_reports_missing(self):
+        c = ShopifyClient("shop.myshopify.com", "tok")
+        c.get_access_scopes = MagicMock(return_value=["write_products"])
+        assert c.verify_token_scopes(["write_products", "write_themes"]) == ["write_themes"]
+
+    def test_verify_token_scopes_all_present(self):
+        c = ShopifyClient("shop.myshopify.com", "tok")
+        c.get_access_scopes = MagicMock(return_value=["write_products", "write_themes"])
+        assert c.verify_token_scopes(["write_products"]) == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Markets / shipping / domains / payments / webhooks / tax probe
+# ---------------------------------------------------------------------------
+
+from tara_migrate.client import GraphQLUserError  # noqa: E402
+
+
+class TestMarkets:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_create_market(self):
+        self.c._graphql = MagicMock(return_value={
+            "marketCreate": {"market": {"id": "gid://m/1", "name": "Kuwait"}, "userErrors": []}
+        })
+        out = self.c.create_market("Kuwait", ["KW"])
+        assert out["id"] == "gid://m/1"
+        sent = self.c._graphql.call_args[0][1]
+        assert sent["input"]["regions"] == [{"countryCode": "KW"}]
+
+    def test_create_market_user_error(self):
+        self.c._graphql = MagicMock(return_value={
+            "marketCreate": {"market": None, "userErrors": [{"field": "name", "message": "taken"}]}
+        })
+        with pytest.raises(GraphQLUserError):
+            self.c.create_market("Dup", ["KW"])
+
+    def test_web_presence_subfolder(self):
+        self.c._graphql = MagicMock(return_value={
+            "marketWebPresenceCreate": {"market": {"id": "gid://m/1"}, "userErrors": []}
+        })
+        self.c.market_create_web_presence("gid://m/1", "en", ["ar"], subfolder_suffix="kw")
+        sent = self.c._graphql.call_args[0][1]
+        assert sent["webPresence"]["subfolderSuffix"] == "kw"
+        assert sent["webPresence"]["alternateLocales"] == ["ar"]
+
+
+class TestShippingAndGoLiveProbes:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+
+    def test_update_delivery_profile_passthrough(self):
+        self.c._graphql = MagicMock(return_value={
+            "deliveryProfileUpdate": {"profile": {"id": "gid://dp/1", "name": "General"}, "userErrors": []}
+        })
+        out = self.c.update_delivery_profile("gid://dp/1", {"locationGroupsToUpdate": []})
+        assert out["id"] == "gid://dp/1"
+
+    def test_get_domains(self):
+        self.c._graphql = MagicMock(return_value={
+            "shop": {"domains": [{"host": "x.com", "url": "https://x.com", "sslEnabled": True}],
+                     "primaryDomain": {"host": "x.com"}}
+        })
+        assert self.c.get_domains()[0]["sslEnabled"] is True
+
+    def test_get_payment_gateways(self):
+        self.c._get_json = MagicMock(return_value=({"payment_gateways": [{"id": 1, "name": "Tap"}]}, {}))
+        assert self.c.get_payment_gateways()[0]["name"] == "Tap"
+
+    def test_calculate_draft_order_tax(self):
+        self.c._graphql = MagicMock(return_value={
+            "draftOrderCalculate": {
+                "calculatedDraftOrder": {"taxLines": [{"title": "VAT", "rate": 0.15}]},
+                "userErrors": [],
+            }
+        })
+        out = self.c.calculate_draft_order_tax("gid://shopify/ProductVariant/1", "SA")
+        assert out["taxLines"][0]["rate"] == 0.15
+
+    def test_create_webhook(self):
+        self.c._graphql = MagicMock(return_value={
+            "webhookSubscriptionCreate": {"webhookSubscription": {"id": "gid://w/1"}, "userErrors": []}
+        })
+        assert self.c.create_webhook_subscription("ORDERS_CREATE", "https://x/y")["id"] == "gid://w/1"
+
+
+class TestBulkOperations:
+    def setup_method(self):
+        self.c = ShopifyClient("shop.myshopify.com", "tok")
+        self.c._sleep = MagicMock()
+
+    def test_run_bulk_query_completes_and_parses(self):
+        # First _graphql call starts the op; subsequent calls poll status.
+        self.c._graphql = MagicMock(side_effect=[
+            {"bulkOperationRunQuery": {"bulkOperation": {"id": "gid://b/1", "status": "CREATED"}, "userErrors": []}},
+            {"currentBulkOperation": {"id": "gid://b/1", "status": "RUNNING"}},
+            {"currentBulkOperation": {"id": "gid://b/1", "status": "COMPLETED", "url": "https://x/result.jsonl"}},
+        ])
+        resp = MagicMock()
+        resp.text = '{"id":"gid://shopify/Product/1"}\n{"id":"gid://shopify/Product/2"}\n'
+        self.c.session.get = MagicMock(return_value=resp)
+        items = self.c.run_bulk_query("{ products { edges { node { id } } } }")
+        assert len(items) == 2
+        assert items[0]["id"].endswith("/1")
+
+    def test_run_bulk_query_failed_raises(self):
+        self.c._graphql = MagicMock(side_effect=[
+            {"bulkOperationRunQuery": {"bulkOperation": {"id": "b", "status": "CREATED"}, "userErrors": []}},
+            {"currentBulkOperation": {"status": "FAILED", "errorCode": "INTERNAL_SERVER_ERROR"}},
+        ])
+        with pytest.raises(GraphQLUserError):
+            self.c.run_bulk_query("{ x }")
+
+    def test_run_bulk_query_usererror_on_start(self):
+        self.c._graphql = MagicMock(return_value={
+            "bulkOperationRunQuery": {"bulkOperation": None, "userErrors": [{"message": "bad query"}]}
+        })
+        with pytest.raises(GraphQLUserError):
+            self.c.run_bulk_query("{ bad }")

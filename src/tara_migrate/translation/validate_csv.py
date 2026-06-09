@@ -30,10 +30,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 
-from tara_migrate.core.csv_utils import is_non_translatable, is_keep_as_is
-from tara_migrate.core.language import has_arabic, count_chars, ARABIC_REGEX, LATIN_REGEX
-from tara_migrate.core.rich_text import extract_text, is_rich_text_json
-from tara_migrate.translation.toon import to_toon, from_toon
+from tara_migrate.core.csv_utils import is_keep_as_is, is_non_translatable
+from tara_migrate.core.language import ARABIC_REGEX, count_chars, has_arabic
+from tara_migrate.core.rich_text import extract_text
+from tara_migrate.translation.toon import from_toon, to_toon
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -547,7 +547,7 @@ def _call_haiku(client, prompt, retries=3):
             return result
         except json.JSONDecodeError:
             if attempt < retries - 1:
-                print(f" json-retry", end="", flush=True)
+                print(" json-retry", end="", flush=True)
                 time.sleep(2 ** attempt)
         except Exception as e:
             if "rate" in str(e).lower() or "429" in str(e):
@@ -555,7 +555,7 @@ def _call_haiku(client, prompt, retries=3):
                 print(f" rate-limited({wait}s)", end="", flush=True)
                 time.sleep(wait)
             elif attempt < retries - 1:
-                print(f" err-retry", end="", flush=True)
+                print(" err-retry", end="", flush=True)
                 time.sleep(2 ** attempt)
             else:
                 print(f" ERROR({e})", end="", flush=True)
@@ -970,19 +970,19 @@ def clean_csv(input_path, output_path=None, *, fix_misaligned=False, keep_all_ro
 
     # Report
     print(f"{'=' * 60}")
-    print(f"  CLEANING REPORT")
+    print("  CLEANING REPORT")
     print(f"{'=' * 60}")
     print(f"  Input rows:     {len(rows)}")
     print(f"  Output rows:    {len(clean_rows)}")
     print(f"  Removed:        {len(rows) - len(clean_rows)}")
 
     if removed:
-        print(f"\n  Removed (non-translatable):")
+        print("\n  Removed (non-translatable):")
         for reason, count in removed.most_common():
             print(f"    {reason}: {count}")
 
     if cleared:
-        print(f"\n  Cleared translations:")
+        print("\n  Cleared translations:")
         for reason, count in cleared.most_common():
             print(f"    {reason}: {count}")
 
@@ -1068,7 +1068,7 @@ def verify_coverage(input_path, *, no_ai=True, samples=30, model="gpt-5-nano",
     coverage = (len(translated) / total_translatable * 100) if total_translatable else 100
 
     print(f"{'=' * 60}")
-    print(f"  COVERAGE REPORT")
+    print("  COVERAGE REPORT")
     print(f"{'=' * 60}")
     print(f"  Total rows:           {len(rows)}")
     print(f"  Translatable:         {total_translatable}")
@@ -1191,7 +1191,7 @@ def verify_coverage(input_path, *, no_ai=True, samples=30, model="gpt-5-nano",
             print(f"    {cat}: {count}")
         if spanish_source_count:
             print(f"\n    {spanish_source_count} rows have Spanish in 'Default content'")
-            print(f"    (Arabic OK, but English column needs fixing)")
+            print("    (Arabic OK, but English column needs fixing)")
 
         if verbose:
             print()
@@ -1214,6 +1214,7 @@ def verify_coverage(input_path, *, no_ai=True, samples=30, model="gpt-5-nano",
             print("\nOPENAI_API_KEY not set -- skipping AI spot-check")
         else:
             import random
+
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
 
@@ -1341,12 +1342,12 @@ def validate_csv(input_path, output_path=None, *, skip_ai=False, workers=3,
     cache = RowCache(translatable)
 
     # --- Step 2: Script analysis ---
-    print(f"\nStep 2: Script & structural analysis...")
+    print("\nStep 2: Script & structural analysis...")
     script_issues = _detect_script_issues(cache)
     _print_issues(script_issues, cache, 5)
 
     # --- Step 3: Duplicate detection ---
-    print(f"\nStep 3: Duplicate translation detection...")
+    print("\nStep 3: Duplicate translation detection...")
     dup_issues = _detect_duplicates(cache)
     _print_issues(dup_issues, cache, 3)
 
@@ -1399,23 +1400,23 @@ def validate_csv(input_path, output_path=None, *, skip_ai=False, workers=3,
 
     # --- Report ---
     print(f"\n{'=' * 60}")
-    print(f"  VALIDATION REPORT")
+    print("  VALIDATION REPORT")
     print(f"{'=' * 60}")
     print(f"  Input rows:         {len(rows)}")
     print(f"  Untranslatable:     {total_removed} (removed)")
     print(f"  Translatable:       {len(translatable)}")
-    print(f"  -- By layer --")
+    print("  -- By layer --")
     print(f"  Script/structural:  {len(script_issues)}")
     print(f"  Duplicate Arabic:   {len(dup_issues)}")
     print(f"  Heuristic shifts:   {len(heuristic_shifts)}")
     print(f"  AI mismatches:      {len(ai_mismatches)}")
-    print(f"  -- Merged --")
+    print("  -- Merged --")
     print(f"  Total flagged:      {len(mismatches)}")
     for src, cnt in Counter(m.get("source", "?") for m in mismatches).most_common():
         print(f"    {src}: {cnt}")
 
     if mismatches:
-        print(f"\n  Flagged rows:")
+        print("\n  Flagged rows:")
         for m in mismatches[:30]:
             conf = m.get("confidence", m.get("severity", ""))
             print(f"    [{m['source']}] ({conf}) [{m['type']}] {m['field']}")
@@ -1437,7 +1438,7 @@ def validate_csv(input_path, output_path=None, *, skip_ai=False, workers=3,
         print(f"  Report: {report_path}")
 
     if dry_run:
-        print(f"\n  DRY RUN -- no output written")
+        print("\n  DRY RUN -- no output written")
     else:
         _write_csv(output_path, fieldnames, translatable)
         print(f"\n  Output: {output_path}")

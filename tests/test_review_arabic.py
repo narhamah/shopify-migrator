@@ -12,27 +12,23 @@ Covers:
 """
 
 import json
-from unittest.mock import MagicMock, patch, call
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from tara_migrate.tools.review_arabic import (
-    _extract_checkable_text,
-    _has_untranslated_english,
-    _has_spanish_in_arabic,
-    _UNTRANSLATED_EN,
     _ALLOWED_LATIN,
+    _RETRANSLATE,
+    _STRIP_ONLY,
+    _UNTRANSLATED_EN,
+    _extract_checkable_text,
+    _has_spanish_in_arabic,
+    _has_untranslated_english,
     classify_fields,
-    run_semantic_check,
+    fetch_translations,
+    main,
     run_audit,
     run_fix,
-    fetch_translations,
-    _STRIP_ONLY,
-    _RETRANSLATE,
-    LOCALE,
-    main,
+    run_semantic_check,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

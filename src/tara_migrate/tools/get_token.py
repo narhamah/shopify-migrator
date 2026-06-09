@@ -8,7 +8,7 @@ This will:
 1. Print an authorization URL for you to visit in your browser
 2. You authorize the app, get redirected to a page that won't load
 3. Copy the "code" parameter from the browser's address bar
-4. Paste it back here — the script exchanges it for an access token
+4. Paste it back here - the script exchanges it for an access token
 """
 
 import argparse
@@ -16,9 +16,29 @@ import urllib.parse
 
 import requests
 
-SCOPES = "read_products,write_products,read_content,write_content,read_inventory,write_inventory,read_locales,write_locales,read_translations,write_translations,read_files,write_files,read_metaobject_definitions,write_metaobject_definitions,read_metaobjects,write_metaobjects"
-# This URL won't actually load — we just need it registered in the app settings
-# so Shopify redirects there with the ?code= parameter visible in the address bar
+MIGRATION_SCOPES = (
+    "read_price_rules,write_price_rules,"
+    "read_discounts,write_discounts,"
+    "read_discounts_allocator_functions,write_discounts_allocator_functions,"
+    "read_files,write_files,"
+    "read_inventory,write_inventory,"
+    "read_locales,write_locales,"
+    "read_locations,"
+    "read_metaobject_definitions,write_metaobject_definitions,"
+    "read_metaobjects,write_metaobjects,"
+    "read_online_store_navigation,write_online_store_navigation,"
+    "read_products,write_products,"
+    "read_publications,write_publications,"
+    "read_content,write_content,"
+    "read_themes,write_themes,"
+    "read_translations,write_translations,"
+    "read_markets,write_markets,"
+    "read_shipping,write_shipping,"
+    "read_legal_policies,write_legal_policies"
+)
+
+# This URL won't actually load - we just need it registered in the app settings
+# so Shopify redirects there with the ?code= parameter visible in the address bar.
 REDIRECT_URI = "https://localhost/callback"
 
 
@@ -27,6 +47,16 @@ def main():
     parser.add_argument("--shop", required=True, help="Store URL (e.g., xkgw0m-sm.myshopify.com)")
     parser.add_argument("--client-id", required=True, help="App Client ID from Dev Dashboard")
     parser.add_argument("--client-secret", required=True, help="App Client Secret from Dev Dashboard")
+    parser.add_argument(
+        "--scopes",
+        default=MIGRATION_SCOPES,
+        help="Comma-separated Admin API scopes to request.",
+    )
+    parser.add_argument(
+        "--redirect-uri",
+        default=REDIRECT_URI,
+        help="OAuth redirect URI registered on the app.",
+    )
     args = parser.parse_args()
 
     shop = args.shop.replace("https://", "").rstrip("/")
@@ -34,17 +64,17 @@ def main():
     auth_url = (
         f"https://{shop}/admin/oauth/authorize"
         f"?client_id={args.client_id}"
-        f"&scope={SCOPES}"
-        f"&redirect_uri={urllib.parse.quote(REDIRECT_URI)}"
+        f"&scope={urllib.parse.quote(args.scopes)}"
+        f"&redirect_uri={urllib.parse.quote(args.redirect_uri)}"
     )
 
     print(f"\n{'='*60}")
     print("STEP 1: Visit this URL in your browser and click 'Install':\n")
     print(f"  {auth_url}\n")
     print("STEP 2: After authorizing, you'll be redirected to a page")
-    print("  that won't load. That's OK! Look at the address bar.")
+    print("  that won't load. That's OK. Look at the address bar.")
     print("  It will look like:")
-    print("  https://localhost/callback?code=XXXXXXXXXX&...")
+    print(f"  {args.redirect_uri}?code=XXXXXXXXXX&...")
     print("\nSTEP 3: Copy the 'code' value and paste it below.")
     print(f"{'='*60}\n")
 
@@ -54,14 +84,17 @@ def main():
         print("Error: No code provided.")
         return
 
-    # Exchange code for access token
     print("\nExchanging code for access token...")
     token_url = f"https://{shop}/admin/oauth/access_token"
-    resp = requests.post(token_url, json={
-        "client_id": args.client_id,
-        "client_secret": args.client_secret,
-        "code": code,
-    })
+    resp = requests.post(
+        token_url,
+        json={
+            "client_id": args.client_id,
+            "client_secret": args.client_secret,
+            "code": code,
+        },
+        timeout=30,
+    )
 
     if resp.status_code == 200:
         data = resp.json()

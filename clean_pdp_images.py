@@ -19,19 +19,17 @@ import argparse
 import hashlib
 import json
 import os
-import re
 import sys
 import time
 from io import BytesIO
 
 import imagehash
-import pytesseract
 import requests as http_requests
-from PIL import Image
 from dotenv import load_dotenv
+from PIL import Image
 
 from tara_migrate.client import ShopifyClient
-from tara_migrate.core import config, load_json, save_json
+from tara_migrate.core import config
 from tara_migrate.tools.image_lang_detect import classify_image_language
 
 # Perceptual hash similarity threshold (lower = more similar)
@@ -316,7 +314,7 @@ def process_product(client, session, product, dry_run):
         changed = True
 
     if changed:
-        print(f"    Updated metafields")
+        print("    Updated metafields")
 
     # Collect GIDs to potentially delete (removed from both EN and AR)
     all_kept = set(clean_en + clean_ar)

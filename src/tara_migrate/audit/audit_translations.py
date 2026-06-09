@@ -36,19 +36,15 @@ from tara_migrate.core.graphql_queries import (
     FETCH_DIGESTS_QUERY,
     REGISTER_TRANSLATIONS_MUTATION,
     TRANSLATABLE_RESOURCES_QUERY,
-    fetch_translatable_resources,
-    paginate_query,
-    upload_translations,
 )
 from tara_migrate.core.language import count_chars, detect_mixed_language, has_arabic
-from tara_migrate.core.rich_text import extract_text, is_rich_text_json
+from tara_migrate.core.rich_text import extract_text
 from tara_migrate.core.shopify_fields import (
     TRANSLATABLE_RESOURCE_TYPES,
     is_skippable_field,
     is_skippable_value,
 )
 from tara_migrate.core.utils import sanitize_rich_text_json
-
 
 # ---------------------------------------------------------------------------
 # GraphQL query for fetching resources by ID (used by investigate)
@@ -895,7 +891,7 @@ def upload_from_csv(client, locale, csv_path, type_filter=None,
             time.sleep(0.5)
 
     print(f"\n{'=' * 60}")
-    print(f"  UPLOAD COMPLETE")
+    print("  UPLOAD COMPLETE")
     print(f"{'=' * 60}")
     print(f"  Uploaded:          {uploaded} fields")
     print(f"  Errors:            {errors}")

@@ -40,7 +40,9 @@ Usage:
     # Override translation model
     python crawl_and_translate.py --model gpt-5-mini
 """
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
 from tara_migrate.tools.crawl_and_translate import main

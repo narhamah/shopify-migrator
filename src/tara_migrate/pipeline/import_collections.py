@@ -51,7 +51,7 @@ def build_metafield_def_remap(spain, saudi):
     if not source_defs:
         # Fetch live from source
         try:
-            source_defs_raw = source.get_metafield_definitions("PRODUCT")
+            source_defs_raw = spain.get_metafield_definitions("PRODUCT")
             source_defs = source_defs_raw
         except Exception as e:
             print(f"  Warning: Could not fetch Spain metafield definitions: {e}")

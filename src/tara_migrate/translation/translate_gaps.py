@@ -26,6 +26,7 @@ from openai import OpenAI
 
 from tara_migrate.core import load_json, save_json
 from tara_migrate.core.config import AR_DIR, EN_DIR, SOURCE_DIR
+from tara_migrate.core.language import replace_range_names_ar
 from tara_migrate.core.utils import unicode_slugify as _slugify
 from tara_migrate.translation.field_extractors import (  # noqa: F401
     TEXT_METAFIELD_TYPES,
@@ -37,7 +38,6 @@ from tara_migrate.translation.field_extractors import (  # noqa: F401
     extract_product_fields,
 )
 from tara_migrate.translation.toon import _toon_escape, _toon_unescape, from_toon, to_toon  # noqa: F401
-from tara_migrate.core.language import replace_range_names_ar, TARA_RANGE_NAMES_AR
 from tara_migrate.translation.translator import TARA_TONE_AR, TARA_TONE_EN
 
 # Max fields per TOON batch — large batches = fewer API calls

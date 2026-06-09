@@ -25,8 +25,8 @@ import os
 import time
 import urllib.parse
 
-from dotenv import load_dotenv
 import requests
+from dotenv import load_dotenv
 from PIL import Image
 
 from tara_migrate.client import ShopifyClient
@@ -34,6 +34,7 @@ from tara_migrate.core import (
     ARTICLE_FILE_METAFIELDS,
     FILE_FIELD_PRESETS,
     FILE_MAP_FILE,
+    config,
     load_json,
     save_json,
 )
@@ -47,7 +48,6 @@ from tara_migrate.pipeline.image_helpers import (
     resolve_shopify_image_to_url as _resolve_shopify_image_to_url,
 )
 from tara_migrate.tools.optimize_images import download_and_optimize
-from tara_migrate.core import config
 
 
 def _load_metaobject_file_fallbacks():
@@ -1090,7 +1090,10 @@ def phase7_verify(spain, saudi, id_map, file_map, dry_run=False):
                 dest_mo = dest_obj.get("metaobject", {})
                 for f in dest_mo.get("fields", []):
                     if f["key"] in file_field_keys:
-                        if f.get("value"):
+                        value = f.get("value")
+                        is_list = isinstance(value, str) and value.strip().startswith("[")
+                        # Verify the GID actually resolves, not just that the field is non-empty.
+                        if value and _dest_file_reference_is_valid(saudi, value, is_list=is_list):
                             report["metaobject_files_populated"] += 1
                         else:
                             report["metaobject_files_missing"] += 1

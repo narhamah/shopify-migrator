@@ -1,5 +1,32 @@
 # CLAUDE.md — Shopify Store Migration Toolkit
 
+## Robustness & automation (2026 refactor — see ARCHITECTURE.md)
+
+- **Unified CLI**: `python migrate.py <verb>` dispatches to every pipeline step
+  (`run | resume | export | import | translate | arabic | images | post |
+  markets | shipping | flows | setup | verify`). Root `*.py` are thin wrappers;
+  `tara_migrate.core._lint_wrappers` enforces this (CI + pre-commit).
+- **Declarative config**: one TOML per destination (`destinations/<name>.toml`,
+  see `*.example`). `--config` populates the env the pipeline reads. Secrets stay
+  as env *references*, never inline.
+- **Resumable, truthful orchestrator**: `migrate run` writes
+  `data/{dest}/run_manifest.json` (per-phase status/counts/errors), fails fast
+  with a non-zero exit on any phase failure, and `--resume` skips completed
+  phases when config + source export are unchanged. A `preflight()` validates
+  config + token scopes + connectivity before any mutation.
+- **Acceptance gate**: `python acceptance.py` (or `pytest -m acceptance`) is the
+  single pass/fail check that a build is actually complete.
+- **Manual-step automation**: Markets (`migrate markets`), shipping
+  (`migrate shipping`), theme go-live (`post_migration --go-live`), notification
+  translation, and owned flow patterns (`migrate flows`) are automated. The
+  irreducible platform-gated steps (VAT cert, payment KYC, registrar DNS,
+  password toggle, app OAuth) are surfaced as deep-linked, verified one-click
+  steps in `data/{dest}/manual_steps.json`.
+- **Secrets**: never commit real tokens. `.env`/`destinations/*.toml` (non-example)
+  must stay gitignored. `scripts/check_secrets.py` (CI + pre-commit via
+  `.pre-commit-config.yaml`) rejects `shpat_`/`sk-`/PEM keys. If a token is ever
+  committed, rotate it immediately. Run `pre-commit install` once to enable hooks.
+
 ## Project Overview
 
 Generic Python CLI pipeline for **Shopify store-to-store migration**. Originally built for TARA luxury scalp-care (Spain → Saudi Arabia), now supports migrating any Shopify store to multiple destinations. Handles products, collections, pages, blogs, articles, metaobjects, translations, images, menus, redirects, and post-migration config. Env vars `SOURCE_SHOP_URL`/`DEST_SHOP_URL` control which stores are source and destination.

@@ -16,7 +16,6 @@ import os
 
 from tara_migrate.core import load_json, save_json
 
-
 LEGACY_REDIRECT_TARGET_REMAP = {
     "/products/sistema-fortalecedor-del-cabello": "/products/hair-strength-system",
     "/products/tratamiento-revitalizante-para-cuero-cabelludo": "/products/scalp-hair-revival-system",

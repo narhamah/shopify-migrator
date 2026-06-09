@@ -1,23 +1,38 @@
 """Tests for post_migration.py."""
 import json
 import os
-from unittest.mock import MagicMock, patch, call
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from tara_migrate.pipeline.post_migration import (
-    step_enable_arabic,
-    step_link_products_to_collections,
-    step_build_navigation,
-    step_set_seo_tags,
-    step_create_redirects,
-    step_set_inventory,
-    step_publish_resources,
-    step_migrate_discounts,
-    step_activate_products,
-    step_create_policies,
     main,
+    step_activate_products,
+    step_build_navigation,
+    step_create_policies,
+    step_create_redirects,
+    step_go_live,
+    step_link_products_to_collections,
+    step_migrate_discounts,
+    step_publish_resources,
+    step_set_inventory,
+    step_set_seo_tags,
+    step_sync_locales,
 )
+
+
+def test_no_duplicate_locale_step_definition():
+    """Regression guard: the locale step must be defined exactly once.
+
+    The old code defined step_enable_arabic twice; Python silently kept the
+    second, making the first dead code and changing step 1's behaviour.
+    """
+    import ast
+
+    import tara_migrate.pipeline.post_migration as pm
+
+    tree = ast.parse(open(pm.__file__, encoding="utf-8").read())
+    func_names = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+    assert func_names.count("step_sync_locales") == 1
+    assert "step_enable_arabic" not in func_names
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +45,7 @@ class TestStepEnableArabic:
         client.get_locales.return_value = [{"locale": "en", "primary": True, "published": True}]
         client.enable_locale.return_value = {"locale": "ar", "published": True}
 
-        step_enable_arabic(client)
+        step_sync_locales(client)
 
         client.enable_locale.assert_called_once_with("ar")
 
@@ -41,20 +56,20 @@ class TestStepEnableArabic:
             {"locale": "ar", "primary": False, "published": True},
         ]
 
-        step_enable_arabic(client)
+        step_sync_locales(client)
 
         client.enable_locale.assert_not_called()
 
     def test_dry_run(self):
         client = MagicMock()
-        step_enable_arabic(client, dry_run=True)
+        step_sync_locales(client, dry_run=True)
         client.get_locales.assert_not_called()
         client.enable_locale.assert_not_called()
 
     def test_skips_locale_sync_for_english_only_destination(self, capsys):
         client = MagicMock()
 
-        step_enable_arabic(client, sync_secondary_locales=False)
+        step_sync_locales(client, sync_secondary_locales=False)
 
         client.get_locales.assert_not_called()
         client.enable_locale.assert_not_called()
@@ -67,7 +82,7 @@ class TestStepEnableArabic:
         client.get_locales.return_value = [{"locale": "en", "primary": True, "published": True}]
         client.enable_locale.side_effect = Exception("API error")
 
-        step_enable_arabic(client)
+        step_sync_locales(client)
 
         captured = capsys.readouterr()
         assert "error" in captured.out.lower()
@@ -578,3 +593,37 @@ class TestMain:
 
         client.get_locales.assert_not_called()
         client.enable_locale.assert_not_called()
+
+
+class TestStepGoLive:
+    def test_publishes_most_recent_unpublished_theme(self):
+        client = MagicMock()
+        client.get_themes.return_value = [
+            {"id": 1, "role": "main", "updated_at": "2026-01-01"},
+            {"id": 2, "role": "unpublished", "updated_at": "2026-06-01"},
+            {"id": 3, "role": "unpublished", "updated_at": "2026-06-03"},
+        ]
+        client.publish_theme.return_value = {"id": 3, "role": "main"}
+        step_go_live(client)
+        client.publish_theme.assert_called_once_with(3)
+
+    def test_explicit_theme_id(self):
+        client = MagicMock()
+        client.get_themes.return_value = [{"id": 1, "role": "main"}]
+        client.publish_theme.return_value = {"id": 9, "role": "main"}
+        step_go_live(client, theme_id=9)
+        client.publish_theme.assert_called_once_with(9)
+
+    def test_skips_when_already_live(self):
+        client = MagicMock()
+        client.get_themes.return_value = [{"id": 5, "role": "main"}]
+        step_go_live(client, theme_id=5)
+        client.publish_theme.assert_not_called()
+
+    def test_dry_run_does_not_publish(self):
+        client = MagicMock()
+        client.get_themes.return_value = [
+            {"id": 1, "role": "main"}, {"id": 2, "role": "unpublished", "updated_at": "2026-06-03"},
+        ]
+        step_go_live(client, dry_run=True)
+        client.publish_theme.assert_not_called()

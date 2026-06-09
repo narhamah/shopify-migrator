@@ -9,7 +9,9 @@ Or run directly (fetches from Shopify):
     PYTHONPATH=src python analyze_theme_keys.py --fetch
 """
 
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
 import argparse
@@ -65,13 +67,13 @@ def analyze(fields):
     total_en_chars = sum(len(f.get("english", "") or "") for f in fields)
 
     print(f"\n{'=' * 70}")
-    print(f"THEME TRANSLATION KEY ANALYSIS")
+    print("THEME TRANSLATION KEY ANALYSIS")
     print(f"{'=' * 70}")
     print(f"  Total keys:           {total}")
     print(f"  With Arabic:          {with_ar}")
     print(f"  Without Arabic:       {total - with_ar}")
     print(f"  Total EN chars:       {total_en_chars:,}")
-    print(f"  Shopify limit:        ~3,400")
+    print("  Shopify limit:        ~3,400")
     over = total - 3400
     if over > 0:
         print(f"  OVER LIMIT BY:        {over}")
@@ -80,7 +82,7 @@ def analyze(fields):
 
     # ── By source ──
     print(f"\n{'─' * 70}")
-    print(f"KEYS BY SOURCE")
+    print("KEYS BY SOURCE")
     print(f"{'─' * 70}")
     source_order = [
         "theme_editor", "theme_locale", "checkout", "shopify_system",
@@ -115,7 +117,7 @@ def analyze(fields):
 
     # ── Massive keys (policies, etc.) ──
     print(f"\n{'─' * 70}")
-    print(f"LARGEST KEYS (by English character count)")
+    print("LARGEST KEYS (by English character count)")
     print(f"{'─' * 70}")
     sorted_by_size = sorted(fields, key=lambda f: len(f.get("english", "") or ""),
                             reverse=True)
@@ -129,12 +131,12 @@ def analyze(fields):
             inline_ar = " ⚠ INLINE ARABIC IN EN VALUE"
         print(f"  [{has_ar:>6}] {len(en):>6} chars  {f['key'][:55]}{inline_ar}")
         if inline_ar:
-            print(f"           → This key has Arabic baked into the 'English' field!")
-            print(f"           → Translation registration is WASTED — Arabic is already there.")
+            print("           → This key has Arabic baked into the 'English' field!")
+            print("           → Translation registration is WASTED — Arabic is already there.")
 
     # ── Duplicate detection ──
     print(f"\n{'─' * 70}")
-    print(f"DUPLICATE ENGLISH VALUES")
+    print("DUPLICATE ENGLISH VALUES")
     print(f"{'─' * 70}")
     by_value = defaultdict(list)
     for f in fields:
@@ -163,7 +165,7 @@ def analyze(fields):
 
     # ── Keys with inline Arabic (in the English value) ──
     print(f"\n{'─' * 70}")
-    print(f"KEYS WITH ARABIC BAKED INTO ENGLISH VALUE")
+    print("KEYS WITH ARABIC BAKED INTO ENGLISH VALUE")
     print(f"{'─' * 70}")
     inline_arabic = []
     for f in fields:
@@ -173,8 +175,8 @@ def analyze(fields):
 
     print(f"  Count: {len(inline_arabic)}")
     if inline_arabic:
-        print(f"  These have Arabic text INSIDE the English source field.")
-        print(f"  Registering a separate Arabic translation is redundant.")
+        print("  These have Arabic text INSIDE the English source field.")
+        print("  Registering a separate Arabic translation is redundant.")
         total_inline_chars = sum(len(f.get("english", "") or "") for f in inline_arabic)
         print(f"  Total chars in these keys: {total_inline_chars:,}")
         for f in inline_arabic[:10]:
@@ -183,7 +185,7 @@ def analyze(fields):
 
     # ── Empty/useless translations ──
     print(f"\n{'─' * 70}")
-    print(f"ARABIC = ENGLISH (identical translations)")
+    print("ARABIC = ENGLISH (identical translations)")
     print(f"{'─' * 70}")
     identical = []
     for f in fields:
@@ -200,7 +202,7 @@ def analyze(fields):
 
     # ── Summary & recommendations ──
     print(f"\n{'=' * 70}")
-    print(f"RECOMMENDATIONS")
+    print("RECOMMENDATIONS")
     print(f"{'=' * 70}")
 
     removable = 0
@@ -228,18 +230,18 @@ def analyze(fields):
     print(f"  7. Customer accounts keys:      {ca_count}")
 
     actually_need = len(by_source.get("theme_editor", [])) + len(by_source.get("theme_locale", []))
-    print(f"\n  Keys you actually need translations for:")
+    print("\n  Keys you actually need translations for:")
     print(f"    Theme editor (section.*):    {len(by_source.get('theme_editor', []))}")
     print(f"    Theme locale (UI strings):   {len(by_source.get('theme_locale', []))}")
     print(f"    TOTAL NEEDED:                {actually_need}")
 
     if actually_need <= 3400:
-        print(f"\n  ✓ You can fit all needed keys under the 3,400 limit!")
-        print(f"    Remove checkout + shopify system + customer accounts + junk")
-        print(f"    Then translate the theme locale strings.")
+        print("\n  ✓ You can fit all needed keys under the 3,400 limit!")
+        print("    Remove checkout + shopify system + customer accounts + junk")
+        print("    Then translate the theme locale strings.")
     else:
-        print(f"\n  ✗ Even needed keys alone exceed 3,400.")
-        print(f"    Need to deduplicate theme editor content.")
+        print("\n  ✗ Even needed keys alone exceed 3,400.")
+        print("    Need to deduplicate theme editor content.")
 
 
 def main():
@@ -255,7 +257,7 @@ def main():
         from dotenv import load_dotenv
         load_dotenv()
         from tara_migrate.client.shopify_client import ShopifyClient
-        from tara_migrate.tools.audit_theme_keys import fetch_theme_keys, analyze_keys
+        from tara_migrate.tools.audit_theme_keys import analyze_keys, fetch_theme_keys
         client = ShopifyClient(
             os.environ["SAUDI_SHOP_URL"],
             os.environ["SAUDI_ACCESS_TOKEN"],

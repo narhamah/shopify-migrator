@@ -27,7 +27,6 @@ from tara_migrate.core import config
 from tara_migrate.core.graphql_queries import TRANSLATABLE_RESOURCES_QUERY
 from tara_migrate.core.shopify_fields import TRANSLATABLE_RESOURCE_TYPES
 
-
 LOCALE = "ar"
 
 REMOVE_TRANSLATIONS_MUTATION = """

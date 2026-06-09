@@ -4,6 +4,7 @@ import re
 from typing import Any
 
 from openai import OpenAI
+
 from tara_migrate.core.rich_text import validate_structure
 
 # =====================================================================

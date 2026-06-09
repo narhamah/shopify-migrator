@@ -45,7 +45,6 @@ from tara_migrate.core.language import has_arabic, has_significant_english
 from tara_migrate.core.rich_text import extract_text, is_rich_text_json
 from tara_migrate.translation.engine import TranslationEngine, load_developer_prompt
 
-
 # ---------------------------------------------------------------------------
 # Progress tracking
 # ---------------------------------------------------------------------------

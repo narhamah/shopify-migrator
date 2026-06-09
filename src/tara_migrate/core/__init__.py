@@ -12,45 +12,6 @@ from tara_migrate.core.config import (  # noqa: F401
     get_source_access_token,
     get_source_shop_url,
 )
-from tara_migrate.core.utils import (  # noqa: F401
-    ARTICLE_FILE_METAFIELDS,
-    DEFINITION_ORDER,
-    FILE_FIELD_PRESETS,
-    IMAGE_KEYWORDS,
-    MAGENTO_HEADERS,
-    METAOBJECT_FILE_FIELDS,
-    REQUEST_DELAY,
-    SECTION_PRESETS,
-    ascii_slugify,
-    load_json,
-    sanitize_rich_text_json,
-    save_json,
-    sort_by_dependency,
-    unicode_slugify,
-)
-# New shared modules
-from tara_migrate.core.language import (  # noqa: F401
-    count_chars,
-    detect_mixed_language,
-    has_arabic,
-    has_significant_english,
-    is_arabic_visible_text,
-)
-from tara_migrate.core.rich_text import (  # noqa: F401
-    extract_text as extract_rich_text,
-    extract_text_nodes as extract_rich_text_nodes,
-    is_rich_text_json,
-    rebuild as rebuild_rich_text,
-    sanitize as sanitize_rich_text,
-    validate_json,
-)
-from tara_migrate.core.shopify_fields import (  # noqa: F401
-    SKIP_FIELD_PATTERNS,
-    TEXT_METAFIELD_TYPES,
-    TRANSLATABLE_RESOURCE_TYPES,
-    is_skippable_field,
-    is_skippable_value,
-)
 from tara_migrate.core.csv_utils import (  # noqa: F401
     ARABIC_LOCALE,
     CSV_TYPE_TO_GID,
@@ -71,3 +32,60 @@ from tara_migrate.core.graphql_queries import (  # noqa: F401
     paginate_query,
     upload_translations,
 )
+
+# New shared modules
+from tara_migrate.core.language import (  # noqa: F401
+    count_chars,
+    detect_mixed_language,
+    has_arabic,
+    has_significant_english,
+    is_arabic_visible_text,
+)
+from tara_migrate.core.rich_text import (  # noqa: F401
+    extract_text as extract_rich_text,
+)
+from tara_migrate.core.rich_text import (
+    extract_text_nodes as extract_rich_text_nodes,
+)
+from tara_migrate.core.rich_text import (
+    is_rich_text_json,
+    validate_json,
+)
+from tara_migrate.core.rich_text import (
+    rebuild as rebuild_rich_text,
+)
+from tara_migrate.core.rich_text import (
+    sanitize as sanitize_rich_text,
+)
+from tara_migrate.core.shopify_fields import (  # noqa: F401
+    SKIP_FIELD_PATTERNS,
+    TEXT_METAFIELD_TYPES,
+    TRANSLATABLE_RESOURCE_TYPES,
+    is_skippable_field,
+    is_skippable_value,
+)
+from tara_migrate.core.utils import (  # noqa: F401
+    ARTICLE_FILE_METAFIELDS,
+    DEFINITION_ORDER,
+    FILE_FIELD_PRESETS,
+    IMAGE_KEYWORDS,
+    MAGENTO_HEADERS,
+    METAOBJECT_FILE_FIELDS,
+    REQUEST_DELAY,
+    SECTION_PRESETS,
+    ascii_slugify,
+    load_json,
+    sanitize_rich_text_json,
+    save_json,
+    sort_by_dependency,
+    unicode_slugify,
+)
+
+__all__ = [
+    "extract_rich_text",
+    "extract_rich_text_nodes",
+    "is_rich_text_json",
+    "rebuild_rich_text",
+    "sanitize_rich_text",
+    "validate_json",
+]

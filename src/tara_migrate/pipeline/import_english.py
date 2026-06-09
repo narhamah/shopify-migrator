@@ -22,8 +22,8 @@ from dotenv import load_dotenv
 
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, sanitize_rich_text_json, save_json
+from tara_migrate.core.failure_log import FailureLog
 from tara_migrate.core.utils import ascii_slugify as _ascii_slugify
-
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -143,6 +143,10 @@ def main():
         print("  Reset complete — starting fresh import\n")
 
     id_map = load_json(id_map_file) if os.path.exists(id_map_file) else {}
+
+    # Per-item failure log: records which items failed (and why) so a partial
+    # failure is visible, the phase can exit non-zero, and retries are targeted.
+    failure_log = FailureLog.load(config.get_progress_file("phase_errors_import_english.json"))
 
     if args.dry_run:
         print("=== DRY RUN MODE — no API calls will be made ===\n")
@@ -399,6 +403,7 @@ def main():
 
         if source_id in id_map.get("products", {}):
             print(f"  {label} — already imported, skipping")
+            failure_log.clear("product", source_id)
             continue
 
         if args.dry_run:
@@ -411,6 +416,7 @@ def main():
             print(f"  {label} — already exists (id: {dest_id}), mapping")
             id_map.setdefault("products", {})[source_id] = dest_id
             save_json(id_map, id_map_file)
+            failure_log.clear("product", source_id)
             continue
 
         product_data = prepare_product_for_import(product, magento_prices)
@@ -420,6 +426,7 @@ def main():
             print(f"  {label} — created (id: {dest_id})")
             id_map.setdefault("products", {})[source_id] = dest_id
             save_json(id_map, id_map_file)
+            failure_log.clear("product", source_id)
         except Exception as e:
             err_msg = str(e)
             # Try to extract response body for 422 errors
@@ -430,6 +437,7 @@ def main():
                 except Exception:
                     err_msg = e.response.text[:500]
             print(f"  {label} — ERROR: {err_msg}")
+            failure_log.record("product", source_id, "create_product", err_msg, handle=handle)
 
     # =============================================
     # Phase 3: Collections
@@ -920,6 +928,16 @@ def main():
         print(f"  {k}: {len(id_map[k])}")
     if args.dry_run:
         print("  (dry run — nothing was created)")
+        return
+
+    # Persist the failure log and fail the phase truthfully if any item failed,
+    # so the orchestrator does not mistake a partial import for success.
+    failure_log.save()
+    if failure_log.count:
+        print(f"\n  {failure_log.summary()}")
+        print(f"  Details: {failure_log.path}")
+        print("  Re-run import_english.py (or build_site --resume) to retry the failed items.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

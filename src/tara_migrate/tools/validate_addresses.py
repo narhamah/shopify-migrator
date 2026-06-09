@@ -385,8 +385,6 @@ _MANUAL_CITY_MAP = {
     "aldoha aljanobiah": "Dhahran",
     "darin": "Al Qatif",
     "al qurayyat": "Al Qurayyat",
-    "alhufuf": "Al Hufuf",
-    "al hufuf": "Al Hufuf",
     "baysh": "Jazan",
     "ad darb": "Jazan",
     "an nadhim": "Riyadh",
@@ -730,14 +728,14 @@ def validate_csv_cities(csv_path):
                         if city.lower() not in _MANUAL_CITY_MAP:
                             unmatched[city] += count
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Already correct: {unchanged}")
     print(f"  Normalized:      {normalized}")
     print(f"  Cleared (junk):  {cleared}")
     print(f"  Unmatched:       {sum(unmatched.values())} ({len(unmatched)} unique)")
 
     if unmatched:
-        print(f"\nUnmatched cities (top 50):")
+        print("\nUnmatched cities (top 50):")
         for city, count in unmatched.most_common(50):
             norm, _ = normalize_city(city)
             print(f"  {count:4d}  {city!r} → {norm!r}")
@@ -828,7 +826,7 @@ def main():
         print(f"\n  Matched in API:   {matched}")
         print(f"  Not in API:       {sum(api_unmatched.values())} ({len(api_unmatched)} unique)")
         if api_unmatched:
-            print(f"\n  Cities not found in API (top 30):")
+            print("\n  Cities not found in API (top 30):")
             for city, count in api_unmatched.most_common(30):
                 print(f"    {count:4d}  {city}")
 

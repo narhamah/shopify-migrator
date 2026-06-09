@@ -1,5 +1,4 @@
 """Tests for the quiz catalog exporter."""
-import pytest
 
 from tara_migrate.tools.export_quiz_catalog import (
     ALL_QUIZ_HANDLES,
@@ -11,7 +10,6 @@ from tara_migrate.tools.export_quiz_catalog import (
     normalize_product,
     validate_catalog,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers — build GraphQL-shaped product dicts

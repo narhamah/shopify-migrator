@@ -29,7 +29,6 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, save_json
 
-
 LOCAL_FILE_SEARCH_ROOTS = [
     Path.cwd(),
     Path.cwd() / "temp",

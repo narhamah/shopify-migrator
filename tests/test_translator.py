@@ -1,9 +1,19 @@
 """Tests for translator.py — Translator class and constants."""
 import json
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from tara_migrate.translation.translator import (
+    ARTICLE_TRANSLATABLE_METAFIELDS,
+    METAOBJECT_TRANSLATABLE_FIELDS,
+    PRODUCT_TRANSLATABLE_METAFIELDS,
+    SYSTEM_PROMPT,
+    TARA_TONE_AR,
+    TARA_TONE_EN,
+    TRANSLATABLE_FIELD_TYPES,
+    Translator,
+)
 
 # Patch _load_tov before importing translator module
 _MOCK_TOV = "Mock tone of voice content"
@@ -13,19 +23,6 @@ _MOCK_TOV = "Mock tone of voice content"
 def _patch_tov_files(monkeypatch):
     """Prevent translator from reading real tov files at import."""
     pass  # Files exist in the repo, so import works normally
-
-
-from tara_migrate.translation.translator import (
-    Translator,
-    SYSTEM_PROMPT,
-    TRANSLATABLE_FIELD_TYPES,
-    METAOBJECT_TRANSLATABLE_FIELDS,
-    PRODUCT_TRANSLATABLE_METAFIELDS,
-    ARTICLE_TRANSLATABLE_METAFIELDS,
-    TARA_TONE_EN,
-    TARA_TONE_AR,
-)
-
 
 # ---------------------------------------------------------------------------
 # Constants

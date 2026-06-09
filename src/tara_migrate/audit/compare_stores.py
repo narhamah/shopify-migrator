@@ -152,7 +152,7 @@ def compare_pages(spain, saudi, report, handle_map=None):
     handle_map = handle_map or {}
     report.section("PAGES")
 
-    source_pages = source.get_pages()
+    source_pages = spain.get_pages()
     saudi_pages = saudi.get_pages()
 
     spain_handles = {p.get("handle", ""): p for p in source_pages}
@@ -194,7 +194,7 @@ def compare_collections(spain, saudi, report, handle_map=None):
     handle_map = handle_map or {}
     report.section("COLLECTIONS")
 
-    spain_cols = source.get_collections()
+    spain_cols = spain.get_collections()
     saudi_cols = saudi.get_collections()
 
     spain_handles = {c.get("handle", ""): c for c in spain_cols}
@@ -228,7 +228,7 @@ def compare_products(spain, saudi, report, handle_map=None):
     handle_map = handle_map or {}
     report.section("PRODUCTS")
 
-    spain_prods = source.get_products()
+    spain_prods = spain.get_products()
     saudi_prods = saudi.get_products()
 
     dest_handles = {p.get("handle", ""): p for p in saudi_prods}
@@ -301,7 +301,7 @@ def compare_product_features(spain, saudi, report, handle_map=None):
     handle_map = handle_map or {}
     report.section("PRODUCT PAGE FEATURES")
 
-    spain_prods = source.get_products()
+    spain_prods = spain.get_products()
     saudi_prods = saudi.get_products()
     dest_handles = {p.get("handle", ""): p for p in saudi_prods}
 
@@ -334,7 +334,7 @@ def compare_product_features(spain, saudi, report, handle_map=None):
         sp_handle = sp.get("handle", "")
 
         # Get Spain metafields
-        sp_mfs = source.get_metafields("products", sp["id"])
+        sp_mfs = spain.get_metafields("products", sp["id"])
         sp_mf_keys = {f"{mf['namespace']}.{mf['key']}": mf for mf in sp_mfs}
 
         # Find matching Saudi product via handle map first
@@ -382,7 +382,7 @@ def compare_metaobjects(spain, saudi, report, ingredient_handle_map=None):
     ingredient_handle_map = ingredient_handle_map or {}
     report.section("METAOBJECTS")
 
-    sp_defs = source.get_metaobject_definitions()
+    sp_defs = spain.get_metaobject_definitions()
     sa_defs = saudi.get_metaobject_definitions()
 
     sp_types = {d["type"]: d for d in sp_defs}
@@ -395,7 +395,7 @@ def compare_metaobjects(spain, saudi, report, ingredient_handle_map=None):
             report.match(f"Definition '{mo_type}' exists on both stores")
 
             # Compare entry counts
-            sp_entries = source.get_metaobjects(mo_type)
+            sp_entries = spain.get_metaobjects(mo_type)
             sa_entries = saudi.get_metaobjects(mo_type)
 
             report.info(f"  {mo_type}: Spain={len(sp_entries)} entries, Saudi={len(sa_entries)} entries")
@@ -464,7 +464,7 @@ def compare_navigation(spain, saudi, report):
     report.section("NAVIGATION MENUS")
 
     try:
-        sp_menus = source.get_menus()
+        sp_menus = spain.get_menus()
     except Exception:
         sp_menus = []
         report.info("Cannot fetch source menus (may not have permissions)")
@@ -542,7 +542,7 @@ def compare_blogs(spain, saudi, report, article_handle_map=None):
     article_handle_map = article_handle_map or {}
     report.section("BLOGS & ARTICLES")
 
-    sp_blogs = source.get_blogs()
+    sp_blogs = spain.get_blogs()
     sa_blogs = saudi.get_blogs()
 
     sp_by_handle = {b.get("handle", ""): b for b in sp_blogs}
@@ -551,7 +551,7 @@ def compare_blogs(spain, saudi, report, article_handle_map=None):
     report.info(f"Spain: {len(sp_blogs)} blogs | Saudi: {len(sa_blogs)} blogs")
 
     for handle, sp_blog in sp_by_handle.items():
-        sp_articles = source.get_articles(sp_blog["id"])
+        sp_articles = spain.get_articles(sp_blog["id"])
         if handle in sa_by_handle:
             sa_blog = sa_by_handle[handle]
             sa_articles = saudi.get_articles(sa_blog["id"])
@@ -578,7 +578,7 @@ def compare_blogs(spain, saudi, report, article_handle_map=None):
 def compare_theme_templates(spain, saudi, report):
     report.section("THEME TEMPLATES")
 
-    sp_theme_id = source.get_main_theme_id()
+    sp_theme_id = spain.get_main_theme_id()
     sa_theme_id = saudi.get_main_theme_id()
 
     if not sp_theme_id:
@@ -642,7 +642,7 @@ def compare_theme_templates(spain, saudi, report):
 def compare_homepage_sections(spain, saudi, report):
     report.section("HOMEPAGE CONTENT")
 
-    sp_theme_id = source.get_main_theme_id()
+    sp_theme_id = spain.get_main_theme_id()
     sa_theme_id = saudi.get_main_theme_id()
 
     if not sp_theme_id or not sa_theme_id:
@@ -650,7 +650,7 @@ def compare_homepage_sections(spain, saudi, report):
         return
 
     try:
-        sp_asset = source.get_asset(sp_theme_id, "templates/index.json")
+        sp_asset = spain.get_asset(sp_theme_id, "templates/index.json")
         sp_template = json.loads(sp_asset.get("value", "{}"))
     except Exception:
         report.info("Cannot read Spain homepage template")
@@ -766,7 +766,7 @@ def compare_product_collections(spain, saudi, report):
 def compare_redirects(spain, saudi, report):
     report.section("URL REDIRECTS")
     try:
-        sp_redirects = source.get_redirects()
+        sp_redirects = spain.get_redirects()
     except Exception:
         sp_redirects = []
 
@@ -794,8 +794,8 @@ def scrape_compare_storefronts(source_url, dest_url, report):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     })
 
-    sp_domain = spain_url.replace("https://", "").replace("http://", "").rstrip("/")
-    sa_domain = saudi_url.replace("https://", "").replace("http://", "").rstrip("/")
+    sp_domain = source_url.replace("https://", "").replace("http://", "").rstrip("/")
+    sa_domain = dest_url.replace("https://", "").replace("http://", "").rstrip("/")
 
     pages_to_check = [
         ("/", "Homepage"),
@@ -913,8 +913,8 @@ def scrape_product_page(source_url, dest_url, source_client, dest_client, report
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     })
 
-    sp_domain = spain_url.replace("https://", "").replace("http://", "").rstrip("/")
-    sa_domain = saudi_url.replace("https://", "").replace("http://", "").rstrip("/")
+    sp_domain = source_url.replace("https://", "").replace("http://", "").rstrip("/")
+    sa_domain = dest_url.replace("https://", "").replace("http://", "").rstrip("/")
 
     # Get a sample product from each store
     sp_products = source_client.get_products()
@@ -1016,7 +1016,7 @@ def scrape_ingredient_detail(dest_url, dest_client, report):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     })
 
-    sa_domain = saudi_url.replace("https://", "").replace("http://", "").rstrip("/")
+    sa_domain = dest_url.replace("https://", "").replace("http://", "").rstrip("/")
 
     ingredients = dest_client.get_metaobjects("ingredient")
     if not ingredients:
@@ -1066,11 +1066,11 @@ def main():
     dest_url = config.get_dest_shop_url()
     dest_token = config.get_dest_access_token()
 
-    if not all([source_url, source_token, dest_url, saudi_token]):
+    if not all([source_url, source_token, dest_url, dest_token]):
         print("ERROR: Set SOURCE_SHOP_URL, SOURCE_ACCESS_TOKEN, DEST_SHOP_URL, DEST_ACCESS_TOKEN in .env")
         return
 
-    source = ShopifyClient(source_url, source_token)
+    spain = ShopifyClient(source_url, source_token)
     saudi = ShopifyClient(dest_url, dest_token)
     report = ComparisonReport()
 
@@ -1082,8 +1082,8 @@ def main():
     print("=" * 70)
     print("  STORE COMPARISON: Spain ↔ Saudi")
     print("=" * 70)
-    print(f"  Spain: {spain_url}")
-    print(f"  Saudi: {saudi_url}")
+    print(f"  Spain: {source_url}")
+    print(f"  Saudi: {dest_url}")
     print(f"  Mode:  {'API only' if args.api_only else 'Scrape only' if args.scrape_only else 'Full'}")
 
     if not args.scrape_only:

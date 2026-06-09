@@ -15,7 +15,6 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from tara_migrate.client import ShopifyClient  # noqa: E402
 
-
 THEME_ROOT = Path(r"C:\Users\narha\tara-usa-shopify")
 SHOP_IMAGE_RE = re.compile(r"shopify://shop_images/([^\"'\s)]+)")
 THEME_TEXT_DIRS = ("assets", "blocks", "config", "layout", "locales", "sections", "snippets", "templates")

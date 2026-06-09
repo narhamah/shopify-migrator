@@ -29,7 +29,6 @@ from dotenv import load_dotenv
 
 from tara_migrate.core import config
 
-
 # Files to copy from source_export → english dir
 CONTENT_FILES = [
     "products.json",

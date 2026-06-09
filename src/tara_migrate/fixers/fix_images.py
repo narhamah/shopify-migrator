@@ -30,9 +30,8 @@ import time
 import requests as http_requests
 from dotenv import load_dotenv
 
-from tara_migrate.core import AR_DIR, EN_DIR, REQUEST_DELAY, load_json, save_json
+from tara_migrate.core import AR_DIR, EN_DIR, REQUEST_DELAY, config, load_json, save_json
 from tara_migrate.core import MAGENTO_HEADERS as HEADERS
-from tara_migrate.core import config
 
 
 def magento_gql(session, site_url, query, store_code, retries=3):
@@ -269,8 +268,8 @@ def update_shopify_images(en_images, ar_images, dry_run=False):
             for img in current_images:
                 try:
                     client._request("DELETE", f"products/{dest_id}/images/{img['id']}.json")
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"    Warning: could not delete old image {img.get('id')} on {dest_id}: {e}")
 
             # Add new English images from Magento
             for i, img in enumerate(new_images):

@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, save_json
 
-
 REFERENCE_TYPES = {
     "metaobject_reference",
     "list.metaobject_reference",

@@ -6,8 +6,8 @@ Uses the Shopify Admin GraphQL API (2024-10).
 """
 import os
 import sys
-import json
 import time
+
 import requests
 from dotenv import load_dotenv
 

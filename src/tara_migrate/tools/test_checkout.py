@@ -30,7 +30,6 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
-
 # ---------------------------------------------------------------------------
 # Test card data (Shopify Payments test mode)
 # https://help.shopify.com/en/manual/checkout-settings/test-orders
@@ -268,7 +267,7 @@ def _fill_card_fields(page, number, name, cvv, exp_month, exp_year):
             num_field = frame.query_selector('input[id="number"], input[name="number"], input[placeholder*="card number" i]')
             if num_field:
                 num_field.fill(number)
-                print(f"      Card number filled in iframe")
+                print("      Card number filled in iframe")
 
             # Name on card
             name_field = frame.query_selector('input[id="name"], input[name="name"], input[placeholder*="name" i]')
@@ -337,11 +336,11 @@ def check_order_result(page, expect_success=True):
         result["status"] = "success"
         result["order_number"] = order_num
         if expect_success:
-            print(f"    ORDER PLACED SUCCESSFULLY!")
+            print("    ORDER PLACED SUCCESSFULLY!")
             if order_num:
                 print(f"    Order: {order_num}")
         else:
-            print(f"    UNEXPECTED: Order went through (expected decline)")
+            print("    UNEXPECTED: Order went through (expected decline)")
     elif "error" in page_text.lower() or "declined" in page_text.lower() or "failed" in page_text.lower():
         result["status"] = "declined"
         # Extract error message
@@ -389,7 +388,7 @@ def run_checkout_test(page, base_url, locale_prefix, card_info, customer,
 
     # Step 2: Go to checkout
     checkout_url = f"{base_url.rstrip('/')}/checkout"
-    print(f"    Navigating to checkout...")
+    print("    Navigating to checkout...")
     page.goto(checkout_url, wait_until="networkidle", timeout=60000)
     time.sleep(3)
 

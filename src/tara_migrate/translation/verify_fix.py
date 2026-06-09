@@ -35,26 +35,22 @@ import argparse
 import csv
 import json
 import os
-import re
 import sys
 import time
 
 from tara_migrate.audit.audit_translations import (
-    audit_translations,
-    classify_translation,
+    _has_arabic_for_upload,
     _is_csv_non_translatable,
     _is_keep_as_is,
-    _has_arabic_for_upload,
+    audit_translations,
 )
 from tara_migrate.client.shopify_client import ShopifyClient
 from tara_migrate.core.graphql_queries import (
     fetch_translatable_resources,
     upload_translations,
 )
-from tara_migrate.core.rich_text import extract_text, is_rich_text_json
-from tara_migrate.core.shopify_fields import TRANSLATABLE_RESOURCE_TYPES
+from tara_migrate.core.rich_text import extract_text
 from tara_migrate.translation.engine import TranslationEngine, load_developer_prompt
-
 
 # Problem types that can be auto-fixed by re-translation
 FIXABLE_STATUSES = frozenset({
@@ -140,7 +136,7 @@ def phase_fix(client, engine, locale, problems, dry_run=False,
 
     remaining = sum(len(v) for v in by_resource.values())
     print(f"\n{'=' * 70}")
-    print(f"  FIX PHASE")
+    print("  FIX PHASE")
     print(f"{'=' * 70}")
     print(f"  Fixable problems: {len(fixable)}")
     print(f"  Already done:     {len(done_ids)}")
@@ -317,7 +313,7 @@ def phase_verify(client, locale, resource_types=None):
     Returns (problems, stats) — same format as phase_audit.
     """
     print(f"\n{'=' * 70}")
-    print(f"  VERIFY PHASE (re-auditing)")
+    print("  VERIFY PHASE (re-auditing)")
     print(f"{'=' * 70}")
     return audit_translations(
         client, locale=locale, resource_types=resource_types, verbose=False,
@@ -402,14 +398,14 @@ def run_pipeline(client, engine, locale, resource_types=None, verbose=False,
         after = verify_stats["total"] - verify_stats["ok"]
         delta = before - after
         print(f"\n{'=' * 70}")
-        print(f"  SUMMARY")
+        print("  SUMMARY")
         print(f"{'=' * 70}")
         print(f"  Before:  {before} problems")
         print(f"  Fixed:   {uploaded} fields uploaded")
         print(f"  After:   {after} problems")
         print(f"  Delta:   {delta:+d} ({'improved' if delta > 0 else 'unchanged'})")
         if after > 0:
-            print(f"\n  Remaining problems:")
+            print("\n  Remaining problems:")
             remaining_by_status = {}
             for p in verify_problems:
                 remaining_by_status[p["status"]] = (
@@ -417,9 +413,9 @@ def run_pipeline(client, engine, locale, resource_types=None, verbose=False,
                 )
             for s, c in sorted(remaining_by_status.items()):
                 print(f"    {s}: {c}")
-            print(f"\n  Re-run to fix remaining issues.")
+            print("\n  Re-run to fix remaining issues.")
         else:
-            print(f"\n  All translations verified OK!")
+            print("\n  All translations verified OK!")
         print(f"{'=' * 70}")
     else:
         print("\n  No uploads made, skipping verification.")
@@ -455,7 +451,7 @@ def clean_csv(input_path, output_path=None):
         rows = list(reader)
 
     print(f"\n{'=' * 70}")
-    print(f"  CLEAN CSV")
+    print("  CLEAN CSV")
     print(f"{'=' * 70}")
     print(f"  Input:  {input_path} ({len(rows)} rows)")
 

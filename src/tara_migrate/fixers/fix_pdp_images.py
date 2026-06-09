@@ -500,7 +500,7 @@ def process_product(client, gql_product, rest_product, rest_to_gql,
     # Build default value (EN + neutral)
     default_gids = en_gids + neutral_gids
     if not default_gids:
-        print(f"    WARNING: No EN or neutral images — skipping metafield")
+        print("    WARNING: No EN or neutral images — skipping metafield")
         stats["skipped"] = True
         return stats
 
@@ -513,7 +513,7 @@ def process_product(client, gql_product, rest_product, rest_to_gql,
             print(f"    [DRY RUN] Would register AR translation: "
                   f"{len(ar_value_gids)} images (AR+neutral)")
         else:
-            print(f"    [DRY RUN] WARNING: No AR images found — Arabic will show EN+neutral")
+            print("    [DRY RUN] WARNING: No AR images found — Arabic will show EN+neutral")
         if es_rest_ids:
             print(f"    [DRY RUN] Would remove {len(es_rest_ids)} ES images from gallery")
         if ar_rest_ids:
@@ -571,7 +571,7 @@ def process_product(client, gql_product, rest_product, rest_to_gql,
         except Exception as e:
             print(f"    ERROR registering AR translation: {e}")
     else:
-        print(f"    No AR images — Arabic will show EN+neutral (fallback)")
+        print("    No AR images — Arabic will show EN+neutral (fallback)")
 
     # Step C: Remove ES + AR images from product gallery
     if not skip_cleanup and rest_id:
@@ -682,7 +682,7 @@ def main():
         return
 
     # Phase 3: Process products
-    print(f"\nPhase 3: Processing products")
+    print("\nPhase 3: Processing products")
 
     progress = load_json(PROGRESS_FILE, default={"processed": [], "errors": {}})
     if args.reset:

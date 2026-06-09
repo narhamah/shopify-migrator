@@ -1,0 +1,16 @@
+# Run `pre-commit install` once to enable. Blocks secrets + fat root wrappers.
+repos:
+  - repo: local
+    hooks:
+      - id: no-secrets
+        name: Reject committed secrets (shpat_/sk-/private keys)
+        entry: python scripts/check_secrets.py
+        language: system
+        types: [text]
+
+      - id: thin-wrappers
+        name: Root scripts must be thin wrappers
+        entry: python scripts/lint_wrappers.py
+        language: system
+        pass_filenames: false
+        always_run: true

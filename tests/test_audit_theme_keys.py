@@ -2,21 +2,17 @@
 hardcoded string extraction, and template JSON extraction."""
 
 import json
-import os
 import textwrap
 
-import pytest
-
 from tara_migrate.tools.audit_theme_keys import (
-    _parse_json_with_comments,
+    _find_in_lookup,
     _is_non_text,
     _normalize_for_lookup,
-    _find_in_lookup,
+    _parse_json_with_comments,
     classify_key,
     extract_hardcoded_strings,
     extract_template_json_strings,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # _parse_json_with_comments

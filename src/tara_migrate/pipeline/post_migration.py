@@ -32,7 +32,6 @@ from dotenv import load_dotenv
 from tara_migrate.client import ShopifyClient
 from tara_migrate.core import config, load_json, save_json
 
-
 # Legacy redirect targets that no longer exist in the exported source catalog.
 # These still appear in historical Magento -> Shopify redirects and need to be
 # rewritten to the current English storefront routes.
@@ -49,38 +48,10 @@ LEGACY_REDIRECT_TARGET_REMAP = {
 }
 
 # =============================================
-# Step 1: Enable Arabic locale
+# Step 1: Sync store locales
 # =============================================
 
-def step_enable_arabic(client, dry_run=False):
-    """Enable Arabic (ar) locale on the destination store."""
-    print("\n=== Step 1: Enable Arabic Locale ===")
-
-    if dry_run:
-        print("  Would enable 'ar' locale")
-        return
-
-    # Check current locales
-    locales = client.get_locales()
-    locale_codes = [loc["locale"] for loc in locales]
-    print(f"  Current locales: {locale_codes}")
-
-    if "ar" in locale_codes:
-        print("  Arabic (ar) already enabled — skipping")
-        return
-
-    try:
-        result = client.enable_locale("ar")
-        print(f"  Enabled Arabic locale: {result}")
-    except Exception as e:
-        print(f"  Error enabling Arabic locale: {e}")
-
-
-# =============================================
-# Step 2: Link products to collections
-# =============================================
-
-def step_enable_arabic(client, dry_run=False, sync_secondary_locales=True):
+def step_sync_locales(client, dry_run=False, sync_secondary_locales=True):
     """Mirror non-primary published locales from the source store."""
     print("\n=== Step 1: Sync Store Locales ===")
 
@@ -1342,6 +1313,39 @@ def step_sync_theme(client, dry_run=False):
     sync_active_theme(source_client, client, dry_run=dry_run, delete_extras=True)
 
 
+def step_go_live(client, theme_id=None, dry_run=False):
+    """Step 13 (gated): publish the migrated theme as the live/main theme.
+
+    Off by default (only runs with --go-live). If no --theme-id is given, picks
+    the most recently updated non-main theme (the just-synced one) and asks for
+    confirmation via an explicit id rather than guessing destructively.
+    """
+    print("\n=== Step 13: Go Live (publish theme) ===")
+    themes = client.get_themes()
+    main_theme = next((t for t in themes if t.get("role") == "main"), None)
+
+    if theme_id is None:
+        candidates = [t for t in themes if t.get("role") != "main"]
+        if not candidates:
+            print("  No unpublished theme to publish; the live theme is already the only one.")
+            return
+        candidates.sort(key=lambda t: t.get("updated_at", ""), reverse=True)
+        chosen = candidates[0]
+        theme_id = chosen["id"]
+        print(f"  Selected most-recent unpublished theme: {chosen.get('name')} (id {theme_id})")
+
+    if main_theme and str(main_theme.get("id")) == str(theme_id):
+        print(f"  Theme {theme_id} is already live - nothing to do.")
+        return
+
+    if dry_run:
+        print(f"  Would publish theme {theme_id} as live (current live: {main_theme.get('id') if main_theme else 'none'})")
+        return
+
+    result = client.publish_theme(theme_id)
+    print(f"  Published theme {theme_id} as live: role={result.get('role')}")
+
+
 # =============================================
 # Main
 # =============================================
@@ -1353,6 +1357,10 @@ def main():
     parser.add_argument("--lang", choices=["en", "ar", "all"], default="all",
                         help="Destination language mode (default: all)")
     parser.add_argument("--inventory-qty", type=int, default=100, help="Default inventory quantity (default: 100)")
+    parser.add_argument("--go-live", action="store_true",
+                        help="Publish the migrated theme live (step 13). Off by default so it never fires accidentally.")
+    parser.add_argument("--theme-id", type=str, default=None,
+                        help="Theme id to publish for --go-live (defaults to the most recent unpublished theme).")
     args = parser.parse_args()
 
     load_dotenv()
@@ -1363,7 +1371,7 @@ def main():
     steps = args.step or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
     if 1 in steps:
-        step_enable_arabic(
+        step_sync_locales(
             client,
             dry_run=args.dry_run,
             sync_secondary_locales=args.lang != "en",
@@ -1390,19 +1398,17 @@ def main():
         step_update_handles(client, dry_run=args.dry_run)
     if 12 in steps:
         step_sync_theme(client, dry_run=args.dry_run)
+    if args.go_live:
+        step_go_live(client, theme_id=args.theme_id, dry_run=args.dry_run)
 
     print("\n=== Post-Migration Complete ===")
-    print("\nRemaining MANUAL steps:")
-    print("  1. Configure payment gateways (Settings → Payments)")
-    print("     → Tap, Mada, Apple Pay, or other KSA providers")
-    print("  2. Configure VAT 15% (Settings → Taxes and duties)")
-    print("  3. Set up shipping zones/rates (Settings → Shipping and delivery)")
-    print("  4. Set up domain and DNS (Settings → Domains)")
-    print("  5. Install and configure theme (Online Store → Themes)")
-    print("  6. Set up email notifications (Settings → Notifications)")
-    print("  7. Install third-party apps (Klaviyo, reviews, etc.)")
-    print("  8. Recreate Shopify Flows (export .flow from source, import to destination)")
-    print("  9. Test checkout flow end-to-end")
+
+    # Guided, deep-linked, verified manual-step checklist (replaces blind print()).
+    from tara_migrate.pipeline.manual_steps import write_manual_steps
+    try:
+        write_manual_steps(client, shop_url)
+    except Exception as e:
+        print(f"  (could not build guided manual-steps checklist: {e})")
 
 
 if __name__ == "__main__":

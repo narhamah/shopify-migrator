@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Backward-compatible wrapper for the consultation catalog exporter."""
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 
 from tara_migrate.tools.export_quiz_catalog import main

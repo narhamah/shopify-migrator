@@ -21,7 +21,7 @@ from tara_migrate.core.rich_text import (
     rebuild,
     validate_structure,
 )
-from tara_migrate.translation.toon import DELIM, from_toon, to_toon
+from tara_migrate.translation.toon import from_toon, to_toon
 
 
 class TranslationEngine:

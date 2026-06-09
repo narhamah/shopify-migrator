@@ -1,1 +1,8 @@
-from tara_migrate.client.shopify_client import API_VERSION, ShopifyClient  # noqa: F401
+from tara_migrate.client.shopify_client import (  # noqa: F401
+    API_VERSION,
+    GraphQLAuthError,
+    GraphQLThrottled,
+    GraphQLUserError,
+    ShopifyClient,
+    ShopifyError,
+)

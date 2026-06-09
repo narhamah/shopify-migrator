@@ -29,8 +29,8 @@ try:
 except Exception:
     pass
 
-from tara_migrate.client import ShopifyClient
-from tara_migrate.core.graphql_queries import fetch_translatable_resources, upload_translations
+from tara_migrate.client import ShopifyClient  # noqa: E402
+from tara_migrate.core.graphql_queries import fetch_translatable_resources, upload_translations  # noqa: E402
 
 ENV_PATH = ROOT / ".env"
 FILE_MAP_PATH = ROOT / "data" / "file_map.json"

@@ -35,11 +35,18 @@ TEXT_METAFIELD_TYPES = {
     "rich_text_field",
 }
 
-# All Shopify translatable resource types
+# All Shopify translatable resource types.
+# EMAIL_TEMPLATE / PACKING_SLIP_TEMPLATE are notification templates: their bodies
+# can't be edited via API, but their text IS translatable via the Translations
+# API (keyed by resourceId), so Arabic order/shipping emails are automatable.
 TRANSLATABLE_RESOURCE_TYPES = [
     "PRODUCT", "COLLECTION", "METAFIELD", "METAOBJECT",
     "ONLINE_STORE_THEME", "PAGE", "BLOG", "ARTICLE",
+    "EMAIL_TEMPLATE", "PACKING_SLIP_TEMPLATE",
 ]
+
+# Notification templates — translated by resourceId (no handle).
+NOTIFICATION_RESOURCE_TYPES = ["EMAIL_TEMPLATE", "PACKING_SLIP_TEMPLATE"]
 
 
 def is_skippable_field(key):
