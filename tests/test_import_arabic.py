@@ -346,7 +346,7 @@ def _mock_graphql_empty_products(query, variables=None):
 class TestMainProducts:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_registers_product_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         product = make_product()
@@ -389,7 +389,7 @@ class TestMainProducts:
 
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_skips_already_done(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path, progress={"product_9001": True})
@@ -415,7 +415,7 @@ class TestMainProducts:
 
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_no_local_data_skips(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path, id_map={"products": {}})
@@ -443,7 +443,7 @@ class TestMainProducts:
 
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_translation_error_continues(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(
@@ -475,7 +475,7 @@ class TestMainProducts:
 
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_empty_store(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         monkeypatch.chdir(tmp_path)
         _setup_arabic_data(tmp_path)
@@ -500,7 +500,7 @@ class TestMainProducts:
 class TestMainCollections:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_registers_collection_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         coll = make_collection()
@@ -542,7 +542,7 @@ class TestMainCollections:
 class TestMainPages:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_registers_page_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         page = make_page()
@@ -582,7 +582,7 @@ class TestMainPages:
 class TestMainArticles:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_registers_article_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         art = make_article()
@@ -626,7 +626,7 @@ class TestMainArticles:
 class TestMainMetaobjects:
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_registers_metaobject_translations(self, MockClient, mock_dotenv, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 
@@ -680,7 +680,7 @@ class TestMainMetaobjects:
 
     @patch("tara_migrate.pipeline.import_arabic.load_dotenv")
     @patch("tara_migrate.pipeline.import_arabic.ShopifyClient")
-    @patch("sys.argv", ["import_arabic.py"])
+    @patch("sys.argv", ["import_arabic.py", "--skip-source-sync"])
     def test_metaobject_no_local_data(self, MockClient, mock_dotenv, tmp_path, monkeypatch, capsys):
         """Metaobjects without local data should still be processed (gaps for AI)."""
         monkeypatch.chdir(tmp_path)
