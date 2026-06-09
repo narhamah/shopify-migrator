@@ -1,0 +1,32 @@
+# UAE destination — taraformula.ae (Shopify store rvgkkk-g3.myshopify.com)
+# Secrets are NOT stored here: SOURCE_ACCESS_TOKEN / DEST_ACCESS_TOKEN come from
+# the environment (uae-destination.env). Drive a run with:
+#   python migrate.py run --config destinations/uae.toml
+name = "uae"
+
+[source]
+# Migration source = the Saudi Shopify store (UAE was cloned from it).
+shop_url         = "xkgw0m-sm.myshopify.com"
+access_token_env = "SOURCE_ACCESS_TOKEN"
+
+[dest]
+shop_url         = "rvgkkk-g3.myshopify.com"
+access_token_env = "DEST_ACCESS_TOKEN"
+required_scopes  = [
+  "write_products", "write_content", "write_metaobjects",
+  "write_translations", "write_publications", "write_inventory",
+  "write_markets", "write_shipping", "write_themes", "write_files",
+]
+
+[magento]
+site_url   = "https://taraformula.ae"
+store_code = "gl-en"
+
+[market]
+countries        = ["AE"]
+currency         = "AED"
+vat_rate         = 0.05
+locales          = ["en", "ar"]
+default_locale   = "en"
+url_strategy     = "domain"
+domain           = "taraformula.ae"

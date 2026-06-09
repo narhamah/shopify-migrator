@@ -1,0 +1,30 @@
+# Tara Product Editor — UAE store (rvgkkk-g3.myshopify.com)
+# Modeled on shopify.app.saudi.toml. Only client_id differs.
+# The client secret is NOT stored here — it goes in Railway SHOPIFY_APP_CONFIGS.
+client_id = "29930360f25d1e308a6da5c96669e2b4"
+name = "Tara Product Editor"
+application_url = "https://tara-product-editor-production.up.railway.app"
+embedded = true
+
+[webhooks]
+api_version = "2026-01"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+scopes = "read_files,write_files,read_metaobjects,write_metaobjects,read_metaobject_definitions,read_products,write_products,read_translations,write_translations"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://tara-product-editor-production.up.railway.app/auth/callback",
+  "https://tara-product-editor-production.up.railway.app/auth/shopify/callback",
+  "https://tara-product-editor-production.up.railway.app/api/auth/callback",
+]
